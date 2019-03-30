@@ -1,8 +1,12 @@
 # xjbDB
 
+## 数据类型的限制
 
-支持的数据类型：int, char, varchar（字符串有效长度 <= **57**B）
-
+- 支持的数据类型：int, char, varchar（字符串有效长度 <= **57**B）
+- 一个 tuple 的长度 <= 67B
+  - INT 4B
+  - VARCHAR(n)  n+1 B
+  - 例如：INT, VARCHAR(15), INT, CHAR(20) 占 4+16+4+21 B
 
 ## Pager
 
@@ -32,6 +36,11 @@ BTreeDegree = 8，所以 nEntry 在 [7, 15]
 
 **BTree Page 中有一个在内存中的数据 `last_offset_`，并不落盘，在每次读 page 的时候 遍历所有 key，取最小的。**
 
+如果 key 是字符串，key记录offset   
+keystr强制 <= 57B，于是从 148B开始，每58B一个block   
+格式为：`mark(1B), content(<=57B)`   
+
+
 ### Internal Page
 - (4B) page_t
 - (4B) page_id
@@ -45,17 +54,21 @@ BTreeDegree = 8，所以 nEntry 在 [7, 15]
   - ...
   - ...
   - (4B) 孩子 page_id
-- key 字符串
+- key 字符串（从148B开始，每58B一个block）
 
 ### Value Page
 - (4B) page_t
 - (4B) page_id
 - (4B) parent_page_id
 - (4B) nEntry 有几项
-- (4B) cur 下一个写的位置
+- （由于强制tuple<=67B，本条协议作废）// (4B) cur 下一个写的位置
 - nEntry 个 record
 
-record 格式为：`mark(1B), content(<=57B), '\0'(1B)`
+record 格式为：`mark(1B), content(<=67B)`   
+把 1024B 分成 15个 68B，这样每个68B是一个block，管理起来很方便。   
+
+- 插入：遍历这15个block，找到一个 `OBSOLETE`（即0）
+- 删除：标记这个block为 `OBSOLETE`
 
 ### Leaf Page
 - (4B) page_t
@@ -67,8 +80,8 @@ record 格式为：`mark(1B), content(<=57B), '\0'(1B)`
 - (4B) value_page_id
 - (8B * nEntry) nEntry 个 k-v
   - (4B) key `INT` 或 `(VAR)CHAR`
-  - (4B) value-offset，指向 value_page_id 中该内容的 mark
-- key 字符串
+  - (4B) value-offset，指向 value_page_id 中该内容的offset（即block号 * 68）
+- key 字符串（从148B开始，每58B一个block）
 
 
 ## VM
