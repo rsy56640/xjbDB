@@ -13,9 +13,15 @@
 文件名：file.xjbDB   
 日志名：file.xjbDB.log
 
-### Hash LRU
+### BufferPoolManager
+
+- 管理所有 Page，**除了 ValuePage**，ValuePage总是和 LeafPage生命周期相同。
+
+
 
 ### DiskManager
+
+
 
 ### LogManager
 
@@ -46,15 +52,14 @@ keystr强制 <= 57B，于是从 148B开始，每58B一个block
 - (4B) page_id
 - (4B) parent_page_id
 - (4B) nEntry 有几个 key
-- (4B) key_t `INT` 或 `(VAR)CHAR`
-- (4B) str_len 如果 key_t 为 `(VAR)CHAR`，指定长度
-- (4B * (2nEntry + 1))
+- (2B) key_t `INT` 或 `(VAR)CHAR`
+- (2B) str_len 如果 key_t 为 `(VAR)CHAR`，指定长度
+- (4B * 2nEntry)
   - (4B) 孩子 page_id
   - (4B) key `INT` 或 `(VAR)CHAR`
   - ...
   - ...
-  - (4B) 孩子 page_id
-- key 字符串（从148B开始，每58B一个block）
+- key 字符串（从152B开始，每58B一个block）
 
 ### Value Page
 - (4B) page_t
@@ -75,13 +80,15 @@ record 格式为：`mark(1B), content(<=67B)`
 - (4B) page_id
 - (4B) parent_page_id
 - (4B) nEntry 有几个 k-v
-- (4B) key_t `INT` 或 `(VAR)CHAR`
-- (4B) str_len 如果 key_t 为 `(VAR)CHAR`，指定长度
+- (2B) key_t `INT` 或 `(VAR)CHAR`
+- (2B) str_len 如果 key_t 为 `(VAR)CHAR`，指定长度
 - (4B) value_page_id
+- (4B) previous_page_id
+- (4B) next_page_id
 - (8B * nEntry) nEntry 个 k-v
   - (4B) key `INT` 或 `(VAR)CHAR`
   - (4B) value-offset，指向 value_page_id 中该内容的offset（即block号 * 68）
-- key 字符串（从148B开始，每58B一个block）
+- key 字符串（从152B开始，每58B一个block）
 
 
 ## VM
