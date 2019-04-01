@@ -40,11 +40,12 @@
 
 BTreeDegree = 8，所以 nEntry 在 [7, 15]
 
-**BTree Page 中有一个在内存中的数据 `last_offset_`，并不落盘，在每次读 page 的时候 遍历所有 key，取最小的。**
-
 如果 key 是字符串，key记录offset   
-keystr强制 <= 57B，于是从 148B开始，每58B一个block   
+keystr强制 <= 57B，于是从 152B开始，每58B一个block   
 格式为：`mark(1B), content(<=57B)`   
+
+关于 Page 的引用计数，除了 root 一直保留，其他 page 用完就 `unref()`。
+
 
 
 ### Internal Page
@@ -54,11 +55,12 @@ keystr强制 <= 57B，于是从 148B开始，每58B一个block
 - (4B) nEntry 有几个 key
 - (2B) key_t `INT` 或 `(VAR)CHAR`
 - (2B) str_len 如果 key_t 为 `(VAR)CHAR`，指定长度
-- (4B * 2nEntry)
+- (4B * (2nEntry+1))
   - (4B) 孩子 page_id
   - (4B) key `INT` 或 `(VAR)CHAR`
   - ...
   - ...
+  - (4B) 孩子 page_id
 - key 字符串（从152B开始，每58B一个block）
 
 ### Value Page
