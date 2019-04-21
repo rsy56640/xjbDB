@@ -1,20 +1,25 @@
-# xjbDB：一个xjb 写的 DB
+# xjbDB：一个 xjb 写的 DB
 
-- [数据类型的限制](#1)
+- [数据库的限制](#1)
 - [Pager](#2)
 - [Tree](#3)
 - [VM](#4)
-- []()
+- [SQL Parser](#5)
+- [Query Plan](#6)
+- [Transaction](#7)
+
 
 &nbsp;   
 <a id="1"></a>
-## 数据类型的限制
+## 数据库的限制
 
 - 支持的数据类型：int, char, varchar（字符串有效长度 <= **57**B）
-- 一个 tuple 的长度 <= 67B
+- 一个 tuple 的长度 <= 66B
   - INT 4B
   - VARCHAR(n)  始终占 n B，如果少，用 `'\0'` 填充
   - 例如：INT, VARCHAR(15), INT, CHAR(20) 占 4+15+4+20 B
+- 数据库中最多有30张表，每张表最多15个column
+- 事务是串行化处理的
 
 
 &nbsp;   
@@ -23,6 +28,51 @@
 
 文件名：file.xjbDB   
 日志名：file.xjbDB.log
+
+### DB Meta
+- (4B) page_t
+- (4B) page_id
+- (4B) cur_page_no
+- (4B) table_num
+- (8B * (table_num))
+  - (4B) table_page_id
+  - (4B) name_offset
+  - ...
+- table_name 字符串（从256B开始，每25B一个block）
+
+限制：
+
+- table_num <= 30
+- table_name <= 24B
+
+支持的基本操作：
+
+- 根据 table 名找到 table_id，若不存在，返回 `NOT_A_PAGE`
+- 创建 table：找到一个 `OBSOLETE` 的 record，然后写入
+- 删除 table：将 `index` 所对应的 record 标记为 `OBSOLETE`，并且所有table整体前移。
+
+### Table Meta Page
+- (4B) page_t
+- (4B) page_id
+- (4B) BT_root_id
+- (4B) col_num
+- (4B) default_value_page_id
+- (14B * 15) table_meta_info
+  - (4B) col_name_offset
+  - (2B) col_type
+  - (2B) str_len (used when col_type is CHAR/VARCHAR)
+  - (2B) constraint_type
+  - (4B) value (used when constraint_type is DEFAULT(value_offset) or FK(table_id))
+- col_name 字符串（从230B开始，每一个51Bblock）
+
+限制：
+
+- 每个table最多15个column
+- 每个 column 名字最多 50B
+
+支持的操作：
+
+- 插入一个 column，并可能设置 default_value
 
 ### Internal Page
 - (4B) page_t
@@ -49,10 +99,10 @@
 - (4B) page_id
 - (4B) parent_page_id
 - (4B) nEntry 有几项
-- 15 个 record
+- 15 个 record（从 16B 开始）
 
-record 格式为：`mark(1B), content(<=67B)`   
-把 1024B 分成 15个 68B，这样每个68B是一个block，管理起来很方便。   
+record 格式为：`mark(1B), content(<=66B)`   
+把 1024B 分成 15个 67B，这样每个67B是一个block，管理起来很方便。   
 
 支持的基本操作：
 
@@ -83,7 +133,7 @@ record 格式为：`mark(1B), content(<=67B)`
 ### BufferPoolManager
 
 - 管理所有 Page，**除了 ValuePage**，ValuePage 总是和 LeafPage 生命周期相同。
-
+- 一个 Page，如果不在 BufferPool 并且还在内存，那么一定在 DiskManager 中被标记为 dirty。（在 evict 时标记为 dirty）
 
 #### Concurrent Hash + LRU
 
@@ -178,6 +228,8 @@ key 数量记为 `nEntry`，branch 数量为 `nEntry+1`
 
 之后我们称 **确定 index**，是指找到第一个 index，使得 `kEntry <= node.key[index]`（index 允许是 `node.nEntry`）
 
+**一个重要性质**：**internal 结点中的 key 值一定会出现在 leaf 中。（因此，internal 中的 key 一定是左边分支的 right-most key）**
+
 ##### leaf 结点
 
 ![](assets/BT_leaf.png)
@@ -190,6 +242,7 @@ key 数量记为 `nEntry`，branch 数量为 `nEntry+1`
 - 对于 leaf 结点
   - 直接找
 
+&nbsp;   
 #### insert 操作
 
 - 从 root 进入
@@ -233,10 +286,12 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
   - 将 `node.key[index..]` 和 `node.branch[index+1..]` 右移
   - 设置 `node.key[index] = L.key[7]`，`node.branch[index+1] = R`
 
+&nbsp;   
 #### delete 操作
 
 
 
+&nbsp;   
 #### 其他注意事项
 
 每次要维护的一些数据成员:
@@ -252,7 +307,6 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
   - `left_` and `right_`
 
 <a></a>
-
 &nbsp;   
 
 - steal branch 时要注意
@@ -263,4 +317,39 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 &nbsp;   
 <a id="4"></a>
 ## VM
+
+我想了很久，决定让事务串行化执行，没有并发控制。
+
+
+
+&nbsp;   
+<a id="5"></a>
+## SQL Parser
+### 模块负责人：黎冠延
+
+
+
+
+&nbsp;   
+<a id="6"></a>
+## Query Plan
+### 模块负责人：刘瑞康
+
+
+
+
+&nbsp;   
+<a id="7"></a>
+## Transaction
+
+流程：
+
+- SQL 解析，返回 query plan
+- txn 串行锁定（主要是为了防止 disk_manager 写竞争）
+- 保存当前 `cur_page_no`
+- 执行 Query Plan
+- doWAL：找到 dirty_page_set 中 < 之前 `page_no`，这些 page 全部 copy 到 log（用来做 undo），并写 log metadata（如果 sql 语句不长，就记录下来做 redo）（如果记录了 redo，这里就可以返回了；否则 flush 后才可以返回）
+- Flush：落盘
+- 销毁 log metadata
+- txn 串行锁释放
 
