@@ -3,6 +3,10 @@
 #include "hash_lru.h"
 #include "disk_manager.h"
 
+namespace DB::debug {
+    void debug_page(bool config, const page::page_id_t, buffer::BufferPoolManager*);
+}
+
 namespace DB::buffer
 {
     using page::Page;
@@ -51,8 +55,8 @@ namespace DB::buffer
 
     private:
 
+        friend void debug::debug_page(bool config, const page::page_id_t, buffer::BufferPoolManager*);
         Hash_LRU hash_lru_;
-        //log::LogManager* log_manager_;
 
     }; // end class BufferPoolManager
 

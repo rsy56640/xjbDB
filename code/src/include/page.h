@@ -508,7 +508,7 @@ namespace DB::page
         // update the all metadata into memory, for the later `flush()`.
         virtual void update_data();
 
-    private:
+    public:
         // for ROOT_LEAF
         ValuePage * value_page_;
         page_id_t value_page_id_;

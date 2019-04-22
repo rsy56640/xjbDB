@@ -870,7 +870,7 @@ namespace DB::page
             info.parent_id = this->get_page_id();
             value_page_ = static_cast<ValuePage*>(buffer_pool->NewPage(info));
             value_page_id_ = value_page_->get_page_id();
-            //buffer_pool->DeletePage(value_page_id_);
+            buffer_pool->DeletePage(value_page_id_);
             // now value_page has excatly *** 1 ref count ***.
             write_int(data_ + offset::VALUE_PAGE_ID, value_page_id_);
             value_page_->set_dirty();
@@ -879,7 +879,7 @@ namespace DB::page
         else // exist
         {
             value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
-            //buffer_pool->DeletePage(value_page_id_);
+            buffer_pool->DeletePage(value_page_id_);
             // now value_page has excatly *** 1 ref count ***.
         }
     }
@@ -961,7 +961,7 @@ namespace DB::page
             info.parent_id = this->get_page_id();
             value_page_ = static_cast<ValuePage*>(buffer_pool->NewPage(info));
             value_page_id_ = value_page_->get_page_id();
-            //buffer_pool->DeletePage(value_page_id_);
+            buffer_pool->DeletePage(value_page_id_);
             // now value_page has excatly *** 1 ref count ***.
             write_int(data_ + offset::VALUE_PAGE_ID, value_page_id_);
             value_page_->set_dirty();
@@ -973,7 +973,7 @@ namespace DB::page
                 value_page_ = nullptr;
             else
                 value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
-            //buffer_pool->DeletePage(value_page_id_);
+            buffer_pool->DeletePage(value_page_id_);
             // now value_page has excatly *** 1 ref count ***.
             set_dirty();
         }
@@ -989,11 +989,12 @@ namespace DB::page
         page_t_ = page_t_t::ROOT_LEAF;
         value_page_id_ = disk_manager_->AllocatePage();
         value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
+        buffer_pool->DeletePage(value_page_id_);
+        // now value_page has excatly *** 1 ref count ***.
     }
 
     void RootPage::change_to_internal(buffer::BufferPoolManager* buffer_pool) {
         page_t_ = page_t_t::ROOT_INTERNAL;
-        buffer_pool->DeletePage(value_page_id_);
         value_page_id_ = NOT_A_PAGE;
         value_page_->set_free();
         value_page_->unref(); // ref 1->0

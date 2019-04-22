@@ -95,7 +95,7 @@
 - 插入 key：找到一个 `OBSOLETE` 的 record，然后写入
 - 删除 key：将 `index` 所对应的 record 标记为 `OBSOLETE`
 
-### Value Page（只存15个 record，其他 metadata 不存）
+### Value Page（不进入 buffer pool，生命周期由 Leaf 或 RootLeaf 控制）
 - (4B) page_t
 - (4B) page_id
 - (4B) parent_page_id

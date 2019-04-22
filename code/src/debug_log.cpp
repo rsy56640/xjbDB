@@ -45,7 +45,7 @@ namespace DB::debug
         printf("---------------------------------------------------\n");
         printf("[page_id = %d]\n", page_id);
         using namespace page;
-        page::Page* node = buffer_pool->FetchPage(page_id);
+        page::Page* node = buffer_pool->hash_lru_.find(page_id);
         if (node == nullptr) {
             printf("page does not exist!!!\n");
             printf("---------------------------------------------------\n");
@@ -61,8 +61,6 @@ namespace DB::debug
             debug_leaf(static_cast<const LeafPage*>(node));
             break;
         case page_t_t::VALUE:
-            buffer_pool->DeletePage(page_id);
-            debug_value(static_cast<const ValuePage*>(node));
             break;
         case page_t_t::ROOT_INTERNAL:
         case page_t_t::ROOT_LEAF:
@@ -84,6 +82,7 @@ namespace DB::debug
             std::ostream_iterator<int32_t>(std::cout, " "));
         printf("\n");
         printf("[left = %d], [right = %d]\n", leaf->get_left_leaf(), leaf->get_right_leaf());
+        debug_value(leaf->value_page_);
     }
 
     void debug_internal(const page::InternalPage* link)
@@ -131,6 +130,7 @@ namespace DB::debug
             std::copy(root->keys_, root->keys_ + root->get_nEntry(),
                 std::ostream_iterator<int32_t>(std::cout, " "));
             printf("\n");
+            debug_value(root->value_page_);
         }
     }
 
