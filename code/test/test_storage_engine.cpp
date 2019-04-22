@@ -25,13 +25,34 @@ void test_create(vm::VM& vm_)
     //
     // insert test
     //
-    vector<int> keys = { 1, 3, 6, 98, 77, 5, 12, 44, 23 };
+    constexpr int key_test_insert_size = 666;
+    constexpr int key_test_erase_size = 333;
+    constexpr int key_test_find_size = 128;
+    constexpr int rand_seed = 19260817;
+    srand(time(0) + rand_seed);
+
+    std::vector<int> keys(key_test_insert_size);
+    for (int i = 0; i < key_test_insert_size; i++)
+        keys[i] = i;
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(keys.begin(), keys.end(), g);
+
     for (int i : keys)
     {
         key.key_int = i;
         set(value, s[i % (sizeof(s) / sizeof(const char*))]);
-        auto ret1 = vm_.test_insert({ key , value });
+        vm_.test_insert({ key , value });
     }
+
+    for (int i = 0; i < key_test_erase_size; i++)
+    {
+        cout << endl;
+        key.key_int = ((rand() % key_test_insert_size) + key_test_insert_size) % key_test_insert_size;
+        vm_.test_erase(key);
+    }
+
+    vm_.test_size();
 
 }
 
@@ -39,6 +60,7 @@ void test_create(vm::VM& vm_)
 void test_rebuild(vm::VM& vm_)
 {
     vm_.test_output();
+    vm_.test_size();
 }
 
 

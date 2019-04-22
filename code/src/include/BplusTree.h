@@ -111,6 +111,7 @@ namespace DB::tree
 
         page_id_t get_root_id() const;
 
+        // fake size, since no recover when rebuild db.
         uint32_t size() const;
 
 
@@ -351,7 +352,7 @@ namespace DB::tree
         const key_t_t key_t_;
         const uint32_t str_len_;
         base_ptr root_;
-        std::atomic<uint32_t> size_;
+        std::atomic<uint32_t> size_;        // fake size, since no recover when rebuild db.
         mutable std::shared_mutex range_query_lock_; // hold write-lock when do range query,
                                                      // otherwise hole read-lock.
     }; // end class BTree

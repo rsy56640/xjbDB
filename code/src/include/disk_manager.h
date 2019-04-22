@@ -9,6 +9,8 @@
 #include <unordered_set>
 #include <condition_variable>
 
+namespace DB::vm { class VM; }
+
 namespace DB::disk
 {
     using page::page_id_t;
@@ -39,9 +41,19 @@ namespace DB::disk
         DiskManager();
         ~DiskManager();
 
+        // reset next_free_page_id
+        void set_vm(vm::VM* vm);
+
         page_id_t get_cut_page_id() const;
 
         void set_cur_page_id(page_id_t);
+
+        // used for vm init
+        void init_set_next_free_page_id(page_id_t);
+
+        // return previous free head page
+        // used for page set free itself
+        page_id_t set_next_free_page_id(page_id_t);
 
         // no validation on `page_id`
         // the length of `page_data` should not surpass `PAGE_SIZE`
@@ -63,8 +75,6 @@ namespace DB::disk
 
         page_id_t AllocatePage();
 
-        uint32_t log_size() const;
-
         uint32_t hash(page_id_t page_id) const noexcept;
 
         bool is_dirty(page_id_t page_id) const;
@@ -81,7 +91,12 @@ namespace DB::disk
 
     private:
 
+        vm::VM* vm_;
+
         std::atomic<page_id_t> cur_page_no_; // the last used page_id
+
+        page_id_t next_free_page_id_;
+        std::atomic_flag next_free_page_id_lock_ = ATOMIC_FLAG_INIT;
 
         std::unordered_set<page_id_t> dirty_page_sets_[dirty_hash_bucket];
         mutable std::shared_mutex dirty_page_sets_mtx_[dirty_hash_bucket];
@@ -95,7 +110,6 @@ namespace DB::disk
         // stream to write log file
         const std::string log_name_;
         std::fstream log_io_;
-        uint32_t log_size_;
 
     }; // end class DiskManager
 

@@ -41,8 +41,9 @@ namespace DB::page
         page_id_t page_id = read_int(buffer + offset::PAGE_ID);
         uint32_t cur_page_no = read_int(buffer + offset::CUR_PAGE_NO);
         uint32_t table_num = read_int(buffer + offset::TABLE_NUM);
+        page_id_t next_free_page_id = read_int(buffer + offset::NEXT_FREE_PAGE_ID);
         DBMetaPage* page = new DBMetaPage(page_id, buffer_pool->disk_manager_,
-            false, cur_page_no, table_num);
+            false, cur_page_no, table_num, next_free_page_id);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
         for (uint32_t i = 0; i < table_num; i++) {
             page->table_page_ids_[i] =
@@ -215,8 +216,7 @@ namespace DB::page
         page_t_(page_t),
         page_id_(page_id),
         ref_count_(0),
-        dirty_(false),
-        discarded_(false)
+        dirty_(false)
     {
         if (!isInit) {
             disk_manager_->ReadPage(page_id_, data_);
@@ -228,6 +228,7 @@ namespace DB::page
             std::memset(data_, 0, PAGE_SIZE * sizeof(char));
     }
 
+    // has called update_data() in derived dtor.
     Page::~Page() {
         if (dirty_)
             disk_manager_->WritePage(page_id_, data_);
@@ -265,12 +266,31 @@ namespace DB::page
 
     void Page::set_dirty() noexcept {
         dirty_ = true;
-        // disk_manager_->set_dirty(this->page_id_);
+        switch (page_t_)
+        {
+        case page_t_t::DB_META:
+            dirty_ = true;
+            break;
+        case page_t_t::TABLE_META:
+        case page_t_t::ROOT_INTERNAL:
+        case page_t_t::ROOT_LEAF:
+        case page_t_t::INTERNAL:
+        case page_t_t::LEAF:
+        case page_t_t::VALUE:
+        case page_t_t::FREE:
+            disk_manager_->set_dirty(this->page_id_);
+        }
     }
 
     bool Page::is_dirty() noexcept {
         return dirty_;
     }
+
+    void Page::add_free_page() {
+        page_id_ = disk_manager_->set_next_free_page_id(page_id_);
+    }
+
+    void Page::set_free() { page_t_ = page_t_t::FREE; }
 
     void Page::flush() {
         if (dirty_) {
@@ -279,6 +299,14 @@ namespace DB::page
             dirty_ = false;
         }
         // UNDONE: maybe dirty-bitmap for log
+    }
+
+    void Page::force_flush() {
+        if (dirty_) {
+            update_data();
+            dirty_ = false;
+        }
+        disk_manager_->WritePage(page_id_, data_);
     }
 
     bool Page::try_page_read_lock() {
@@ -324,18 +352,25 @@ namespace DB::page
     //
 
     DBMetaPage::DBMetaPage(page_id_t page_id,
-        disk::DiskManager* disk_manager, bool isInit, uint32_t cur_page_no, uint32_t table_num)
+        disk::DiskManager* disk_manager, bool isInit,
+        uint32_t cur_page_no, uint32_t table_num, page_id_t next_free_page_id)
         :
         Page(page_t_t::DB_META, page_id, disk_manager, isInit),
         cur_page_no_(cur_page_no),
-        table_num_(table_num)
+        table_num_(table_num),
+        next_free_page_id_(next_free_page_id)
     {
+        if (isInit) {
+            table_num_ = 0;
+            next_free_page_id_ = NOT_A_PAGE;
+        }
         table_page_ids_ = new uint32_t[MAX_TABLE_NUM];
         table_name_offset_ = new uint32_t[MAX_TABLE_NUM];
     }
 
     DBMetaPage::~DBMetaPage() {
         update_data();
+        force_flush();
         delete[] table_page_ids_;
         delete[] table_name_offset_;
     }
@@ -416,6 +451,7 @@ namespace DB::page
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::CUR_PAGE_NO, cur_page_no_);
         write_int(data_ + offset::TABLE_NUM, table_num_);
+        write_int(data_ + offset::NEXT_FREE_PAGE_ID, next_free_page_id_);
         for (uint32_t i = 0; i < table_num_; i++)
         {
             write_int(data_ + offset::TABLE_PAGEID_NAMEOFFSET_START + 8 * i,
@@ -465,6 +501,7 @@ namespace DB::page
     TableMetaPage::~TableMetaPage()
     {
         update_data();
+        force_flush();
         if (default_value_page_id_ != NOT_A_PAGE)
             value_page_->unref();
         for (auto[k, v] : col_name2col_)
@@ -531,6 +568,11 @@ namespace DB::page
 
     void TableMetaPage::update_data() {
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
+        if (page_t_ == page_t_t::FREE) {
+            add_free_page();
+            write_int(data_ + offset::PAGE_ID, page_id_); // write next_free_page_id
+            return;
+        }
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::BT_ROOT_ID, BT_root_id_);
         write_int(data_ + offset::COL_NUM, col_num_);
@@ -720,6 +762,11 @@ namespace DB::page
     void InternalPage::update_data()
     {
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
+        if (page_t_ == page_t_t::FREE) {
+            add_free_page();
+            write_int(data_ + offset::PAGE_ID, page_id_); // write next_free_page_id
+            return;
+        }
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::PARENT_PAGE_ID, parent_id_);
         write_int(data_ + offset::NENTRY, nEntry_);
@@ -794,6 +841,11 @@ namespace DB::page
     void ValuePage::update_data()
     {
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
+        if (page_t_ == page_t_t::FREE) {
+            add_free_page();
+            write_int(data_ + offset::PAGE_ID, page_id_); // write next_free_page_id
+            return;
+        }
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::PARENT_PAGE_ID, parent_id_);
         write_int(data_ + offset::NENTRY, nEntry_);
@@ -867,6 +919,11 @@ namespace DB::page
     void LeafPage::update_data()
     {
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
+        if (page_t_ == page_t_t::FREE) {
+            add_free_page();
+            write_int(data_ + offset::PAGE_ID, page_id_); // write next_free_page_id
+            return;
+        }
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::PARENT_PAGE_ID, parent_id_);
         write_int(data_ + offset::NENTRY, nEntry_);
@@ -912,7 +969,10 @@ namespace DB::page
         }
         else // exist
         {
-            value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
+            if (value_page_id_ == NOT_A_PAGE)
+                value_page_ = nullptr;
+            else
+                value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
             //buffer_pool->DeletePage(value_page_id_);
             // now value_page has excatly *** 1 ref count ***.
             set_dirty();
@@ -920,8 +980,24 @@ namespace DB::page
     }
 
     RootPage::~RootPage() {
-        value_page_->unref(); // ref 1->0
+        if (value_page_ != nullptr)
+            value_page_->unref(); // ref 1->0
         delete[] values_;
+    }
+
+    void RootPage::change_to_leaf(buffer::BufferPoolManager* buffer_pool) {
+        page_t_ = page_t_t::ROOT_LEAF;
+        value_page_id_ = disk_manager_->AllocatePage();
+        value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
+    }
+
+    void RootPage::change_to_internal(buffer::BufferPoolManager* buffer_pool) {
+        page_t_ = page_t_t::ROOT_INTERNAL;
+        buffer_pool->DeletePage(value_page_id_);
+        value_page_id_ = NOT_A_PAGE;
+        value_page_->set_free();
+        value_page_->unref(); // ref 1->0
+        value_page_ = nullptr;
     }
 
     void RootPage::read_value(uint32_t index, ValueEntry& vEntry) const
@@ -957,6 +1033,11 @@ namespace DB::page
         }
         else { // ROOT_LEAF
             write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
+            if (page_t_ == page_t_t::FREE) {
+                add_free_page();
+                write_int(data_ + offset::PAGE_ID, page_id_); // write next_free_page_id
+                return;
+            }
             write_int(data_ + offset::PAGE_ID, page_id_);
             write_int(data_ + offset::PARENT_PAGE_ID, parent_id_);
             write_int(data_ + offset::NENTRY, nEntry_);

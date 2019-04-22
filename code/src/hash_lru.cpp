@@ -72,6 +72,8 @@ namespace DB::buffer
         while (it != &lru_head_) {
             PageListHandle* temp = it;
             it = it->next_lru_;
+            if (temp->ref_ != 2)
+                debug::ERROR_LOG("Incorrect ref usage\n");
             temp->unref();
         }
     }
@@ -275,8 +277,14 @@ namespace DB::buffer
         for (PageList& bucket : buckets_) {
             PageListHandle* it = bucket.head_.next_hash_;
             while (it != &bucket.head_) {
+                PageListHandle* temp = it;
                 it->page_->flush();
                 it = it->next_hash_;
+                // remove the free page, to promise FREE page is not in buffer pool.
+                if (temp->page_->get_page_t() == page::page_t_t::FREE) {
+                    bucket.remove(temp);
+                    lru_remove(temp);
+                }
             }
         }
     }

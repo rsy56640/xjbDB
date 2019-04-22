@@ -61,6 +61,7 @@ namespace DB::debug
             debug_leaf(static_cast<const LeafPage*>(node));
             break;
         case page_t_t::VALUE:
+            buffer_pool->DeletePage(page_id);
             debug_value(static_cast<const ValuePage*>(node));
             break;
         case page_t_t::ROOT_INTERNAL:

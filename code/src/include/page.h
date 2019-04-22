@@ -42,6 +42,8 @@ namespace DB::page
         INTERNAL,
         LEAF,
         VALUE,
+
+        FREE,
     };
 
     static const char* page_t_str[] = {
@@ -71,8 +73,9 @@ namespace DB::page
             // DB meta
             CUR_PAGE_NO = 8,
             TABLE_NUM = 12,
-            TABLE_PAGEID_NAMEOFFSET_START = 16,
-            TABLE_NAME_STR_START = 256,
+            NEXT_FREE_PAGE_ID = 16,
+            TABLE_PAGEID_NAMEOFFSET_START = 20,
+            TABLE_NAME_STR_START = 260,
 
             // Table meta
             BT_ROOT_ID = 8,
@@ -133,8 +136,18 @@ namespace DB::page
 
         bool is_dirty() noexcept;
 
+        // called when update_data and FREE-PAGE
+        // reset page_id_ to next_free_page_id
+        void add_free_page();
+        // called when
+        //          1. table page is drop, TableMetaPage, and all BTree Pages // TODO:
+        //          2. merge, Internal or Leaf-Value, do not forget merge in ROOT-erase
+        void set_free();
+
         // flush to disk if dirty.
         void flush();
+
+        void force_flush();
 
         // return true if the lock is acquired.
         bool try_page_read_lock();
@@ -156,10 +169,9 @@ namespace DB::page
     protected:
         disk::DiskManager * disk_manager_;
         page_t_t page_t_; // fundamentally const, but ROOT may violate the rule.
-        const page_id_t page_id_;
+        page_id_t page_id_; // might be used for next_free_page_id when FREE
         char data_[PAGE_SIZE];
         bool dirty_;
-        bool discarded_;
 
     private:
         mutable std::shared_mutex rw_page_mutex_;
@@ -182,7 +194,7 @@ namespace DB::page
         static constexpr uint32_t MAX_TABLE_NUM = 30;
 
         DBMetaPage(page_id_t, disk::DiskManager*, bool isInit,
-            uint32_t cur_page_no, uint32_t table_num);
+            uint32_t cur_page_no, uint32_t table_num, page_id_t next_free_page_id);
         ~DBMetaPage();
 
         page_id_t find_table(const std::string&);
@@ -196,6 +208,7 @@ namespace DB::page
     public:
         uint32_t cur_page_no_; // might be out of date, update from disk_manager.
         uint32_t table_num_;
+        page_id_t next_free_page_id_;
         uint32_t* table_page_ids_;
         uint32_t* table_name_offset_;
         std::unordered_map<std::string, page_id_t> table_name2id_;
@@ -471,6 +484,9 @@ namespace DB::page
         RootPage(buffer::BufferPoolManager*, page_t_t, page_id_t parent_id, page_id_t,
             uint32_t nEntry, disk::DiskManager*, key_t_t, uint32_t str_len, page_id_t value_page_id, bool isInit);
         virtual ~RootPage();
+
+        void change_to_leaf(buffer::BufferPoolManager* buffer_pool);
+        void change_to_internal(buffer::BufferPoolManager* buffer_pool);
 
         // read the value record into ValueEntry
         void read_value(uint32_t index, ValueEntry&) const;

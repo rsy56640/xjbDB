@@ -64,14 +64,10 @@ namespace DB::tree
     }
 
     void BTit::updateV(const ValueEntry& vEntry) {
-        if (leaf_->get_page_t() == page_t_t::ROOT_LEAF) {
-            static_cast<RootPage*>(leaf_)->erase_value(cur_index_);
-            static_cast<RootPage*>(leaf_)->insert_value(cur_index_, vEntry);
-        }
-        else {
-            static_cast<LeafPage*>(leaf_)->erase_value(cur_index_);
-            static_cast<LeafPage*>(leaf_)->insert_value(cur_index_, vEntry);
-        }
+        if (leaf_->get_page_t() == page_t_t::ROOT_LEAF)
+            static_cast<RootPage*>(leaf_)->update_value(cur_index_, vEntry);
+        else
+            static_cast<LeafPage*>(leaf_)->update_value(cur_index_, vEntry);
     }
 
 
@@ -620,7 +616,8 @@ namespace DB::tree
                             debug_page(debug::MERGE_LEAF, R->get_page_id());
 
 
-                            root->page_t_ = page_t_t::ROOT_LEAF;
+                            root->change_to_leaf(buffer_pool_);
+
 
                             // delete root.k[0]
                             root->erase_key(0);
@@ -645,6 +642,9 @@ namespace DB::tree
                                 R->erase_value(index);  // maybe ununsed
                             }
                             root->nEntry_ = MIN_KEY_SIZE << 1;
+
+                            L->set_free();
+                            R->set_free();
 
                             other_child->page_write_unlock();
                             child->page_write_unlock();
@@ -900,6 +900,9 @@ namespace DB::tree
 
                             root->nEntry_ = MAX_KEY_SIZE;
 
+                            L->set_free();
+                            R->set_free();
+
                             // update parent
                             for (uint32_t i = 0; i <= MAX_KEY_SIZE; i++) // br[0..15]
                             {
@@ -1118,7 +1121,7 @@ namespace DB::tree
             R->set_left_leaf(L->get_page_id());
 
             // step 3: change root to INTERNAL
-            root_->page_t_ = page_t_t::ROOT_INTERNAL;
+            static_cast<RootPage*>(root_)->change_to_internal(buffer_pool_);
 
             // step 4: set root.k[0] = root.k[7], set branch, adjust the relation
             root_->nEntry_ = 1;
@@ -1504,6 +1507,7 @@ namespace DB::tree
         L->branch_[MAX_KEY_SIZE] = R->branch_[KEY_MIDEIUM];
         R->nEntry_ = 0;
         R->set_dirty();
+        R->set_free();
 
         for (uint32_t index = 8; index <= MAX_KEY_SIZE; index++) // [8..15]
         {
@@ -1581,6 +1585,7 @@ namespace DB::tree
 
         L->set_dirty();
         R->set_dirty();
+        R->set_free();
 
         // erase node.k[index], node.br[index+1]
         node->erase_key(merge_index);

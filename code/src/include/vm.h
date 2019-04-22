@@ -63,6 +63,7 @@ namespace DB::vm
     //
     class VM
     {
+        friend class disk::DiskManager;
     public:
 
         VM();
@@ -82,6 +83,8 @@ namespace DB::vm
             std::future<std::invoke_result_t<F, Args...>> register_task(F&& f, Args&& ...args) {
             return task_pool_.register_for_execution(f, args...);
         }
+
+        void set_next_free_page_id(page::page_id_t);
 
     private:
 
@@ -113,8 +116,9 @@ namespace DB::vm
     public: // for test
         void test_create_table();
         uint32_t test_insert(const tree::KVEntry&);
-        uint32_t test_earse(const page::KeyEntry&);
+        uint32_t test_erase(const page::KeyEntry&);
         page::ValueEntry test_find(const page::KeyEntry&);
+        void test_size();
         void test_output();
         void test_flush();
 

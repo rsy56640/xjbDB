@@ -41,7 +41,8 @@ namespace DB::vm
         if (storage_engine_.disk_manager_->dn_init_)
         {
             db_meta_ = new DBMetaPage(NOT_A_PAGE, // DB meta
-                storage_engine_.disk_manager_, true, 0, 0);
+                storage_engine_.disk_manager_, true, 0, 0, NOT_A_PAGE);
+            storage_engine_.disk_manager_->set_vm(this);
         }
 
         // rebuild DB
@@ -57,8 +58,14 @@ namespace DB::vm
             storage_engine_.disk_manager_->ReadPage(page::NOT_A_PAGE, buffer);
             db_meta_ = page::parse_DBMetaPage(storage_engine_.buffer_pool_manager_, buffer);
 
+            // set vm
+            storage_engine_.disk_manager_->set_vm(this);
+
             // set cur_page_no
             storage_engine_.disk_manager_->set_cur_page_id(db_meta_->cur_page_no_);
+
+            // set next_free_page_id
+            storage_engine_.disk_manager_->init_set_next_free_page_id(db_meta_->next_free_page_id_);
 
             // read table meta
             for (auto const&[tableName, page_id] : db_meta_->table_name2id_)
@@ -84,7 +91,10 @@ namespace DB::vm
 
 
 
-
+    void VM::set_next_free_page_id(page::page_id_t next_free_page) {
+        db_meta_->next_free_page_id_ = next_free_page;
+        db_meta_->set_dirty();
+    }
 
 
     void VM::flush() {
@@ -145,7 +155,7 @@ namespace DB::vm
         return table->bt_->insert(kvEntry);
     }
 
-    uint32_t VM::test_earse(const page::KeyEntry& kEntry) {
+    uint32_t VM::test_erase(const page::KeyEntry& kEntry) {
         TableMetaPage* table = table_meta_["test"];
         return table->bt_->erase(kEntry);
     }
@@ -155,18 +165,26 @@ namespace DB::vm
         return table->bt_->find(kEntry);
     }
 
+    void VM::test_size() {
+        TableMetaPage* table = table_meta_["test"];
+        std::printf("size = %d\n", table->bt_->size());
+    }
+
     void VM::test_output() {
         TableMetaPage* table = table_meta_["test"];
+        int cnt = 0;
         table->bt_->range_query_begin_lock();
         auto it = table->bt_->range_query_from_begin();
         auto end = table->bt_->range_query_from_end();
         while (it != end) {
             std::printf("%d -> %s\n", it.getK().key_int, it.getV().content_);
             ++it;
+            cnt++;
         }
         it.destroy();
         end.destroy();
         table->bt_->range_query_end_unlock();
+        std::printf("output size = %d\n", cnt);
     }
 
     void VM::test_flush() {

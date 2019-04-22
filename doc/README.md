@@ -34,11 +34,12 @@
 - (4B) page_id
 - (4B) cur_page_no
 - (4B) table_num
+- (4B) next_free_page_id
 - (8B * (table_num))
   - (4B) table_page_id
   - (4B) name_offset
   - ...
-- table_name 字符串（从256B开始，每25B一个block）
+- table_name 字符串（从260B开始，每25B一个block）
 
 限制：
 
@@ -94,7 +95,7 @@
 - 插入 key：找到一个 `OBSOLETE` 的 record，然后写入
 - 删除 key：将 `index` 所对应的 record 标记为 `OBSOLETE`
 
-### Value Page（只存15个 record，其他 metadata 不存，生命周期绑定到 Leaf Page）
+### Value Page（只存15个 record，其他 metadata 不存）
 - (4B) page_t
 - (4B) page_id
 - (4B) parent_page_id
@@ -129,11 +130,22 @@ record 格式为：`mark(1B), content(<=66B)`
 - 插入 value：调用 `value_page->insert()`
 - 删除 value：调用 `value_page->erase()`
 
+### FREE Page List
+
+![](assets/free_page_list.png)
+
+维护一个链表，表头是 DBMeta 中的 `next_free_page_id`，指向下一个 free-page，之后的 free-page 有两个属性：`page_t_` 是 `FREE`，`page_id_` 不是自己，而是 `next_free_page_id_`，最后一个 free-page 指向 `NOT_A_PAGE`
+
+#### 保证 free-page-list 中的 page 一定不在 buffer pool 中；并且 vm 中的 next_free_page_id 永远和 disk_manager 中保持一致
+
+当在 B+Tree 中发生 merge 时，会调用 `Page::set_free()` 标记。随后的 `VM::flush()` -> `Hash_LRU::flush()` -> `virtual xxPage::update_data()` 会将标记为 `FREE` 的 page 中的 `page_id_` 写成 `next_free_page_id`，随后从 buffer pool 中去除，在盘上形成链表。
+
+另一方面，请求分配 page 时，`DiskManager::AllocatePage()` 检查是否还有 free page，并且更新 disk 和 vm 到下一个 free page
 
 ### BufferPoolManager
 
-- 管理所有 Page，**除了 ValuePage**，ValuePage 总是和 LeafPage 生命周期相同。
-- 一个 Page，如果不在 BufferPool 并且还在内存，那么一定在 DiskManager 中被标记为 dirty。（在 evict 时标记为 dirty）
+- 管理所有 Page，**除了 DBMetaPage 和 TableMetaPage**，它们总是被 VM 管理
+- 一个 Page，如果不在 BufferPool 并且还在内存，那么一定在 DiskManager 中被标记为 dirty。（在 evict 时标记为 dirty；注：事实上我已经取消了 `lru_evict`）
 
 #### Concurrent Hash + LRU
 
