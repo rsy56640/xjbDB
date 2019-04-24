@@ -57,6 +57,7 @@
 - (4B) page_id
 - (4B) BT_root_id
 - (4B) col_num
+- (4B) row_num
 - (4B) default_value_page_id
 - (14B * 15) table_meta_info
   - (4B) col_name_offset
@@ -64,7 +65,7 @@
   - (2B) str_len (used when col_type is CHAR/VARCHAR)
   - (2B) constraint_type
   - (4B) value (used when constraint_type is DEFAULT(value_offset) or FK(table_id))
-- col_name 字符串（从230B开始，每一个51Bblock）
+- col_name 字符串（从234B开始，每一个51Bblock）
 
 限制：
 
@@ -148,9 +149,46 @@ record 格式为：`mark(1B), content(<=66B)`
 
 ### Log 协议
 
+- undo 是记录事务执行前所有在事务中被修改的页的二进制拷贝，新加入的页不拷贝
+- redo 直接记录 sql 语句，重启时塞到 sql pool 里面当做从控制台读入的
 
+log 的第0页作为 LogMetaData，之后顺序放每个脏页的拷贝。
 
+MetaData 结构：
 
+- sql 语句
+- ...
+- 末尾处，连续的24B
+- *[depricated]* prev_last_page_id：本次事务执行前的最大页
+- nuance：一个随机数
+- undo_log_num：拷贝的脏页对应的原页数量
+- undo_check：拷贝的所有页的每4B看作int累加，再加上 nuance
+- redo_sql_len：sql 长度
+- redo_check：同 undo_check
+
+流程
+
+- 先拷贝脏页对应的原页
+- 计算一下这些值
+- 先把 nuance 写成 0，让 check fail
+- 写 undo_log_num, undo_check, sql 语句, redo_sql_len, redo_check
+- 写 nuance
+- 数据文件落盘
+- 破坏 log：把 nuance 改成 0
+
+恢复
+
+- 只要 nuance 和 undo_check 计算不一致，则认为不需要恢复
+- 否则
+  - 如果 sql 为空并且检查一致，那么只需要 undo
+  - 如果 sql 非空并且 check 计算一致，那么需要 undo 和 redo
+      - 这里的 redo 是把 sql 发送回 sql pool
+  - 如果 sql 非空并且检查不一致，那么 gg
+
+回放：undo
+
+- 把拷贝的页读出来，直接覆盖对应的数据文件的页
+- 之后 `VM::start()` 拿到的第一个 sql 就是 redo sql
 
 ### BufferPoolManager
 

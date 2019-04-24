@@ -1042,6 +1042,10 @@ namespace DB::tree
         // root has been `ref()`.
     }
 
+    void BTree::set_size(uint32_t size) {
+        size_ = size;
+    }
+
 
     // do nothing if BTree is empty.
     void BTree::search(const KeyEntry& kEntry, SearchInfo& info) const

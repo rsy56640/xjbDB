@@ -300,7 +300,7 @@ namespace DB::disk
         log_io_.seekg(log_offset::SQL, std::ios_base::beg);
         log_io_.read(sql_buffer, 4);
         if (redo_sql_len != 0)
-            if (redo_check == checksum(sql_buffer, redo_sql_len))
+            if (redo_check == checksum(sql_buffer, redo_sql_len) + nuance)
                 redo = true;
 
         // check undo
@@ -315,7 +315,7 @@ namespace DB::disk
             undo = true;
 
         if (undo) {
-            if (redo_sql_len == 0)
+            if (redo && redo_sql_len == 0)
                 return log_state_t::UNDO;
             else {
                 if (redo) {

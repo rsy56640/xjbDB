@@ -285,8 +285,6 @@ namespace DB::vm
             ++it;
             cnt++;
         }
-        //it.destroy();
-        //end.destroy();
         table->bt_->range_query_end_unlock();
         std::printf("output size = %d\n", cnt);
     }

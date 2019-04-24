@@ -67,6 +67,7 @@ namespace DB::page
         page_id_t page_id = read_int(buffer + offset::PAGE_ID);
         page_id_t BT_root_id = read_int(buffer + offset::BT_ROOT_ID);
         uint32_t col_num = read_int(buffer + offset::COL_NUM);
+        uint32_t row_num = read_int(buffer + offset::ROW_NUM);
         page_id_t default_page_id = read_int(buffer + offset::DEFAULT_VALUE_PAGE_ID);
 
         std::vector<std::string> cols(col_num);
@@ -104,6 +105,8 @@ namespace DB::page
         page->pk_col_ = pk_col;
         page->cols_ = std::move(cols);
         page->col_name2col_ = std::move(col_name2col);
+
+        page->bt_->set_size(row_num);
 
         return page;
     }
@@ -270,7 +273,8 @@ namespace DB::page
 
     void Page::set_dirty() noexcept {
         dirty_ = true;
-        disk_manager_->set_dirty(this->page_id_);
+        if (page_t_ != page_t_t::DB_META) // DBMetaPage always force flush
+            disk_manager_->set_dirty(this->page_id_);
     }
 
     bool Page::is_dirty() noexcept {
@@ -573,6 +577,7 @@ namespace DB::page
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::BT_ROOT_ID, BT_root_id_);
         write_int(data_ + offset::COL_NUM, col_num_);
+        write_int(data_ + offset::ROW_NUM, bt_->size());
         write_int(data_ + offset::DEFAULT_VALUE_PAGE_ID, default_value_page_id_);
         for (uint32_t i = 0; i < col_num_; i++) {
             ColumnInfo* col = col_name2col_[cols_[i]];

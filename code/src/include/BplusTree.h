@@ -89,6 +89,7 @@ namespace DB::tree
     //          \____ InternalPage_____RootPage
     class BTree
     {
+        friend TableMetaPage* page::parse_TableMetaPage(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE]);
     public:
         using Key = uint32_t; // direct value for `INTEGER`, offset for `VARCHAR`
         using Value = char*;
@@ -112,7 +113,6 @@ namespace DB::tree
 
         page_id_t get_root_id() const;
 
-        // fake size, since no recover when rebuild db.
         uint32_t size() const;
 
 
@@ -179,6 +179,9 @@ namespace DB::tree
 
 
         void BT_create(OpenTableInfo);
+
+        // used for rebuild
+        void set_size(uint32_t);
 
 
         // do nothing if BTree is empty.

@@ -80,9 +80,10 @@ namespace DB::page
             // Table meta
             BT_ROOT_ID = 8,
             COL_NUM = 12,
-            DEFAULT_VALUE_PAGE_ID = 16,
-            COLINFO_START = 20,
-            COLUMN_NAME_STR_START = 230,
+            ROW_NUM = 16,
+            DEFAULT_VALUE_PAGE_ID = 20,
+            COLINFO_START = 24,
+            COLUMN_NAME_STR_START = 234,
 
             // BTree Page / Value Page
             PARENT_PAGE_ID = 8,
@@ -270,6 +271,7 @@ namespace DB::page
         void setDEFAULT() { constraint_t_ |= constraint_t_t::DEFAULT; }
     };
     class TableMetaPage : public Page {
+        friend TableMetaPage* parse_TableMetaPage(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE]);
     public:
         static constexpr uint32_t COLUMN_NAME_STR_BLOCK = 51;
         static constexpr uint32_t MAX_COLUMN_NAME_STR = 50;
