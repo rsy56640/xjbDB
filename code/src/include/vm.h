@@ -35,11 +35,13 @@ namespace DB::vm
         void start();
         void stop();
         std::string get_sql(); // might stuck
+        void add_sql(std::string); // only used when redo
     private:
         std::queue<std::string> sql_pool_;
         std::thread reader_;
         std::mutex sql_pool_mutex_;
         std::condition_variable sql_pool_cv_;
+        std::promise<void> stop_flag_;
     };
 
 
@@ -88,9 +90,11 @@ namespace DB::vm
 
     private:
 
+        void send_reply_sql(std::string);
+
         void query_process();
 
-        void doWAL();
+        void doWAL(page::page_id_t prev_last_page_id, const std::string& sql);
 
         // flush dirty page into disk.
         void flush();

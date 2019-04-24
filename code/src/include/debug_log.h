@@ -30,10 +30,19 @@ namespace DB::debug
         ERASE_NONMIN_LEAF = false,
         ERASE_NONMIN_INTERNAL = false,
 
+        QUERY_PROCESS = true,
+
+        WAL = true,
+
+        DESTROY_LOG = true,
+
         NON_DEBUG = false,
         DEBUG = true,
+
         CONTROL = true;
 
+
+    // no use
     static const char* debug_output = "./debug_output.txt";
 
 

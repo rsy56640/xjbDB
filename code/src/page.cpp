@@ -230,8 +230,10 @@ namespace DB::page
 
     // has called update_data() in derived dtor.
     Page::~Page() {
+#ifndef _xjbDB_test_BPLUSTREE_
         if (dirty_)
             disk_manager_->WritePage(page_id_, data_);
+#endif
     }
 
     void Page::ref() {
@@ -245,8 +247,10 @@ namespace DB::page
             this->get_page_id(), ref_count_.load(), ref_count_.load() - 1);
         if (--ref_count_ == 0) {
             if (dirty_) { // no contend reading on `dirty_`
+#ifndef _xjbDB_test_BPLUSTREE_
                 this->update_data();
                 flush();
+#endif
             }
             delete this;
         }
@@ -266,20 +270,7 @@ namespace DB::page
 
     void Page::set_dirty() noexcept {
         dirty_ = true;
-        switch (page_t_)
-        {
-        case page_t_t::DB_META:
-            dirty_ = true;
-            break;
-        case page_t_t::TABLE_META:
-        case page_t_t::ROOT_INTERNAL:
-        case page_t_t::ROOT_LEAF:
-        case page_t_t::INTERNAL:
-        case page_t_t::LEAF:
-        case page_t_t::VALUE:
-        case page_t_t::FREE:
-            disk_manager_->set_dirty(this->page_id_);
-        }
+        disk_manager_->set_dirty(this->page_id_);
     }
 
     bool Page::is_dirty() noexcept {
@@ -294,8 +285,10 @@ namespace DB::page
 
     void Page::flush() {
         if (dirty_) {
+#ifndef _xjbDB_test_BPLUSTREE_
             update_data();
             disk_manager_->WritePage(page_id_, data_);
+#endif
             dirty_ = false;
         }
         // UNDONE: maybe dirty-bitmap for log
@@ -369,8 +362,10 @@ namespace DB::page
     }
 
     DBMetaPage::~DBMetaPage() {
+#ifndef _xjbDB_test_BPLUSTREE_
         update_data();
         force_flush();
+#endif
         delete[] table_page_ids_;
         delete[] table_name_offset_;
     }
@@ -446,7 +441,7 @@ namespace DB::page
 
     void DBMetaPage::update_data()
     {
-        const page_id_t cur_page_no_ = disk_manager_->get_cut_page_id();
+        cur_page_no_ = disk_manager_->get_cut_page_id();
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::CUR_PAGE_NO, cur_page_no_);
@@ -500,8 +495,10 @@ namespace DB::page
 
     TableMetaPage::~TableMetaPage()
     {
+#ifndef _xjbDB_test_BPLUSTREE_
         update_data();
         force_flush();
+#endif
         if (default_value_page_id_ != NOT_A_PAGE)
             value_page_->unref();
         for (auto[k, v] : col_name2col_)
@@ -755,7 +752,9 @@ namespace DB::page
 
     InternalPage::~InternalPage()
     {
+#ifndef _xjbDB_test_BPLUSTREE_
         update_data();
+#endif
         delete[] branch_;
     }
 
@@ -799,7 +798,9 @@ namespace DB::page
     }
 
     ValuePage::~ValuePage() {
+#ifndef _xjbDB_test_BPLUSTREE_
         update_data();
+#endif
     }
 
     void ValuePage::read_content(uint32_t offset, ValueEntry& vEntry) const
@@ -885,7 +886,9 @@ namespace DB::page
     }
 
     LeafPage::~LeafPage() {
+#ifndef _xjbDB_test_BPLUSTREE_
         update_data();
+#endif
         value_page_->unref(); // ref 1->0
         delete[] values_;
     }
@@ -980,6 +983,9 @@ namespace DB::page
     }
 
     RootPage::~RootPage() {
+#ifndef _xjbDB_test_BPLUSTREE_
+        update_data();
+#endif
         if (value_page_ != nullptr)
             value_page_->unref(); // ref 1->0
         delete[] values_;

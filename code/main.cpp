@@ -7,7 +7,6 @@ int main()
 {
     test();
     printf("--------------------------- main end ---------------------------\n");
-    std::getchar();
     system("pause");
     return 0;
 }

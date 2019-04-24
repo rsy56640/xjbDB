@@ -27,6 +27,7 @@ namespace DB::util
         ThreadsPool(schedule_policy policy = schedule_policy::FIFO) :_schedule_policy(policy) {}
         ThreadsPool(const ThreadsPool&) = delete;
         ThreadsPool& operator=(const ThreadsPool&) = delete;
+
         // return immediately !!!
         template<typename F, typename... Args>[[nodiscard]]
             std::future<std::invoke_result_t<F, Args...>> register_for_execution(F&& f, Args&& ...args)
@@ -36,12 +37,21 @@ namespace DB::util
                 std::make_shared<std::packaged_task<Ret()>>(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
             std::future<Ret> fut = task->get_future();
             std::lock_guard<std::mutex> lg{ _mtx };
+            _task_size++;
             _tasks.emplace_back([task]() { (*task)(); });
             return fut;
         }
+
         void start() { std::call_once(_start_flag, [this]() { std::thread(std::mem_fn(&ThreadsPool::schedule), this).detach(); }); }
-        void stop()
-        {
+
+        // caller promise no more tasks registered during join period.
+        void join() {
+            // wait until all treads has accomplished
+            std::unique_lock<std::mutex> ulk{ _mtx };
+            _cv.wait(ulk, [this]() { return num_threads == max_threads && _tasks.empty(); });
+        }
+
+        void stop() {
             std::call_once(_stop_flag,
                 [this]()
             {
@@ -52,10 +62,13 @@ namespace DB::util
                     _cv.wait(ulk);
             });
         }
+
         ~ThreadsPool() { stop(); }
+
     private:
         using task_t = std::function<void()>;
         static constexpr int max_threads = 3;
+
         int num_threads = max_threads;
         const schedule_policy _schedule_policy;
         std::once_flag _start_flag;
@@ -64,6 +77,7 @@ namespace DB::util
         std::mutex _mtx;
         std::condition_variable _cv;
         std::list<task_t> _tasks;
+        std::size_t _task_size = 0;
 
         void schedule()
         {
@@ -76,8 +90,10 @@ namespace DB::util
                 bool schedule = false;
                 {
                     std::lock_guard<std::mutex> lg{ _mtx };
-                    if (num_threads > 0 && !_tasks.empty())
+                    if (num_threads > 0 && _task_size > 0) {
                         schedule = true;
+                        _task_size--;
+                    }
                 }
                 if (schedule) schedule_once();
             }

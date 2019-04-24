@@ -142,9 +142,19 @@ record 格式为：`mark(1B), content(<=66B)`
 
 另一方面，请求分配 page 时，`DiskManager::AllocatePage()` 检查是否还有 free page，并且更新 disk 和 vm 到下一个 free page
 
+### DiskManager
+
+
+
+### Log 协议
+
+
+
+
+
 ### BufferPoolManager
 
-- 管理所有 Page，**除了 DBMetaPage 和 TableMetaPage**，它们总是被 VM 管理
+- 管理所有 Page，除了3个：**DBMetaPage 和 TableMetaPage**，它们总是被 VM 管理；**ValuePage** 总是被 LeafPage 或 RootPage 管理
 - 一个 Page，如果不在 BufferPool 并且还在内存，那么一定在 DiskManager 中被标记为 dirty。（在 evict 时标记为 dirty；注：事实上我已经取消了 `lru_evict`）
 
 #### Concurrent Hash + LRU
@@ -187,12 +197,9 @@ std::unordered_map<Key, list<pair<Key, Value>>::iterator> hash;
       - 如果 hash 值不是这个桶，那么把它平移到后面那个桶里去，距离就是原来的 bucket 数量
       - 否则不动
 
-
-### DiskManager
-
-
-
-### LogManager
+> 说明一下，我现在已经把 `lru_evict()` 取消了，相当于就只剩下 hash   
+> 原因在于：   
+> 如果 evict 时 victim 还在使用，那么外部会持有一个 ref，这时另一个线程过来请求，那么就必须要阻塞，直至 victim flush 或者重新回到 buffer，这样子又需要唤醒机制。总之这之间的同步比较麻烦，干脆不做了。
 
 
 
@@ -357,11 +364,8 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 流程：
 
 - SQL 解析，返回 query plan
-- txn 串行锁定（主要是为了防止 disk_manager 写竞争）
 - 保存当前 `cur_page_no`
 - 执行 Query Plan
 - doWAL：找到 dirty_page_set 中 < 之前 `page_no`，这些 page 全部 copy 到 log（用来做 undo），并写 log metadata（如果 sql 语句不长，就记录下来做 redo）（如果记录了 redo，这里就可以返回了；否则 flush 后才可以返回）
 - Flush：落盘
 - 销毁 log metadata
-- txn 串行锁释放
-

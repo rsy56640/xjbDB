@@ -19,6 +19,50 @@ namespace DB::tree
     BTit::BTit(buffer::BufferPoolManager* buffer_pool, BTreePage* leaf, uint32_t cur_index)
         :buffer_pool_(buffer_pool), leaf_(leaf), cur_index_(cur_index) {}
 
+    BTit::BTit(const BTit& other) {
+        if (other.leaf_ == nullptr) {
+            leaf_ = nullptr;
+            cur_index_ = 0;
+        }
+        else {
+            leaf_ = other.leaf_;
+            cur_index_ = other.cur_index_;
+            leaf_->ref();
+        }
+    }
+
+    void BTit::operator=(const BTit& other) {
+        if (leaf_ == other.leaf_) {
+            cur_index_ = other.cur_index_;
+        }
+        else {
+            if (leaf_ == nullptr) {
+                leaf_ = other.leaf_;
+                cur_index_ = other.cur_index_;
+                leaf_->ref();
+            }
+            else if (other.leaf_ == nullptr) {
+                leaf_->unref();
+                leaf_ = nullptr;
+                cur_index_ = 0;
+            }
+            else {
+                leaf_->unref();
+                leaf_ = other.leaf_;
+                cur_index_ = other.cur_index_;
+                leaf_->ref();
+            }
+        }
+    }
+
+    BTit::~BTit() {
+        if (leaf_ != nullptr) {
+            leaf_->unref();
+            // Hahaha, I donot know why not to use dtor but `destory()`.
+            //debug::ERROR_LOG("Are you FUCKing kidding me? Please correctly use `detroy()`");
+        }
+    }
+
     void BTit::operator++()
     {
         if (leaf_ == nullptr)
@@ -27,6 +71,7 @@ namespace DB::tree
         if (++cur_index_ == leaf_->nEntry_) {
             cur_index_ = 0;
             if (leaf_->get_page_t() == page_t_t::ROOT_LEAF) {
+                leaf_->unref();
                 leaf_ = nullptr;
             }
             else {
@@ -44,12 +89,14 @@ namespace DB::tree
     bool BTit::operator!=(const BTit& other) const {
         return leaf_ != other.leaf_ || cur_index_ != other.cur_index_;
     }
-
+    /*
     void BTit::destroy() {
         if (leaf_ != nullptr && leaf_->get_page_t() != page_t_t::ROOT_LEAF)
             leaf_->unref();
+        leaf_ = nullptr;
+        cur_index_ = 0;
     }
-
+    */
     KeyEntry BTit::getK() const {
         return leaf_->read_key(cur_index_);
     }
@@ -102,8 +149,10 @@ namespace DB::tree
     BTit BTree::range_query_from_begin()
     {
         if (root_->page_t_ == page_t_t::ROOT_LEAF) {
-            if (root_->nEntry_ > 0)
+            if (root_->nEntry_ > 0) {
+                root_->ref();
                 return BTit{ buffer_pool_, root_, 0 };
+            }
             else
                 return BTit{ buffer_pool_, nullptr, 0 };
         }
@@ -166,8 +215,7 @@ namespace DB::tree
                 node = fetch_node(node, index);
             stk.push(node);
         }
-        if (node->page_t_ == page_t_t::LEAF)
-            node->ref(); // `ref` the leaf
+        node->ref(); // `ref` the leaf(maybe root)
         while (!stk.empty()) {
             stk.top()->unref();
             stk.pop();
@@ -176,8 +224,10 @@ namespace DB::tree
         for (; index < node->nEntry_; index++)
             if (key_compare(kEntry, node, index) < 0) // not equal
                 break;
-        if (index == node->nEntry_)
+        if (index == node->nEntry_) {
+            node->unref();
             return BTit{ buffer_pool_, nullptr, 0 };
+        }
         else
             return BTit{ buffer_pool_, node, index };
     }
@@ -197,8 +247,7 @@ namespace DB::tree
             node = fetch_node(node, index);
             stk.push(node);
         }
-        if (node->page_t_ == page_t_t::LEAF)
-            node->ref(); // `ref` the leaf
+        node->ref(); // `ref` the leaf(maybe root)
         while (!stk.empty()) {
             stk.top()->unref();
             stk.pop();
@@ -207,8 +256,10 @@ namespace DB::tree
         for (; index < node->nEntry_; index++)
             if (key_compare(kEntry, node, index) <= 0)
                 break;
-        if (index == node->nEntry_)
+        if (index == node->nEntry_) {
+            node->unref();
             return BTit{ buffer_pool_, nullptr, 0 };
+        }
         else
             return BTit{ buffer_pool_, node, index };
     }

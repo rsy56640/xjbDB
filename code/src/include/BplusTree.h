@@ -45,7 +45,7 @@ namespace DB::tree
         ERASE_KV = 1;
 
 
-    // The usage of BTiterator: 
+    // The usage of BTiterator:
     // e.g. 
     //      WHERE 3 <= pk < 11
     //
@@ -57,16 +57,17 @@ namespace DB::tree
     //      // ...
     //      ++it;
     //  }
-    //  it.destroy();
-    //  end.destroy();
     //  bt.range_query_end_unlock();
     //
     class BTit {
     public:
         BTit(buffer::BufferPoolManager*, BTreePage* leaf, uint32_t cur_index);
+        BTit(const BTit&);
+        void operator=(const BTit&);
+        ~BTit();
         void operator++();                  // programmer promise the state before ++ is valid.
         bool operator!=(const BTit&) const;
-        void destroy();                     // destroy the iterator when not use
+        // [depricated] void destroy();     // destroy the iterator when not use
         KeyEntry getK() const;
         ValueEntry getV() const;
         void updateV(const ValueEntry&);

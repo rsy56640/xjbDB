@@ -1,4 +1,7 @@
 #include "include/vm.h"
+#include "include/debug_log.h"
+#include <iostream>
+#include <chrono>
 
 namespace DB::vm
 {
@@ -8,23 +11,65 @@ namespace DB::vm
 
     void ConsoleReader::start()
     {
-        // TODO: read from console, and put into sql pool, then notify.
+        reader_ = std::thread([this]() {
+            auto check = [](const std::string& statement)->int32_t {
+                const uint32_t size = statement.size();
+                for (uint32_t i = 0; i < size; i++)
+                    if (statement[i] == ';')
+                        return i;
+                return -1;
+            };
 
+            using namespace std::chrono_literals;
+            std::future stop = stop_flag_.get_future();
+
+            std::string sql = "";
+            std::string statement = "";
+            while (true) {
+
+                if (stop.wait_for(50ns) == std::future_status::ready)
+                    return;
+
+                std::cin >> statement;
+                // meet ';'
+                bool meet = false;
+                int32_t semicolon;
+                if (semicolon = check(statement) != -1) {
+                    sql += statement.substr(0, semicolon);
+                    std::lock_guard<std::mutex> lg{ sql_pool_mutex_ };
+                    sql_pool_.push(std::move(sql));
+                    sql_pool_cv_.notify_one();
+                    meet = true;
+                }
+                else {
+                    sql += statement;
+                }
+                if (meet)
+                    sql = statement.substr(semicolon + 1);
+                statement = "";
+            }
+        });
     }
 
     void ConsoleReader::stop() {
-        if (reader_.joinable())
+        if (reader_.joinable()) {
+            stop_flag_.set_value();
             reader_.join();
+        }
     }
 
-    std::string ConsoleReader::get_sql()
-    {
+    std::string ConsoleReader::get_sql() {
         std::unique_lock<std::mutex> ulk{ sql_pool_mutex_ };
         while (sql_pool_.empty())
             sql_pool_cv_.wait(ulk);
         std::string sql = std::move(sql_pool_.front());
         sql_pool_.pop();
         return sql;
+    }
+
+    void ConsoleReader::add_sql(std::string sql) {
+        std::lock_guard<std::mutex> lg{ sql_pool_mutex_ };
+        sql_pool_.push(std::move(sql));
     }
 
 
@@ -48,18 +93,28 @@ namespace DB::vm
         // rebuild DB
         else
         {
-            // recover from log
-            log_state_t log_state = check_log();
-            if (log_state != log_state_t::OK)
+            // set vm
+            storage_engine_.disk_manager_->set_vm(this);
+
+            // check log for undo and redo
+            const log_state_t log_state = check_log();
+            switch (log_state)
+            {
+            case log_state_t::CORRUPTION: // exit directly
+                debug::ERROR_LOG("log corruption, bomb, you die\n");
+                exit(1);
+            case log_state_t::REDO:
+            case log_state_t::UNDO:
                 replay_log(log_state);
+            case log_state_t::OK:
+            default:
+                break;
+            }
 
             // read DB meta
             char buffer[page::PAGE_SIZE];
             storage_engine_.disk_manager_->ReadPage(page::NOT_A_PAGE, buffer);
             db_meta_ = page::parse_DBMetaPage(storage_engine_.buffer_pool_manager_, buffer);
-
-            // set vm
-            storage_engine_.disk_manager_->set_vm(this);
 
             // set cur_page_no
             storage_engine_.disk_manager_->set_cur_page_id(db_meta_->cur_page_no_);
@@ -74,19 +129,49 @@ namespace DB::vm
                 TableMetaPage* table_meta = parse_TableMetaPage(storage_engine_.buffer_pool_manager_, buffer);
                 table_meta_[tableName] = table_meta;
             }
-        }
+
+        } // end rebuild DB
+
+        // start task pool
+        task_pool_.start();
 
         // start scan from console.
         conslole_reader_.start();
+
     }
 
 
-    // run db task until user input "exit"
+    // run db task until user input "EXIT"
     void VM::start()
     {
-        // TODO: VM::start()
+        while (true)
+        {
+            const std::string sql_statemt = conslole_reader_.get_sql();
+
+            // TODO: get query plan
 
 
+            // handle ErrorMsg or EXIT
+
+            // EXIT
+            // stop scan from console and process all current sql
+            // conslole_reader_.stop();
+
+            // UNDONE: if crash, how to find `prev_last_page_id` when rebuild,
+            //         since DBMetaPage only writes `cur_page_id` after `query_process();`
+            const page::page_id_t prev_last_page_id =
+                storage_engine_.disk_manager_->get_cut_page_id();
+
+            query_process();
+
+            task_pool_.join();
+
+            doWAL(prev_last_page_id, sql_statemt);
+
+            flush();
+
+            detroy_log();
+        }
     }
 
 
@@ -97,29 +182,48 @@ namespace DB::vm
     }
 
 
+
+    void VM::send_reply_sql(std::string sql) {
+        conslole_reader_.add_sql(std::move(sql));
+    }
+
+
+    void VM::query_process()
+    {
+        // TODO: query process
+
+
+    }
+
+
+    void VM::doWAL(page::page_id_t prev_last_page_id, const std::string& sql) {
+        storage_engine_.disk_manager_->doWAL(prev_last_page_id, sql);
+    }
+
     void VM::flush() {
         storage_engine_.buffer_pool_manager_->flush();
     }
 
 
-
-
-
-    log_state_t VM::check_log() {
-        return storage_engine_.disk_manager_->check_log();
+    void VM::detroy_log() {
+        storage_engine_.disk_manager_->detroy_log();
     }
 
 
-    void VM::replay_log(log_state_t log_state)
-    {
-        // TODO VM::replay_log();
+    log_state_t VM::check_log() {
+        return storage_engine_.disk_manager_->check_log_state();
+    }
 
+
+    void VM::replay_log(log_state_t log_state) {
+        storage_engine_.disk_manager_->replay_log(log_state);
     }
 
 
     VM::~VM()
     {
         conslole_reader_.stop();
+        task_pool_.stop();
         delete db_meta_;
         for (auto&[k, v] : table_meta_)
             delete v;
@@ -181,8 +285,8 @@ namespace DB::vm
             ++it;
             cnt++;
         }
-        it.destroy();
-        end.destroy();
+        //it.destroy();
+        //end.destroy();
         table->bt_->range_query_end_unlock();
         std::printf("output size = %d\n", cnt);
     }

@@ -206,7 +206,7 @@ namespace DB::page
         virtual void update_data();
 
     public:
-        uint32_t cur_page_no_; // might be out of date, update from disk_manager.
+        uint32_t cur_page_no_; // out of date, update from disk_manager in update_data().
         uint32_t table_num_;
         page_id_t next_free_page_id_;
         uint32_t* table_page_ids_;

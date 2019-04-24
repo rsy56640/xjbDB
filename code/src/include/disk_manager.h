@@ -19,7 +19,7 @@ namespace DB::disk
     static const char* db_name = "db.xjbDB";
     static const char* log_name = "db.xjbDB.log";
 
-    enum log_state_t { OK, UNDO, REDO };
+    enum log_state_t { CORRUPTION, OK, UNDO, REDO };
 
     /*
      * record any DB file, and record LOG
@@ -66,12 +66,8 @@ namespace DB::disk
         //        false when the page maybe has been read by other threads.
         bool ReadPage(page_id_t page_id, char(&page_data)[page::PAGE_SIZE]);
 
-        void WriteLog(char *log_data, uint32_t size);
-
         // return true if read successfully
         bool ReadLog(char *log_data, uint32_t offset, uint32_t size);
-
-        log_state_t check_log();
 
         page_id_t AllocatePage();
 
@@ -81,6 +77,18 @@ namespace DB::disk
 
         void set_dirty(page_id_t page_id);
 
+        // if need redo, send replay sql to vm
+        log_state_t check_log_state();
+        // only replay undo
+        void replay_log(disk::log_state_t);
+
+        // write log for undo and redo
+        void doWAL(const page_id_t prev_last_page_id, const std::string& sql);
+
+        // after flush
+        void detroy_log();
+
+
 
         DiskManager(const DiskManager&) = delete;
         DiskManager(DiskManager&&) = delete;
@@ -88,6 +96,11 @@ namespace DB::disk
         DiskManager& operator=(DiskManager&&) = delete;
 
         bool dn_init_;
+
+    private:
+
+        bool check_undo();
+        bool check_redo();
 
     private:
 
