@@ -73,6 +73,63 @@ namespace DB::vm
     }
 
 
+
+
+    row_view::row_view(const Table* table, row_t row)
+        :eof_(false), table_(table), row_(std::make_shared<row_t>(row)) {}
+
+    bool row_view::isEOF() const { return eof_; }
+
+    void row_view::setEOF() { eof_ = true; }
+
+    //value_t row_view::getValue(col_name_t colName) const {
+    //}
+
+
+
+
+    VitrualTable::VitrualTable(const Table* table)
+        :table_(table), ch_(std::make_shared<channel_t>()) {}
+
+    void VitrualTable::addRow(row_view row) {
+        std::lock_guard<std::mutex> lg{ ch_->mtx_ };
+        ch_->row_buffer_.push(row);
+        ch_->cv_.notify_one();
+    }
+
+    void VitrualTable::addEOF() {
+        row_t null_row;
+        row_view eof_row(table_, null_row);
+        eof_row.setEOF();
+        std::lock_guard<std::mutex> lg{ ch_->mtx_ };
+        ch_->row_buffer_.push(eof_row);
+        ch_->cv_.notify_one();
+    }
+
+    row_view VitrualTable::getRow() {
+        std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
+        ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });
+        row_view row = ch_->row_buffer_.front();
+        ch_->row_buffer_.pop();
+        return row;
+    }
+
+    std::deque<row_view> VitrualTable::waitAll() {
+        std::deque<row_view> ret_table;
+        std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
+        while (ret_table.empty() || !ret_table.back().isEOF()) {
+            ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });
+            while (!ch_->row_buffer_.empty()) {
+                ret_table.push_back(ch_->row_buffer_.front());
+                ch_->row_buffer_.pop();
+            }
+        }
+        return ret_table;
+    }
+
+
+
+
     VM::VM()
     {
         storage_engine_.disk_manager_ = new disk::DiskManager{};
