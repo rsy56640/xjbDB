@@ -373,10 +373,11 @@ namespace DB::disk
         std::set<page_id_t> ditry_pages;
 
         for (uint32_t i = 0; i < dirty_hash_bucket; i++) {
-            const std::unordered_set<page_id_t>& dirty_page_set = dirty_page_sets_[i];
+            std::unordered_set<page_id_t>& dirty_page_set = dirty_page_sets_[i];
             for (page_id_t ditry_page : dirty_page_set)
                 if (ditry_page <= prev_last_page_id)
                     ditry_pages.insert(ditry_page);
+            dirty_page_set.clear();
         }
 
         for (const page_id_t db_page_id : ditry_pages)
