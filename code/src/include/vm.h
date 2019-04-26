@@ -5,12 +5,15 @@
 #include "BplusTree.h"
 #include "thread_pool.h"
 #include "page.h"
+#include "table.h"
 #include <future>
 #include <unordered_map>
 #include <mutex>
 #include <queue>
 #include <thread>
 #include <condition_variable>
+#include <memory>
+#include <deque>
 
 namespace DB::tree { class BTree; }
 
@@ -45,16 +48,60 @@ namespace DB::vm
     };
 
 
-    class Table
-    {
+    using table::Table;
+    using table::value_t;
+    using col_name_t = std::string;
+    using row_t = page::ValueEntry;
 
+    class row_view
+    {
+    public:
+
+        row_view(const Table*, row_t);
+
+        bool isEOF() const;
+        void setEOF();
+        value_t getValue(col_name_t colName) const;
+
+    private:
+        bool eof_;
+        const Table* table_;
+        std::shared_ptr<row_t>  row_;
     };
 
 
     // used as a temporary table.
     // implementation might be stream ?? with some sync mechanism.
-    class VitrualTable {
+    class VitrualTable
+    {
+        struct channel_t {
+            std::queue<row_view> row_buffer_;
+            std::mutex mtx_;
+            std::condition_variable cv_;
+            std::promise<void> eof_;
+        };
 
+    public:
+
+        VitrualTable(const Table*);
+        VitrualTable(const VitrualTable&) = default;
+        VitrualTable& operator=(const VitrualTable&) = default;
+
+        void addRow(row_view row);
+        void addEOF();
+
+        void set_size(uint32_t);            // [maybe_unused], since on sigma-node, we can not
+        uint32_t size() const;              // decide the size before iterating all rows.
+
+        row_view getRow();                  // might be stuck
+        std::deque<row_view> waitAll();     // might be stuck
+
+        const Table* table_;                // info of table: col, constraint...
+
+    private:
+
+        uint32_t size_;
+        std::shared_ptr<channel_t> ch_;
 
     };
 
