@@ -144,21 +144,6 @@ namespace DB::disk
     }
 
 
-    bool DiskManager::ReadLog(char *log_data, uint32_t offset, uint32_t size)
-    {
-        log_io_.seekg(offset);
-        log_io_.read(log_data, size);
-        // if log file ends before reading "size"
-        const uint32_t read_count = log_io_.gcount();
-        if (read_count < size) {
-            log_io_.clear();
-            memset(log_data + read_count, 0, size - read_count);
-        }
-        log_io_.seekp(0, std::ios_base::end);
-        return true;
-    }
-
-
     page_id_t DiskManager::AllocatePage()
     {
         bool allocate_free = false;
@@ -225,9 +210,9 @@ namespace DB::disk
 
             SQL = 0,
 
-            PREV_LAST_PAGE_ID = PAGE_SIZE - 24,
+            NUANCE = PAGE_SIZE - 24,
 
-            NUANCE = PAGE_SIZE - 20,
+            NUANCE_PLUS_ONE = PAGE_SIZE - 20,
 
             UNDO_LOG_NUM = PAGE_SIZE - 16,
             UNDO_CHECK = PAGE_SIZE - 12,
@@ -252,7 +237,14 @@ namespace DB::disk
         }
         const uint32_t nuance = page::read_int(int_buffer);
 
-        if (nuance == 0) // fail to match
+        log_io_.seekg(log_offset::NUANCE_PLUS_ONE, std::ios_base::beg);
+        log_io_.read(int_buffer, 4);
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("check log state error on NUANCE_PLUS_ONE\n");
+            return log_state_t::CORRUPTION;
+        }
+
+        if (nuance == 0 || nuance + 1 != page::read_int(int_buffer)) // fail to match
             return log_state_t::OK;
 
         // do check, if fail to match, return OK
@@ -459,6 +451,16 @@ namespace DB::disk
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
             debug::ERROR_LOG("WAL writing error on FAKE NUANCE\n");
+            return;
+        }
+        log_io_.flush();
+
+
+        log_io_.seekp(log_offset::NUANCE_PLUS_ONE, std::ios_base::beg);
+        page::write_int(int_buffer, nuance + 1);
+        log_io_.write(int_buffer, 4);
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("WAL writing error on NUANCE_PLUS_ONE\n");
             return;
         }
         log_io_.flush();

@@ -106,6 +106,10 @@ namespace DB::vm
         ch_->cv_.notify_one();
     }
 
+    void VitrualTable::set_size(uint32_t size) { size_ = size; }
+
+    uint32_t VitrualTable::size() const { return size_; }
+
     row_view VitrualTable::getRow() {
         std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
         ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });

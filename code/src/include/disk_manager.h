@@ -66,9 +66,6 @@ namespace DB::disk
         //        false when the page maybe has been read by other threads.
         bool ReadPage(page_id_t page_id, char(&page_data)[page::PAGE_SIZE]);
 
-        // return true if read successfully
-        bool ReadLog(char *log_data, uint32_t offset, uint32_t size);
-
         page_id_t AllocatePage();
 
         uint32_t hash(page_id_t page_id) const noexcept;

@@ -3,6 +3,7 @@
 #include <string>
 #include <variant>
 #include "env.h"
+#include "page.h"
 
 namespace DB::table
 {
@@ -11,13 +12,17 @@ namespace DB::table
 
     class Table
     {
+    public:
 
+        uint32_t size() const;
 
+    private:
 
+        page::TableMetaPage* tablemeta_;
 
     };
 
 
-} // end namespace DB::
+} // end namespace DB::table
 
 #endif // !_TABLE_H

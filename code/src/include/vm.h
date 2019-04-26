@@ -89,13 +89,18 @@ namespace DB::vm
 
         void addRow(row_view row);
         void addEOF();
+
+        void set_size(uint32_t);            // [maybe_unused], since on sigma-node, we can not
+        uint32_t size() const;              // decide the size before iterating all rows.
+
         row_view getRow();                  // might be stuck
         std::deque<row_view> waitAll();     // might be stuck
 
-        const Table* table_;
+        const Table* table_;                // info of table: col, constraint...
 
     private:
 
+        uint32_t size_;
         std::shared_ptr<channel_t> ch_;
 
     };

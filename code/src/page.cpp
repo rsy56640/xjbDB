@@ -273,8 +273,7 @@ namespace DB::page
 
     void Page::set_dirty() noexcept {
         dirty_ = true;
-        if (page_t_ != page_t_t::DB_META) // DBMetaPage always force flush
-            disk_manager_->set_dirty(this->page_id_);
+        disk_manager_->set_dirty(this->page_id_);
     }
 
     bool Page::is_dirty() noexcept {

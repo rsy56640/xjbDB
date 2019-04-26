@@ -159,8 +159,8 @@ MetaData 结构：
 - sql 语句
 - ...
 - 末尾处，连续的24B
-- *[depricated]* prev_last_page_id：本次事务执行前的最大页
 - nuance：一个随机数
+- nuance+1：我怕一个出事，再加一个
 - undo_log_num：拷贝的脏页对应的原页数量
 - undo_check：拷贝的所有页的每4B看作int累加，再加上 nuance
 - redo_sql_len：sql 长度
@@ -171,14 +171,16 @@ MetaData 结构：
 - 先拷贝脏页对应的原页
 - 计算一下这些值
 - 先把 nuance 写成 0，让 check fail
-- 写 undo_log_num, undo_check, sql 语句, redo_sql_len, redo_check
+- 写 nuance+1, undo_log_num, undo_check, sql 语句, redo_sql_len, redo_check
 - 写 nuance
 - 数据文件落盘
 - 破坏 log：把 nuance 改成 0
 
 恢复
 
-- 只要 nuance 和 undo_check 计算不一致，则认为不需要恢复
+定义 **check-fail**：nuance 不正常；或者 nuance 和 undo_check 计算不一致
+
+- 只要 check-fail，则认为不需要恢复
 - 否则
   - 如果 sql 为空并且检查一致，那么只需要 undo
   - 如果 sql 非空并且 check 计算一致，那么需要 undo 和 redo
