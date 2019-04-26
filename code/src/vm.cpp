@@ -1,7 +1,6 @@
 #include "include/vm.h"
 #include "include/debug_log.h"
 #include <iostream>
-#include <chrono>
 
 namespace DB::vm
 {
@@ -19,23 +18,34 @@ namespace DB::vm
                         return i;
                 return -1;
             };
-
-            using namespace std::chrono_literals;
-            std::future stop = stop_flag_.get_future();
+            // check if "  EXIT "
+            auto check_exit = [](const std::string& sql)->bool {
+                if (sql.empty()) return false;
+                uint32_t first = 0;
+                uint32_t last = sql.size() - 1;
+                for (; first < last && sql[first] == ' '; first++);
+                for (; last > first && sql[last] == ' '; last--);
+                if (last != first + 3) return false;
+                return sql.substr(first, 4) == "EXIT";
+            };
 
             std::string sql = "";
             std::string statement = "";
             while (true) {
-
-                if (stop.wait_for(50ns) == std::future_status::ready)
-                    return;
-
                 std::cin >> statement;
                 // meet ';'
                 bool meet = false;
                 int32_t semicolon;
-                if (semicolon = check(statement) != -1) {
+                if (semicolon = check(statement) != -1)
+                {
                     sql += statement.substr(0, semicolon);
+
+                    if (check_exit(sql)) {
+                        std::lock_guard<std::mutex> lg{ sql_pool_mutex_ };
+                        isEXIT = true;
+                        return;
+                    }
+
                     std::lock_guard<std::mutex> lg{ sql_pool_mutex_ };
                     sql_pool_.push(std::move(sql));
                     sql_pool_cv_.notify_one();
@@ -44,8 +54,10 @@ namespace DB::vm
                 else {
                     sql += statement;
                 }
+
                 if (meet)
                     sql = statement.substr(semicolon + 1);
+
                 statement = "";
             }
         });
@@ -53,7 +65,6 @@ namespace DB::vm
 
     void ConsoleReader::stop() {
         if (reader_.joinable()) {
-            stop_flag_.set_value();
             reader_.join();
         }
     }
@@ -214,9 +225,10 @@ namespace DB::vm
 
             // handle ErrorMsg or EXIT
 
+
             // EXIT
-            // stop scan from console and process all current sql
-            // conslole_reader_.stop();
+            // reader.stop();
+
 
             // UNDONE: if crash, how to find `prev_last_page_id` when rebuild,
             //         since DBMetaPage only writes `cur_page_id` after `query_process();`
