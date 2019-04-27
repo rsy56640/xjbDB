@@ -44,7 +44,6 @@ namespace DB::vm
         std::thread reader_;
         std::mutex sql_pool_mutex_;
         std::condition_variable sql_pool_cv_;
-        bool isEXIT = false;
     };
 
 

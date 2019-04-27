@@ -10,7 +10,8 @@ namespace DB::vm
 
     void ConsoleReader::start()
     {
-        reader_ = std::thread([this]() {
+        reader_ = std::thread([this]()
+        {
             auto check = [](const std::string& statement)->int32_t {
                 const uint32_t size = statement.size();
                 for (uint32_t i = 0; i < size; i++)
@@ -39,17 +40,14 @@ namespace DB::vm
                 if (semicolon = check(statement) != -1)
                 {
                     sql += statement.substr(0, semicolon);
-
-                    if (check_exit(sql)) {
-                        std::lock_guard<std::mutex> lg{ sql_pool_mutex_ };
-                        isEXIT = true;
-                        return;
-                    }
-
+                    bool exit = check_exit(sql);
                     std::lock_guard<std::mutex> lg{ sql_pool_mutex_ };
                     sql_pool_.push(std::move(sql));
                     sql_pool_cv_.notify_one();
                     meet = true;
+
+                    if (exit)
+                        return;
                 }
                 else {
                     sql += statement;
@@ -59,8 +57,9 @@ namespace DB::vm
                     sql = statement.substr(semicolon + 1);
 
                 statement = "";
-            }
-        });
+
+            } // end while-loop
+        }); // reader thread
     }
 
     void ConsoleReader::stop() {
