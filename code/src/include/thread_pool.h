@@ -37,7 +37,6 @@ namespace DB::util
                 std::make_shared<std::packaged_task<Ret()>>(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
             std::future<Ret> fut = task->get_future();
             std::lock_guard<std::mutex> lg{ _mtx };
-            _task_size++;
             _tasks.emplace_back([task]() { (*task)(); });
             return fut;
         }
@@ -77,7 +76,6 @@ namespace DB::util
         std::mutex _mtx;
         std::condition_variable _cv;
         std::list<task_t> _tasks;
-        std::size_t _task_size = 0;
 
         void schedule()
         {
@@ -90,9 +88,8 @@ namespace DB::util
                 bool schedule = false;
                 {
                     std::lock_guard<std::mutex> lg{ _mtx };
-                    if (num_threads > 0 && _task_size > 0) {
+                    if (num_threads > 0 && !_tasks.empty()) {
                         schedule = true;
-                        _task_size--;
                     }
                 }
                 if (schedule) schedule_once();

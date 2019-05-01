@@ -1,6 +1,7 @@
 #include "include/vm.h"
 #include "include/debug_log.h"
 #include <iostream>
+#include <functional>
 
 namespace DB::vm
 {
@@ -85,8 +86,8 @@ namespace DB::vm
 
 
 
-    row_view::row_view(const Table* table, row_t row)
-        :eof_(false), table_(table), row_(std::make_shared<row_t>(row)) {}
+    row_view::row_view(table_view table_view, row_t row)
+        :eof_(false), table_view_(table_view), row_(std::make_shared<row_t>(row)) {}
 
     bool row_view::isEOF() const { return eof_; }
 
@@ -98,8 +99,8 @@ namespace DB::vm
 
 
 
-    VitrualTable::VitrualTable(const Table* table)
-        :table_(table), ch_(std::make_shared<channel_t>()) {}
+    VitrualTable::VitrualTable(table_view table_view)
+        :table_view_(table_view), ch_(std::make_shared<channel_t>()) {}
 
     void VitrualTable::addRow(row_view row) {
         std::lock_guard<std::mutex> lg{ ch_->mtx_ };
@@ -109,7 +110,7 @@ namespace DB::vm
 
     void VitrualTable::addEOF() {
         row_t null_row;
-        row_view eof_row(table_, null_row);
+        row_view eof_row(table_view_, null_row);
         eof_row.setEOF();
         std::lock_guard<std::mutex> lg{ ch_->mtx_ };
         ch_->row_buffer_.push(eof_row);
@@ -201,14 +202,17 @@ namespace DB::vm
                 table_meta_[tableName] = table_meta;
             }
 
+            init_pk_view(); // cache pk in memory, for FK constraint use
+
         } // end rebuild DB
 
         // start task pool
         task_pool_.start();
 
+#ifndef _xjbDB_test_STORAGE_ENGINE_
         // start scan from console.
         conslole_reader_.start();
-
+#endif // !_xjbDB_test_STORAGE_ENGINE_
     }
 
 
@@ -265,6 +269,9 @@ namespace DB::vm
         // TODO: query process
 
 
+
+        // TODO: update PK view
+
     }
 
 
@@ -273,6 +280,9 @@ namespace DB::vm
     }
 
     void VM::flush() {
+        db_meta_->flush();
+        for (auto&[name, table] : table_meta_)
+            table->flush();
         storage_engine_.buffer_pool_manager_->flush();
     }
 
@@ -289,6 +299,85 @@ namespace DB::vm
 
     void VM::replay_log(log_state_t log_state) {
         storage_engine_.disk_manager_->replay_log(log_state);
+    }
+
+
+    //
+    // 4 op node service providing for sql logic
+    //
+
+    VitrualTable VM::scanTable(const std::string& tableName) {
+        table_view tv; // TODO: table_view for scanTable
+        VitrualTable vt(tv);
+        std::future<void> no_use =
+            register_task(std::mem_fn(&VM::doScanTable), this, vt, tableName);
+        return vt;
+    }
+
+    void VM::doScanTable(VitrualTable& ret, const std::string tableName) {
+        using namespace tree;
+        auto table = table_meta_.find(tableName);
+        if (table == table_meta_.end()) {
+            debug::ERROR_LOG("scan non-existing table.\n");
+            return;
+        }
+        BTree* bt = table->second->bt_;
+        bt->range_query_begin_lock();
+        tree::BTit it = bt->range_query_from_begin();
+        tree::BTit end = bt->range_query_from_end();
+        while (it != end) {
+            ret.addRow({ ret.table_view_, it.getV() });
+            ++it;
+        }
+        bt->range_query_end_unlock();
+        ret.addEOF();
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    void VM::init_pk_view() {
+        for (auto&[name, table] : table_meta_)
+        {
+            if (table->PK_t() == key_t_t::INTEGER) {
+                std::unordered_set<int32_t> pk_view;
+                tree::BTree* bt = table->bt_;
+                tree::BTit it = bt->range_query_from_begin();
+                tree::BTit end = bt->range_query_from_end();
+                while (it != end) {
+                    KeyEntry kEntry = it.getK();
+                    pk_view.insert(kEntry.key_int);
+                    ++it;
+                }
+                table_key_index_INT[table->get_page_id()] = std::move(pk_view);
+            }
+            else {
+                std::unordered_set<std::string> pk_view;
+                tree::BTree* bt = table->bt_;
+                tree::BTit it = bt->range_query_from_begin();
+                tree::BTit end = bt->range_query_from_end();
+                while (it != end) {
+                    KeyEntry kEntry = it.getK();
+                    pk_view.insert(kEntry.key_str);
+                    ++it;
+                }
+                table_key_index_VARCHAR[table->get_page_id()] = std::move(pk_view);
+            }
+        }
     }
 
 

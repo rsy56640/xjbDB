@@ -9,6 +9,16 @@
 namespace DB::page
 {
 
+    std::string vEntry2str(const ValueEntry& vEntry)
+    {
+        if (vEntry.value_state_ == value_state::OBSOLETE)
+            return {};
+        if (vEntry.content_[MAX_TUPLE_SIZE - 1] == '\0')
+            return std::string(vEntry.content_);
+        return std::string(vEntry.content_, MAX_TUPLE_SIZE);
+    }
+
+
     Page* buffer_to_page(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE])
     {
         page_t_t type = static_cast<page_t_t>(read_int(buffer + offset::PAGE_T));
@@ -69,10 +79,11 @@ namespace DB::page
         uint32_t col_num = read_int(buffer + offset::COL_NUM);
         uint32_t row_num = read_int(buffer + offset::ROW_NUM);
         page_id_t default_page_id = read_int(buffer + offset::DEFAULT_VALUE_PAGE_ID);
+        page_id_t auto_id = read_int(buffer + offset::DEFAULT_VALUE_PAGE_ID);
 
         std::vector<std::string> cols(col_num);
         std::unordered_map<std::string, ColumnInfo*> col_name2col;
-        uint32_t pk_col;
+        uint32_t pk_col = TableMetaPage::NOT_A_COLUMN;
         key_t_t key_t;
         uint32_t str_len;
 
@@ -93,7 +104,9 @@ namespace DB::page
                 key_t = static_cast<key_t_t>(col->col_t_);
                 str_len = col->str_len_;
             }
-            cols[i] = std::string(buffer + offset::COLUMN_NAME_STR_START + 1, TableMetaPage::MAX_COLUMN_NAME_STR);
+            cols[i] = std::string(buffer +
+                offset::COLUMN_NAME_STR_START + i * TableMetaPage::COLUMN_NAME_STR_BLOCK + 1,
+                TableMetaPage::MAX_COLUMN_NAME_STR);
             col_name2col[cols[i]] = col;
         }
 
@@ -102,7 +115,10 @@ namespace DB::page
             buffer_pool->disk_manager_, false, key_t, str_len, BT_root_id, col_num, default_page_id);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
 
-        page->pk_col_ = pk_col;
+        page->pk_col_ = pk_col; // maybe `TableMetaPage::NOT_A_COLUMN`, NO PK
+        if (pk_col == TableMetaPage::NOT_A_COLUMN)
+            page->auto_id_ = auto_id;
+
         page->cols_ = std::move(cols);
         page->col_name2col_ = std::move(col_name2col);
 
@@ -340,7 +356,7 @@ namespace DB::page
         return;
 #endif // SIMPLE_TEST
         rw_page_mutex_.unlock();
-    }
+}
 
 
     //
@@ -549,6 +565,20 @@ namespace DB::page
     }
 
 
+    bool TableMetaPage::hasPK() const { return pk_col_ != NOT_A_COLUMN; }
+
+    key_t_t TableMetaPage::PK_t() const {
+        if (hasPK()) {
+            const ColumnInfo* col = col_name2col_.find(cols_[pk_col_])->second;
+            return col->col_t_;
+        }
+        else
+            return key_t_t::INTEGER;
+    }
+
+    page_id_t TableMetaPage::get_auto_id() { return auto_id_++; }
+
+
     void TableMetaPage::insert_column(const std::string& col_name, ColumnInfo* col) {
         cols_.push_back(col_name);
         col_name2col_[col_name] = col;
@@ -578,6 +608,7 @@ namespace DB::page
         write_int(data_ + offset::COL_NUM, col_num_);
         write_int(data_ + offset::ROW_NUM, bt_->size());
         write_int(data_ + offset::DEFAULT_VALUE_PAGE_ID, default_value_page_id_);
+        write_int(data_ + offset::AUTO_ID, auto_id_.load(std::memory_order_seq_cst));
         for (uint32_t i = 0; i < col_num_; i++) {
             ColumnInfo* col = col_name2col_[cols_[i]];
             write_int(data_ + offset::COLINFO_START + 14 * i,
