@@ -314,7 +314,7 @@ namespace DB::vm
         return vt;
     }
 
-    void VM::doScanTable(VitrualTable& ret, const std::string tableName) {
+    void VM::doScanTable(VitrualTable ret, const std::string tableName) {
         using namespace tree;
         auto table = table_meta_.find(tableName);
         if (table == table_meta_.end()) {
@@ -351,34 +351,103 @@ namespace DB::vm
 
 
     void VM::init_pk_view() {
-        for (auto&[name, table] : table_meta_)
+        struct FKInfo {
+            page::key_t_t key_t;
+            std::unordered_map<int32_t, uint32_t>* pk_int = nullptr;
+            std::unordered_map<std::string, uint32_t>* pk_str = nullptr;
+            range_t range;
+        };
+
+        for (auto&[_, table] : table_meta_)
         {
-            if (table->PK_t() == key_t_t::INTEGER) {
-                std::unordered_set<int32_t> pk_view;
+
+            if (!table->hasPK()) continue;
+
+            if (table->PK_t() == key_t_t::INTEGER)
+            {
+                std::unordered_map<int32_t, uint32_t>& pk_view
+                    = table_pk_ref_INT[table->get_page_id()];
                 tree::BTree* bt = table->bt_;
+
+                std::vector<FKInfo> fks;
+                for (auto const&[name, col] : table->col_name2col_) {
+                    if (col->isFK()) {
+                        FKInfo info;
+                        info.key_t = col->col_t_;
+                        if (info.key_t == key_t_t::INTEGER)
+                            info.pk_int = &table_pk_ref_INT[col->other_value_];
+                        else
+                            info.pk_str = &table_pk_ref_VARCHAR[col->other_value_];
+                        info.range = table->get_col_range(name);
+                        fks.push_back(info);
+                    }
+                }
+
                 tree::BTit it = bt->range_query_from_begin();
                 tree::BTit end = bt->range_query_from_end();
                 while (it != end) {
                     KeyEntry kEntry = it.getK();
-                    pk_view.insert(kEntry.key_int);
+                    pk_view[kEntry.key_int]++;
+
+                    for (FKInfo const& fk : fks) {
+                        const ValueEntry vEntry = it.getV();
+                        if (fk.key_t == key_t_t::INTEGER) {
+                            (*fk.pk_int)[get_range_INT(vEntry, fk.range)]++;
+                        }
+                        else {
+                            (*fk.pk_str)[get_range_VARCHAR(vEntry, fk.range)]++;
+                        }
+                    }
+
                     ++it;
-                }
-                table_key_index_INT[table->get_page_id()] = std::move(pk_view);
-            }
-            else {
-                std::unordered_set<std::string> pk_view;
+                } // end iterate bt
+
+            } // end table pk is INTEGER
+
+            else // table pk is CHAR / VARCHAR
+            {
+                std::unordered_map<std::string, uint32_t>& pk_view
+                    = table_pk_ref_VARCHAR[table->get_page_id()];
                 tree::BTree* bt = table->bt_;
+
+                std::vector<FKInfo> fks;
+                for (auto const&[name, col] : table->col_name2col_) {
+                    if (col->isFK()) {
+                        FKInfo info;
+                        info.key_t = col->col_t_;
+                        if (info.key_t == key_t_t::INTEGER)
+                            info.pk_int = &table_pk_ref_INT[col->other_value_];
+                        else
+                            info.pk_str = &table_pk_ref_VARCHAR[col->other_value_];
+                        info.range = table->get_col_range(name);
+                        fks.push_back(info);
+                    }
+                }
+
                 tree::BTit it = bt->range_query_from_begin();
                 tree::BTit end = bt->range_query_from_end();
                 while (it != end) {
                     KeyEntry kEntry = it.getK();
-                    pk_view.insert(kEntry.key_str);
+                    pk_view[kEntry.key_str]++;
+
+                    for (FKInfo const& fk : fks) {
+                        const ValueEntry vEntry = it.getV();
+                        if (fk.key_t == key_t_t::INTEGER) {
+                            (*fk.pk_int)[get_range_INT(vEntry, fk.range)]++;
+                        }
+                        else {
+                            (*fk.pk_str)[get_range_VARCHAR(vEntry, fk.range)]++;
+                        }
+                    }
+
                     ++it;
-                }
-                table_key_index_VARCHAR[table->get_page_id()] = std::move(pk_view);
-            }
-        }
-    }
+                } // end iterate bt
+            
+            } // end table pk is CHAR / VARCHAR
+
+        } // end iterate all table
+
+    } // end function `void VM::init_pk_view();`
 
 
     VM::~VM()
@@ -405,11 +474,13 @@ namespace DB::vm
         ColumnInfo* pkCol = new ColumnInfo;
         pkCol->col_t_ = col_t_t::INTEGER;
         pkCol->setPK();
+        pkCol->vEntry_offset = 0;
         table->insert_column("tid", pkCol);
 
         ColumnInfo* col = new ColumnInfo;
         col->col_t_ = col_t_t::VARCHAR;
         col->str_len_ = 20;
+        col->vEntry_offset = sizeof(int32_t);
         table->insert_column("name", col);
 
         db_meta_->insert_table(table->get_page_id(), "test");

@@ -232,6 +232,9 @@ namespace DB::page
         value_state value_state_ = value_state::OBSOLETE;
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
     };
+    struct range_t { uint32_t begin = 0, len = 0; };
+    int32_t get_range_INT(const ValueEntry&, range_t range);
+    std::string get_range_VARCHAR(const ValueEntry&, range_t range);
     std::string vEntry2str(const ValueEntry& vEntry);
 
     using key_t_t = col_t_t;
@@ -250,8 +253,7 @@ namespace DB::page
         std::string key_str; // <=57B
     };
 
-    // TODO: default init, create on `insert_column` or know it has default initially
-    //
+
     struct ColumnInfo {
         uint32_t col_name_offset_;
         col_t_t col_t_;
@@ -259,6 +261,10 @@ namespace DB::page
         uint16_t constraint_t_ = 0;
         uint32_t other_value_ = NOT_A_PAGE;     // table_id     if constraint_t_ = `FK`
                                                 // value_offset if constraint_t_ = `DEFAULT`
+
+        uint32_t vEntry_offset = 0;             // denotes the offset at ValueEntry
+                                                // do not flush to disk
+
         bool isPK() const noexcept { return constraint_t_ & constraint_t_t::PK; }
         bool isFK() const noexcept { return constraint_t_ & constraint_t_t::FK; }
         bool isNOT_NULL() const noexcept { return constraint_t_ & constraint_t_t::NOT_NULL; }
@@ -292,6 +298,8 @@ namespace DB::page
         bool hasPK() const;
         key_t_t PK_t() const;
         page_id_t get_auto_id();
+
+        range_t get_col_range(const std::string&);
 
         // onlt used when creating table
         void insert_column(const std::string&, ColumnInfo*);

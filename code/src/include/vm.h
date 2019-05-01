@@ -160,16 +160,16 @@ namespace DB::vm
         // - projection
         // - sigma
         VitrualTable scanTable(const std::string& tableName);
-        void doScanTable(VitrualTable& ret, const std::string tableName);
+        void doScanTable(VitrualTable ret, const std::string tableName);
 
         VitrualTable join(VitrualTable t1, VitrualTable t2, bool pk);
         void doJoin(VitrualTable ret, VitrualTable t1, VitrualTable t2, bool pk);
 
         VitrualTable projection(VitrualTable t);
-        void doProjection(VitrualTable& ret, VitrualTable t);
+        void doProjection(VitrualTable ret, VitrualTable t);
 
         VitrualTable sigma(VitrualTable t /* where-root */);
-        void doSigma(VitrualTable& ret, VitrualTable t /* where-root */);
+        void doSigma(VitrualTable ret, VitrualTable t /* where-root */);
 
 
         void init_pk_view();
@@ -182,11 +182,13 @@ namespace DB::vm
         page::DBMetaPage* db_meta_;
         std::unordered_map<std::string, page::TableMetaPage*> table_meta_;
 
+        // PK view: pk -> ref
+        // if the PK is not ref by any FK, the ref = 1;
         friend class table::TableInfo;
         std::unordered_map<page::page_id_t,
-            std::unordered_set<int32_t>> table_key_index_INT;           // PK view
+            std::unordered_map<int32_t, uint32_t>> table_pk_ref_INT;
         std::unordered_map<page::page_id_t,
-            std::unordered_set<std::string>> table_key_index_VARCHAR;   // PK view
+            std::unordered_map<std::string, uint32_t>> table_pk_ref_VARCHAR;
 
 
     public: // for test
