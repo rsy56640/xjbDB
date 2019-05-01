@@ -14,8 +14,8 @@ namespace DB::table
         tableName_(std::move(tableName)),
         columnInfos_(std::move(columnInfos)),
         colNames_(std::move(colNames)),
-        table_key_index_INT(&(vm->table_key_index_INT)),
-        table_key_index_VARCHAR(&(vm->table_key_index_VARCHAR))
+        table_pk_ref_INT(&(vm->table_pk_ref_INT)),
+        table_pk_ref_VARCHAR(&(vm->table_pk_ref_VARCHAR))
     {
         reset(vm);
     }
@@ -36,6 +36,17 @@ namespace DB::table
             if (column.isFK())
                 fks_.push_back({ i, column.other_value_ });
         }
+    }
+
+    bool TableInfo::hasPK() const { return pk_col_ != page::TableMetaPage::NOT_A_COLUMN; }
+
+    page::key_t_t TableInfo::PK_t() const {
+        if (hasPK()) {
+            const page::ColumnInfo& col = columnInfos_[pk_col_];
+            return col.col_t_;
+        }
+        else
+            return page::key_t_t::INTEGER;
     }
 
 

@@ -27,6 +27,9 @@ namespace DB::table
 
         void reset(vm::VM* vm);
 
+        bool hasPK() const;
+        page::key_t_t PK_t() const;
+
         // return NOT_A_PAGE if not fk
         page::page_id_t fk_ref_table_id(uint32_t fk_col);
 
@@ -35,9 +38,9 @@ namespace DB::table
         std::vector<page::ColumnInfo> columnInfos_;
         std::vector<std::string> colNames_;
         const std::unordered_map<page::page_id_t,
-            std::unordered_set<int32_t>>*table_key_index_INT;              // PK view
+            std::unordered_map<int32_t, uint32_t>>*table_pk_ref_INT;
         const std::unordered_map<page::page_id_t,
-            std::unordered_set<std::string>>*table_key_index_VARCHAR;      // PK view
+            std::unordered_map<std::string, uint32_t>>*table_pk_ref_VARCHAR;
 
         // should init
         uint32_t pk_col_ = page::TableMetaPage::NOT_A_COLUMN;

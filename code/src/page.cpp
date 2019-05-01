@@ -18,6 +18,19 @@ namespace DB::page
         return std::string(vEntry.content_, MAX_TUPLE_SIZE);
     }
 
+    int32_t get_range_INT(const ValueEntry& vEntry, range_t range) {
+        if (range.begin + range.len > MAX_TUPLE_SIZE || range.len != 4)
+            debug::ERROR_LOG("range is not valid for INTEGER\n");
+        return read_int(vEntry.content_ + range.begin);
+    }
+
+    std::string get_range_VARCHAR(const ValueEntry& vEntry, range_t range) {
+        if (range.begin + range.len > MAX_TUPLE_SIZE)
+            debug::ERROR_LOG("range is not valid for VARCHAR\n");
+        return std::string(vEntry.content_ + range.begin, range.len);
+    }
+
+
 
     Page* buffer_to_page(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE])
     {
@@ -87,6 +100,8 @@ namespace DB::page
         key_t_t key_t;
         uint32_t str_len;
 
+        uint32_t offset = 0;
+
         for (uint32_t i = 0; i < col_num; i++) {
             ColumnInfo* col = new ColumnInfo;
             col->col_name_offset_ =
@@ -104,6 +119,13 @@ namespace DB::page
                 key_t = static_cast<key_t_t>(col->col_t_);
                 str_len = col->str_len_;
             }
+
+            col->vEntry_offset = offset;
+            if (col->col_t_ == col_t_t::INTEGER)
+                offset += sizeof(int32_t);
+            else
+                offset += col->str_len_;
+
             cols[i] = std::string(buffer +
                 offset::COLUMN_NAME_STR_START + i * TableMetaPage::COLUMN_NAME_STR_BLOCK + 1,
                 TableMetaPage::MAX_COLUMN_NAME_STR);
@@ -356,7 +378,7 @@ namespace DB::page
         return;
 #endif // SIMPLE_TEST
         rw_page_mutex_.unlock();
-}
+    }
 
 
     //
@@ -577,6 +599,14 @@ namespace DB::page
     }
 
     page_id_t TableMetaPage::get_auto_id() { return auto_id_++; }
+
+    range_t TableMetaPage::get_col_range(const std::string& colName) {
+        const ColumnInfo* col = col_name2col_.find(colName)->second;
+        if (col->col_t_ == col_t_t::INTEGER)
+            return range_t{ col->vEntry_offset, sizeof(int32_t) };
+        else
+            return range_t{ col->vEntry_offset, col->str_len_ };
+    }
 
 
     void TableMetaPage::insert_column(const std::string& col_name, ColumnInfo* col) {
@@ -1098,4 +1128,4 @@ namespace DB::page
     }
 
 
-} // end namespace DB::page
+    } // end namespace DB::page
