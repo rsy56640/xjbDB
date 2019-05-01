@@ -59,13 +59,14 @@
 - (4B) col_num
 - (4B) row_num
 - (4B) default_value_page_id
+- (4B) auto_id：如果没有PK
 - (14B * 15) table_meta_info
   - (4B) col_name_offset
   - (2B) col_type
   - (2B) str_len (used when col_type is CHAR/VARCHAR)
   - (2B) constraint_type
   - (4B) value (used when constraint_type is DEFAULT(value_offset) or FK(table_id))
-- col_name 字符串（从234B开始，每一个51Bblock）
+- col_name 字符串（从238B开始，每一个block 51B）
 
 限制：
 

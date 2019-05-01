@@ -7,6 +7,8 @@ namespace DB::debug {
     void debug_page(bool config, const page::page_id_t, buffer::BufferPoolManager*);
 }
 
+namespace DB::vm { class VM; }
+
 namespace DB::buffer
 {
     using page::Page;
@@ -54,7 +56,7 @@ namespace DB::buffer
         disk::DiskManager* disk_manager_;
 
     private:
-
+        friend class vm::VM;
         friend void debug::debug_page(bool config, const page::page_id_t, buffer::BufferPoolManager*);
         Hash_LRU hash_lru_;
 

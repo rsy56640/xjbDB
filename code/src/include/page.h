@@ -82,8 +82,9 @@ namespace DB::page
             COL_NUM = 12,
             ROW_NUM = 16,
             DEFAULT_VALUE_PAGE_ID = 20,
-            COLINFO_START = 24,
-            COLUMN_NAME_STR_START = 234,
+            AUTO_ID = 24,
+            COLINFO_START = 28,
+            COLUMN_NAME_STR_START = 238,
 
             // BTree Page / Value Page
             PARENT_PAGE_ID = 8,
@@ -231,12 +232,9 @@ namespace DB::page
         value_state value_state_ = value_state::OBSOLETE;
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
     };
+    std::string vEntry2str(const ValueEntry& vEntry);
 
-    enum class key_t_t :uint32_t {
-        INTEGER,
-        CHAR,
-        VARCHAR,
-    };
+    using key_t_t = col_t_t;
     constexpr uint32_t INVALID_OFFSET = PAGE_SIZE;
     // if key is (VAR)CHAR, the key is stored the offset to the real content.
     // all contents are organized as blocks, each block is 58B.
@@ -257,10 +255,10 @@ namespace DB::page
     struct ColumnInfo {
         uint32_t col_name_offset_;
         col_t_t col_t_;
-        uint16_t str_len_;      // used when col_t_ = `CHAR` or `VARCHAR`
-        uint16_t constraint_t_;
-        uint32_t other_value_;  // table_id     if constraint_t_ = `FK`
-                                // value_offset if constraint_t_ = `DEFAULT`
+        uint16_t str_len_ = 0;                  // used when col_t_ = `CHAR` or `VARCHAR`
+        uint16_t constraint_t_ = 0;
+        uint32_t other_value_ = NOT_A_PAGE;     // table_id     if constraint_t_ = `FK`
+                                                // value_offset if constraint_t_ = `DEFAULT`
         bool isPK() const noexcept { return constraint_t_ & constraint_t_t::PK; }
         bool isFK() const noexcept { return constraint_t_ & constraint_t_t::FK; }
         bool isNOT_NULL() const noexcept { return constraint_t_ & constraint_t_t::NOT_NULL; }
@@ -276,6 +274,7 @@ namespace DB::page
         static constexpr uint32_t COLUMN_NAME_STR_BLOCK = 51;
         static constexpr uint32_t MAX_COLUMN_NAME_STR = 50;
         static constexpr uint32_t MAX_COLUMN_NUM = 15;
+        static constexpr uint32_t NOT_A_COLUMN = MAX_COLUMN_NUM + 1;
 
         TableMetaPage(buffer::BufferPoolManager* buffer_pool, page_id_t,
             disk::DiskManager*, bool isInit, key_t_t key_t, uint32_t str_len,
@@ -290,6 +289,10 @@ namespace DB::page
         bool is_default_col(const std::string& col_name) const;
         ValueEntry get_default_value(const std::string& col_name) const;
 
+        bool hasPK() const;
+        key_t_t PK_t() const;
+        page_id_t get_auto_id();
+
         // onlt used when creating table
         void insert_column(const std::string&, ColumnInfo*);
 
@@ -299,9 +302,10 @@ namespace DB::page
         page_id_t BT_root_id_;
         uint32_t col_num_;
         page_id_t default_value_page_id_ = NOT_A_PAGE;
+        std::atomic<page_id_t> auto_id_ = NOT_A_PAGE;
         ValuePage* value_page_;
         std::unordered_map<std::string, ColumnInfo*> col_name2col_;
-        uint32_t pk_col_;
+        uint32_t pk_col_ = NOT_A_COLUMN;                // `NOT_A_COLUMN` denotes no PK
         std::vector<std::string> cols_;
         tree::BTree* bt_;
     };

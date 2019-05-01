@@ -8,6 +8,7 @@
 #include "table.h"
 #include <future>
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -19,6 +20,8 @@ namespace DB::tree { class BTree; }
 
 namespace DB::vm
 {
+
+    using table::table_view;
 
     struct StorageEngine
     {
@@ -47,7 +50,6 @@ namespace DB::vm
     };
 
 
-    using table::Table;
     using table::value_t;
     using col_name_t = std::string;
     using row_t = page::ValueEntry;
@@ -56,7 +58,7 @@ namespace DB::vm
     {
     public:
 
-        row_view(const Table*, row_t);
+        row_view(table_view, row_t);
 
         bool isEOF() const;
         void setEOF();
@@ -64,7 +66,7 @@ namespace DB::vm
 
     private:
         bool eof_;
-        const Table* table_;
+        table_view table_view_;
         std::shared_ptr<row_t>  row_;
     };
 
@@ -77,12 +79,11 @@ namespace DB::vm
             std::queue<row_view> row_buffer_;
             std::mutex mtx_;
             std::condition_variable cv_;
-            std::promise<void> eof_;
         };
 
     public:
 
-        VitrualTable(const Table*);
+        VitrualTable(table_view);
         VitrualTable(const VitrualTable&) = default;
         VitrualTable& operator=(const VitrualTable&) = default;
 
@@ -95,7 +96,7 @@ namespace DB::vm
         row_view getRow();                  // might be stuck
         std::deque<row_view> waitAll();     // might be stuck
 
-        const Table* table_;                // info of table: col, constraint...
+        table_view table_view_;             // info of table: col, constraint...
 
     private:
 
@@ -153,6 +154,25 @@ namespace DB::vm
         disk::log_state_t check_log();
         void replay_log(disk::log_state_t);
 
+        // 4 kinds of op node
+        // - scanTable
+        // - join
+        // - projection
+        // - sigma
+        VitrualTable scanTable(const std::string& tableName);
+        void doScanTable(VitrualTable& ret, const std::string tableName);
+
+        VitrualTable join(VitrualTable t1, VitrualTable t2, bool pk);
+        void doJoin(VitrualTable ret, VitrualTable t1, VitrualTable t2, bool pk);
+
+        VitrualTable projection(VitrualTable t);
+        void doProjection(VitrualTable& ret, VitrualTable t);
+
+        VitrualTable sigma(VitrualTable t /* where-root */);
+        void doSigma(VitrualTable& ret, VitrualTable t /* where-root */);
+
+
+        void init_pk_view();
 
     private:
 
@@ -161,6 +181,12 @@ namespace DB::vm
         ConsoleReader conslole_reader_;
         page::DBMetaPage* db_meta_;
         std::unordered_map<std::string, page::TableMetaPage*> table_meta_;
+
+        friend class table::TableInfo;
+        std::unordered_map<page::page_id_t,
+            std::unordered_set<int32_t>> table_key_index_INT;           // PK view
+        std::unordered_map<page::page_id_t,
+            std::unordered_set<std::string>> table_key_index_VARCHAR;   // PK view
 
 
     public: // for test
