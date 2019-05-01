@@ -160,16 +160,16 @@ namespace DB::vm
         // - projection
         // - sigma
         VitrualTable scanTable(const std::string& tableName);
-        void doScanTable(VitrualTable& ret, const std::string tableName);
+        void doScanTable(VitrualTable ret, const std::string tableName);
 
         VitrualTable join(VitrualTable t1, VitrualTable t2, bool pk);
         void doJoin(VitrualTable ret, VitrualTable t1, VitrualTable t2, bool pk);
 
         VitrualTable projection(VitrualTable t);
-        void doProjection(VitrualTable& ret, VitrualTable t);
+        void doProjection(VitrualTable ret, VitrualTable t);
 
         VitrualTable sigma(VitrualTable t /* where-root */);
-        void doSigma(VitrualTable& ret, VitrualTable t /* where-root */);
+        void doSigma(VitrualTable ret, VitrualTable t /* where-root */);
 
 
         void init_pk_view();

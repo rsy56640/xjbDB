@@ -314,7 +314,7 @@ namespace DB::vm
         return vt;
     }
 
-    void VM::doScanTable(VitrualTable& ret, const std::string tableName) {
+    void VM::doScanTable(VitrualTable ret, const std::string tableName) {
         using namespace tree;
         auto table = table_meta_.find(tableName);
         if (table == table_meta_.end()) {
