@@ -285,6 +285,11 @@ namespace DB::page
         static constexpr uint32_t MAX_COLUMN_NUM = 15;
         static constexpr uint32_t NOT_A_COLUMN = MAX_COLUMN_NUM + 1;
 
+        // if no PK, the column `autoPK` will be added at the first column
+        // with type INTEGER, and will get auto increased value when INSERT.
+        //
+        //
+
         TableMetaPage(buffer::BufferPoolManager* buffer_pool, page_id_t,
             disk::DiskManager*, bool isInit, key_t_t key_t, uint32_t str_len,
             // below 3 are needed only when (!init)

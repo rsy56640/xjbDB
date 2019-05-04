@@ -87,8 +87,20 @@ namespace DB::table
 
     void row_view::setEOF() { eof_ = true; }
 
-    //value_t row_view::getValue(col_name_t colName) const {
-    //}
+    value_t row_view::getValue(col_name_t colName) const {
+        const uint32_t col_size = table_view_.table_info_->colNames_.size();
+        for (uint32_t i = 0; i < col_size; i++) {
+            if (table_view_.table_info_->colNames_[i] == colName) {
+                const page::ColumnInfo& colInfo = table_view_.table_info_->columnInfos_[i];
+                page::range_t range{ colInfo.vEntry_offset_, colInfo.str_len_ };
+                if (colInfo.col_t_ == page::col_t_t::INTEGER)
+                    return page::get_range_INT(*row_, range);
+                else
+                    return page::get_range_VARCHAR(*row_, range);
+            }
+        }
+        debug::ERROR_LOG("column \"%s\" does not exist\n", colName.c_str());
+    }
 
 
 

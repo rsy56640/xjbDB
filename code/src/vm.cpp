@@ -6,6 +6,8 @@
 #include <iostream>
 #include <variant>
 #include <functional>
+#include <vector>
+#include <deque>
 
 namespace DB::vm
 {
@@ -656,8 +658,90 @@ namespace DB::vm
 
     void VM::doDelete(process_result_t& result, const query::DeleteInfo& info)
     {
+        page::TableMetaPage* table = table_meta_[info.sourceTable];
+        std::vector<std::string> colNames = table->cols_;
+        std::vector<page::ColumnInfo> columnInfos;
+        columnInfos.reserve(colNames.size());
+        for (auto const& name : colNames) {
+            columnInfos.push_back(*table->col_name2col_[name]);
+        }
+        table::TableInfo tableInfo(info.sourceTable, std::move(colNames), std::move(columnInfos), this);
 
+        tree::BTree* bt = table->bt_;
+        tree::BTit it = bt->range_query_from_begin();
+        tree::BTit end = bt->range_query_from_end();
+        std::deque<tree::KVEntry> to_be_deleted;
 
+        std::unordered_map<int32_t, uint32_t>& pk_ref_INT =
+            table_pk_ref_INT[table->get_page_id()];
+        std::unordered_map<std::string, uint32_t>& pk_ref_VARCHAR =
+            table_pk_ref_VARCHAR[table->get_page_id()];
+
+        while (it != end)
+        {
+            ValueEntry vEntry = it.getV();
+            row_view rv(tableInfo, vEntry);
+            if (ast::vmVisit(info.whereExpr, rv)) {
+                // check FK constraint
+                bool ok_to_delete = true;
+                KeyEntry kEntry = it.getK();
+                if (kEntry.key_t == key_t_t::INTEGER) {
+                    // some FK ref
+                    if (pk_ref_INT[kEntry.key_int] > 1)
+                        ok_to_delete = false;
+                }
+                else {
+                    // some FK ref
+                    if (pk_ref_VARCHAR[kEntry.key_str] > 1)
+                        ok_to_delete = false;
+                }
+                if (ok_to_delete)
+                    to_be_deleted.push_back({ kEntry, vEntry });
+            }
+            ++it;
+        }
+
+        // update PK ref
+        struct fk_info_t {
+            col_t_t col_t;
+            page_id_t fk_table;
+            range_t range;
+        };
+        std::vector<fk_info_t> fk_infos;
+        for (auto const&[name, col] : table->col_name2col_) {
+            if (col->isFK())
+                fk_infos.push_back(fk_info_t{
+                col->col_t_, col->other_value_,
+                range_t{ col->vEntry_offset_, col->str_len_ } });
+        }
+
+        for (const tree::KVEntry& kv : to_be_deleted)
+        {
+            // erase from other table's pk view
+            for (auto const& fk_info : fk_infos)
+            {
+                if (fk_info.col_t == col_t_t::INTEGER) {
+                    int32_t i = page::get_range_INT(kv.vEntry, fk_info.range);
+                    table_pk_ref_INT[fk_info.fk_table][i]--;
+                }
+                else {
+                    std::string s = page::get_range_VARCHAR(kv.vEntry, fk_info.range);
+                    table_pk_ref_VARCHAR[fk_info.fk_table][s]--;
+                }
+            }
+
+            // erase from B+Tree
+            bt->erase(kv.kEntry);
+
+            // erase from pk view
+            if (kv.kEntry.key_t == key_t_t::INTEGER)
+                pk_ref_INT.erase(kv.kEntry.key_int);
+            else
+                pk_ref_VARCHAR.erase(kv.kEntry.key_str);
+        }
+
+        result.msg = "delete " + std::to_string(to_be_deleted.size()) + " rows";
+        // TODO: delete info.whereExpr;
     }
 
 
@@ -667,7 +751,16 @@ namespace DB::vm
     //
 
     VirtualTable VM::scanTable(const std::string& tableName) {
-        table_view tv; // TODO: table_view for scanTable
+        page::TableMetaPage* table_page = table_meta_[tableName];
+        std::vector<std::string> colNames = table_page->cols_;
+        std::vector<page::ColumnInfo> columnInfos;
+        columnInfos.reserve(colNames.size());
+        for (auto const& name : colNames) {
+            columnInfos.push_back(*table_page->col_name2col_[name]);
+        }
+        table::TableInfo tableInfo(tableName, std::move(colNames), std::move(columnInfos), this);
+
+        table_view tv(tableInfo);
         VirtualTable vt(tv);
         std::future<void> no_use =
             register_task(std::mem_fn(&VM::doScanTable), this, vt, tableName);
