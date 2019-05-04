@@ -233,6 +233,8 @@ namespace DB::page
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
     };
     struct range_t { uint32_t begin = 0, len = 0; };
+    void update_vEntry(ValueEntry&, range_t range, int32_t);
+    void update_vEntry(ValueEntry&, range_t range, const std::string&);
     int32_t get_range_INT(const ValueEntry&, range_t range);
     std::string get_range_VARCHAR(const ValueEntry&, range_t range);
     std::string vEntry2str(const ValueEntry& vEntry);
@@ -255,14 +257,14 @@ namespace DB::page
 
 
     struct ColumnInfo {
-        uint32_t col_name_offset_;
+        uint32_t col_name_offset_;              // set in `insert_column()`
         col_t_t col_t_;
-        uint16_t str_len_ = 0;                  // used when col_t_ = `CHAR` or `VARCHAR`
+        uint16_t str_len_ = sizeof(int32_t);    // used when col_t_ = `CHAR` or `VARCHAR`
         uint16_t constraint_t_ = 0;
         uint32_t other_value_ = NOT_A_PAGE;     // table_id     if constraint_t_ = `FK`
                                                 // value_offset if constraint_t_ = `DEFAULT`
 
-        uint32_t vEntry_offset = 0;             // denotes the offset at ValueEntry
+        uint32_t vEntry_offset_ = 0;            // denotes the offset at ValueEntry
                                                 // do not flush to disk
 
         bool isPK() const noexcept { return constraint_t_ & constraint_t_t::PK; }
@@ -274,6 +276,7 @@ namespace DB::page
         void setNOT_NULL() { constraint_t_ |= constraint_t_t::NOT_NULL; }
         void setDEFAULT() { constraint_t_ |= constraint_t_t::DEFAULT; }
     };
+    static const char* const autoPK = "autoPK";
     class TableMetaPage : public Page {
         friend TableMetaPage* parse_TableMetaPage(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE]);
     public:
@@ -284,7 +287,7 @@ namespace DB::page
 
         TableMetaPage(buffer::BufferPoolManager* buffer_pool, page_id_t,
             disk::DiskManager*, bool isInit, key_t_t key_t, uint32_t str_len,
-            // `BT_root_id` is needed only when (!init)
+            // below 3 are needed only when (!init)
             page_id_t BT_root_id, uint32_t col_num, page_id_t default_value_page_id);
 
         ~TableMetaPage();
@@ -294,6 +297,8 @@ namespace DB::page
         bool is_not_null(const std::string& col_name) const;
         bool is_default_col(const std::string& col_name) const;
         ValueEntry get_default_value(const std::string& col_name) const;
+        void insert_default_value(ColumnInfo*, const std::string& default_value);
+        void insert_default_value(ColumnInfo*, int32_t default_value);
 
         bool hasPK() const;
         key_t_t PK_t() const;
@@ -301,7 +306,7 @@ namespace DB::page
 
         range_t get_col_range(const std::string&);
 
-        // onlt used when creating table
+        // only used when creating table
         void insert_column(const std::string&, ColumnInfo*);
 
         virtual void update_data();

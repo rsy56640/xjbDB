@@ -434,8 +434,8 @@ namespace DB::ast {
         case base_t_t::COMPARISON_OP:
         {
             const ComparisonOpExpr* comparisonPtr = static_cast<const ComparisonOpExpr*>(root);
-            RetValue left = _vmVisit(comparisonPtr->_left, row);
-            RetValue right = _vmVisit(comparisonPtr->_right, row);
+            table::value_t left = _vmVisit(comparisonPtr->_left, row);
+            table::value_t right = _vmVisit(comparisonPtr->_right, row);
             std::string op = comparison2str[int(comparisonPtr->comparison_t_)];
 
             //RetValue here must be int / str
@@ -476,7 +476,7 @@ namespace DB::ast {
         return _vmVisit(root, row);
     }
 
-    RetValue _vmVisit(const AtomExpr* root, table::row_view row)
+    table::value_t _vmVisit(const AtomExpr* root, table::row_view row)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)
@@ -484,8 +484,8 @@ namespace DB::ast {
         case base_t_t::MATH_OP:
         {
             const MathOpExpr* mathPtr = static_cast<const MathOpExpr*>(root);
-            RetValue left = _vmVisit(mathPtr->_left, row);
-            RetValue right = _vmVisit(mathPtr->_right, row);
+            table::value_t left = _vmVisit(mathPtr->_left, row);
+            table::value_t right = _vmVisit(mathPtr->_right, row);
             std::string op = math2str[int(mathPtr->math_t_)];	//used for exception info
 
             //RetValue here must be int / str
@@ -526,7 +526,6 @@ namespace DB::ast {
                 overloaded{
                     [](int32_t i) { return i; },
                     [](const std::string & s) { return s; },
-                    [](auto) { return 0; },
                 }, row.getValue(idPtr->_columnName));
         }
 #ifdef DEBUG
@@ -536,7 +535,7 @@ namespace DB::ast {
         }
     }
 
-    RetValue vmVisit(const AtomExpr* root, table::row_view row)
+    table::value_t vmVisitAtom(const AtomExpr* root, table::row_view row)
     {
 #ifdef DEBUG
         if (!root)

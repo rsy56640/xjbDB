@@ -181,7 +181,7 @@ namespace DB::ast {
     bool vmVisit(const BaseExpr* root, table::row_view row);
 
     //for others(expressionAtom), used for computing math/string expression and data in the specified row
-    RetValue vmVisit(const AtomExpr* root, table::row_view row = NULL_ROW);
+    table::value_t vmVisitAtom(const AtomExpr* root, table::row_view row = NULL_ROW);
 }
 
 

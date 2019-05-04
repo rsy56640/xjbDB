@@ -101,6 +101,7 @@ namespace DB::vm
         struct process_result_t {
             bool exit = false;
             bool error = false;
+            std::string msg;
         };
         process_result_t query_process(const query::SQLValue&);
 
@@ -120,9 +121,7 @@ namespace DB::vm
 
         // query process functions
         void doCreate(process_result_t&, const query::CreateTableInfo&);
-
         void doDrop(process_result_t&, const query::DropTableInfo&);
-
         void doSelect(process_result_t&, const query::SelectInfo&);
         void doUpdate(process_result_t&, const query::UpdateInfo&);
         void doInsert(process_result_t&, const query::InsertInfo&);
@@ -137,19 +136,19 @@ namespace DB::vm
         // - projection
         // - sigma
     public:
-        friend struct TableOp;
+        //friend struct TableOp;
         VirtualTable scanTable(const std::string& tableName);
         void doScanTable(VirtualTable ret, const std::string tableName);
 
-        friend struct JoinOp;
+        //friend struct JoinOp;
         VirtualTable join(VirtualTable t1, VirtualTable t2, bool pk);
         void doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk);
 
-        friend struct ProjectOp;
+        //friend struct ProjectOp;
         VirtualTable projection(VirtualTable t, const std::vector<std::string>& colNames);
         void doProjection(VirtualTable ret, VirtualTable t);
 
-        friend struct FilterOp;
+        //friend struct FilterOp;
         VirtualTable sigma(VirtualTable t, ast::BaseExpr*);
         void doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr*);
 
@@ -163,6 +162,9 @@ namespace DB::vm
         ConsoleReader conslole_reader_;
         page::DBMetaPage* db_meta_;
         std::unordered_map<std::string, page::TableMetaPage*> table_meta_;
+        std::unordered_map<std::string, table::TableInfo> table_info_;
+        std::unordered_map<std::string, page::TableMetaPage*> free_table_;
+
 
         // PK view: pk -> ref
         // if the PK is not ref by any FK, the ref = 1;
@@ -181,6 +183,7 @@ namespace DB::vm
         void test_size();
         void test_output();
         void test_flush();
+        void showDB();
 
     };
 

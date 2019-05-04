@@ -20,6 +20,10 @@
   - 例如：INT, VARCHAR(15), INT, CHAR(20) 占 4+15+4+20 B
 - 数据库中最多有30张表，每张表最多15个column
 - 事务是串行化处理的
+- 列的限制
+  - FK 不能是 DEAULT
+  - 
+- UPDATE 不能改 PK
 
 
 &nbsp;   

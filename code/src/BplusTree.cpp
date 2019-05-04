@@ -140,6 +140,33 @@ namespace DB::tree
 
     uint32_t BTree::size() const { return size_; }
 
+    void BTree::destruct() {
+        std::stack<base_ptr> pages;
+        pages.push(root_);
+        root_->ref();
+        while (!pages.empty()) {
+            base_ptr node = pages.top();
+            switch (node->page_t_) {
+            case page_t_t::ROOT_INTERNAL:
+            case page_t_t::INTERNAL:
+                for (uint32_t i = 0; i < node->nEntry_; i++) {
+                    base_ptr child = fetch_node(static_cast<link_ptr>(node)->branch_[i]);
+                    pages.push(child);
+                }
+                break;
+            case page_t_t::ROOT_LEAF:
+            case page_t_t::LEAF:
+                break;
+            default:
+                debug::ERROR_LOG("error page_t in bt in `desturct()`\n");
+            }
+            node->set_free();
+            node->unref();
+        }
+    }
+
+
+
 
     void BTree::range_query_begin_lock() {
         range_query_lock_.lock();

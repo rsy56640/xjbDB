@@ -52,6 +52,13 @@ namespace DB::table
             return page::key_t_t::INTEGER;
     }
 
+    uint32_t TableInfo::str_len() const {
+        if (hasPK())
+            return  columnInfos_[pk_col_].str_len_;
+        else
+            return 0;
+    }
+
 
     // return NOT_A_PAGE if not fk
     page::page_id_t TableInfo::fk_ref_table_id(uint32_t fk_col) {
@@ -64,7 +71,11 @@ namespace DB::table
 
 
 
-
+    table_view::table_view() {}
+    table_view::table_view(const TableInfo& tableInfo)
+    {
+        table_info_ = std::make_shared<const TableInfo>(tableInfo);
+    }
 
 
 

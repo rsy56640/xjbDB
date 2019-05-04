@@ -2,6 +2,7 @@
 #include "include/debug_log.h"
 #include "include/table.h"
 #include "include/ast.h"
+#include "include/query.h"
 #include <iostream>
 #include <variant>
 #include <functional>
@@ -181,6 +182,7 @@ namespace DB::vm
             // handle ErrorMsg or EXIT
             VM::process_result_t result = query_process(plan);
 
+            printf("xjbDB$$$$$: %s\n", result.msg.c_str());
             if (result.exit)
                 return;
             if (result.error)
@@ -241,16 +243,15 @@ namespace DB::vm
         VM::process_result_t result;
         std::visit(
             overloaded{
-                [&result](const query::CreateTableInfo& info) {},
-                [&result](const query::DropTableInfo& info) {},
-                [&result](const query::SelectInfo& info) {},
-                [&result](const query::UpdateInfo& info) {},
-                [&result](const query::InsertInfo& info) {},
-                [&result](const query::DeleteInfo& info) {},
-                [&result](query::Exit) { result.exit = true; },
+                [&result,this](const query::CreateTableInfo& info) { doCreate(result,info); },
+                [&result,this](const query::DropTableInfo& info) { doDrop(result,info); },
+                [&result,this](const query::SelectInfo& info) { doSelect(result,info);  },
+                [&result,this](const query::UpdateInfo& info) { doUpdate(result,info); },
+                [&result,this](const query::InsertInfo& info) { doInsert(result,info); },
+                [&result,this](const query::DeleteInfo& info) { doDelete(result,info); },
+                [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result](query::ErrorMsg) { result.error = true; },
             }, plan);
-
 
         // TODO: update PK view
 
@@ -268,6 +269,9 @@ namespace DB::vm
         db_meta_->flush();
         for (auto&[name, table] : table_meta_)
             table->flush();
+        for (auto&[name, table] : free_table_)
+            delete table;
+        free_table_.clear();
         storage_engine_.buffer_pool_manager_->flush();
     }
 
@@ -292,36 +296,365 @@ namespace DB::vm
     // query process functions
     //
 
-    void VM::doCreate(process_result_t&, const query::CreateTableInfo&)
+    void VM::doCreate(process_result_t& result, const query::CreateTableInfo& info)
     {
+        if (table_meta_.size() >= DBMetaPage::MAX_TABLE_NUM) {
+            result.error = true;
+            result.msg = "DB is full";
+            return;
+        }
+        if (table_meta_.count(info.tableInfo.tableName_)) {
+            result.error = true;
+            result.msg = "The table \"" + info.tableInfo.tableName_ + "\" has already existed";
+            return;
+        }
+
+        const table::TableInfo& tableInfo = info.tableInfo;
+        const page_id_t table_id = storage_engine_.disk_manager_->AllocatePage();
+        page::TableMetaPage* table_page = new TableMetaPage(
+            storage_engine_.buffer_pool_manager_, table_id, storage_engine_.disk_manager_,
+            true, tableInfo.PK_t(), tableInfo.str_len(),
+            NOT_A_PAGE, 0, NOT_A_PAGE);
+
+        auto default_it = info.defaults.begin();
+        auto fk_it = info.fkTables.begin();
+        const uint32_t col_size = tableInfo.colNames_.size();
+        uint32_t vEntry_offset = 0;
+
+        // AUTOPK
+        if (info.tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN) {
+            page::ColumnInfo* col = new ColumnInfo{};
+            col->col_t_ = col_t_t::INTEGER;
+            col->setPK();
+            col->str_len_ = sizeof(uint32_t);
+
+            col->vEntry_offset_ = vEntry_offset;
+            vEntry_offset += col->str_len_;
+
+            table_page->insert_column(page::autoPK, col);
+            table_page->pk_col_ = page::TableMetaPage::NOT_A_COLUMN;
+        }
+
+        for (uint32_t i = 0; i < col_size; i++)
+        {
+            page::ColumnInfo* col = new ColumnInfo(tableInfo.columnInfos_[i]);
+
+            col->vEntry_offset_ = vEntry_offset;
+            vEntry_offset += col->str_len_;
+
+            if (col->isDEFAULT()) {
+                if (col->col_t_ == col_t_t::INTEGER) {
+                    int32_t i = std::get<int32_t>(*default_it);
+                    table_page->insert_default_value(col, i);
+                }
+                else {
+                    table_page->insert_default_value(col, std::get<std::string>(*default_it));
+                }
+                ++default_it;
+            }
+
+            if (col->isFK()) {
+                col->other_value_ = table_meta_[*fk_it]->get_page_id();
+                ++fk_it;
+            }
+
+            table_page->insert_column(tableInfo.colNames_[i], col);
+        }
+
+        db_meta_->insert_table(table_id, tableInfo.tableName_);
+        table_meta_[tableInfo.tableName_] = table_page;
+        table_info_[tableInfo.tableName_] = tableInfo;
+
+        result.msg = "create table \"" + tableInfo.tableName_ + "\"";
+    }
+
+    void VM::doDrop(process_result_t& result, const query::DropTableInfo& info)
+    {
+        auto it = table_meta_.find(info.tableName);
+        if (it == table_meta_.end()) {
+            result.error = true;
+            result.msg = "the table \"" + info.tableName + "\" does not exist";
+            return;
+        }
+
+        page::TableMetaPage* table = it->second;
+        db_meta_->drop_table(info.tableName);
+        table->bt_->destruct();
+        table->set_free(); // also set default_value_page free
+        free_table_[info.tableName] = table; // will flush later
+        table_meta_.erase(info.tableName);
+        table_info_.erase(info.tableName);
+
+        if (table->PK_t() == key_t_t::INTEGER) {
+            table_pk_ref_INT.erase(table->get_page_id());
+        }
+        else {
+            table_pk_ref_VARCHAR.erase(table->get_page_id());
+        }
+
+        result.msg = "table \"" + info.tableName + "\" has been dropped";
+    }
+
+    void VM::doSelect(process_result_t& result, const query::SelectInfo& info)
+    {
+
 
     }
 
-    void VM::doDrop(process_result_t&, const query::DropTableInfo&)
+    void VM::doUpdate(process_result_t& result, const query::UpdateInfo& info)
     {
+        page::TableMetaPage* table = table_meta_[info.sourceTable];
+        tree::BTree* bt = table->bt_;
+        tree::BTit it = bt->range_query_from_begin();
+        tree::BTit end = bt->range_query_from_end();
+        uint32_t updated_row_num = 0;
 
+        struct target_t {
+            page::range_t range;
+            page::col_t_t col_t;
+            bool fk;
+            page::page_id_t fk_table;
+        };
+        std::vector<target_t> targets;
+        const uint32_t target_size = info.elements.size();
+        targets.reserve(target_size);
+        for (const query::Element& e : info.elements) {
+            ColumnInfo * col = table->col_name2col_[e.name];
+            targets.push_back(
+                target_t{ page::range_t{ col->vEntry_offset_ ,col->str_len_ },
+                col->col_t_ , col->isFK(), col->other_value_ });
+        }
 
+        while (it != end)
+        {
+            ValueEntry vEntry = it.getV();
+            table_view tv(table_info_[info.sourceTable]);
+            row_view row(tv, vEntry);
+            // check where clause
+            if (ast::vmVisit(info.whereExpr, row))
+            {
+                // "SET name = name +"asd", value = value / 2"
+                // update cannot modify PK !!!
+                bool ok_to_update = true;
+                // maybe someone break FK constraint, so we use a measure like 2PC
+                std::vector<uint32_t*> add_ref;
+                std::vector<uint32_t*> sub_ref;
+
+                for (uint32_t k = 0; k < target_size; k++)
+                {
+                    if (!ok_to_update)
+                        break;
+
+                    table::value_t v = ast::vmVisitAtom(info.elements[k].valueExpr, row);
+
+                    if (targets[k].col_t == col_t_t::INTEGER)
+                    {
+                        int32_t i = std::get<int32_t>(v);
+                        // FK constraint
+                        if (targets[k].fk) {
+                            int32_t old_i = page::get_range_INT(vEntry, targets[k].range);
+                            if (!table_pk_ref_INT[targets[k].fk_table].count(i))
+                                ok_to_update = false;
+                            else {
+                                add_ref.push_back(&table_pk_ref_INT[targets[k].fk_table][i]);
+                                sub_ref.push_back(&table_pk_ref_INT[targets[k].fk_table][old_i]);
+                            }
+                        }
+                        if (ok_to_update)
+                            page::update_vEntry(vEntry, targets[k].range, i);
+                    } // end col is INTEGER
+                    else
+                    {
+                        std::string s = std::get<std::string>(v);
+                        // FK constraint
+                        if (targets[k].fk) {
+                            std::string old_s = page::get_range_VARCHAR(vEntry, targets[k].range);
+                            if (!table_pk_ref_VARCHAR[targets[k].fk_table].count(s))
+                                ok_to_update = false;
+                            else {
+                                add_ref.push_back(&table_pk_ref_VARCHAR[targets[k].fk_table][s]);
+                                sub_ref.push_back(&table_pk_ref_VARCHAR[targets[k].fk_table][old_s]);
+                            }
+                        }
+                        if (ok_to_update)
+                            page::update_vEntry(vEntry, targets[k].range, s);
+                    } // end col is VARCHAR
+
+                } // end maybe update all column
+
+                // finally commit
+                if (ok_to_update)
+                {
+                    it.updateV(vEntry);
+                    updated_row_num++;
+                    for (uint32_t* pi : add_ref)
+                        *pi = *pi + 1;
+                    for (uint32_t* pi : sub_ref)
+                        *pi = *pi - 1;
+                }
+
+            } // end whereExpr
+            ++it;
+        }
+        result.msg = "update " + std::to_string(updated_row_num) +
+            " rows in table \"" + info.sourceTable + "\"";
     }
 
-    void VM::doSelect(process_result_t&, const query::SelectInfo&)
+    void VM::doInsert(process_result_t& result, const query::InsertInfo& info)
     {
+        page::TableMetaPage* table = table_meta_[info.sourceTable];
+        tree::BTree* bt = table->bt_;
 
+        // prepare insert values
+        struct insert_element {
+            page::range_t range;
+            table::value_t value;
+            page::col_t_t col_t;
+            bool fk;
+            page::page_id_t fk_table;
+        };
+        std::vector<insert_element> elements;
+        const uint32_t insert_col_size = info.elements.size();
+        uint32_t pk_col = TableMetaPage::NOT_A_COLUMN;
+        table::value_t pk_v;
+        elements.reserve(table->col_num_);
+        for (uint32_t i = 0; i < insert_col_size; i++)
+        {
+            const query::Element& e = info.elements[i];
+            ColumnInfo* col = table->col_name2col_[e.name];
 
+            if (col->isPK()) {
+                pk_col = i;
+                pk_v = ast::vmVisitAtom(e.valueExpr);
+            }
+
+            elements.push_back(insert_element{
+                page::range_t{ col->vEntry_offset_ ,col->str_len_ },
+                ast::vmVisitAtom(e.valueExpr), col->col_t_, col->isFK(), col->other_value_
+                });
+        }
+
+        // prepare default value
+        for (auto const&[name, col] : table->col_name2col_)
+        {
+            if (col->isDEFAULT())
+            {
+
+                bool user_input_default = false;
+                for (const query::Element& e : info.elements)
+                    if (e.name == name) {
+                        user_input_default = true;
+                        break;
+                    }
+                if (user_input_default)
+                    continue;
+
+                ValueEntry dv = table->get_default_value(name);
+                table::value_t v;
+                if (col->col_t_ == col_t_t::INTEGER) {
+                    v = page::read_int(dv.content_);
+                }
+                else {
+                    v = std::string(dv.content_, col->str_len_);
+                }
+                elements.push_back(insert_element{
+                    page::range_t{ col->vEntry_offset_ , col->str_len_ },
+                    v, col->col_t_, false, page::NOT_A_PAGE
+                    });
+            }
+
+        }
+
+        // check FK
+        for (const insert_element& e : elements) {
+            if (e.fk) {
+                if (e.col_t == col_t_t::INTEGER) {
+                    int32_t i = std::get<int32_t>(e.value);
+                    if (!table_pk_ref_INT[e.fk_table].count(i)) {
+                        result.msg = "FK constraint violate: \"" + std::to_string(i) + "\"";
+                        return;
+                    }
+                }
+                else {
+                    std::string s = std::get<std::string>(e.value);
+                    if (!table_pk_ref_VARCHAR[e.fk_table].count(s)) {
+                        result.msg = "FK constraint violate: \"" + s + "\"";
+                        return;
+                    }
+                }
+            }
+        }
+
+        // check PK, AUTOPK
+        if (elements.size() != table->col_num_)
+        {
+            // prepare AUTOPK
+            if (pk_col != TableMetaPage::NOT_A_COLUMN)
+                debug::ERROR_LOG("PK column error\n");
+
+            // HACK: promise to be the last element for auto pk
+            elements.push_back(insert_element{
+                table->get_col_range(page::autoPK),
+                table->get_auto_id(), col_t_t::INTEGER, false, NOT_A_PAGE
+                });
+        }
+        else {
+            // check PK
+            const table::value_t& v = elements[pk_col].value;
+            const insert_element& element = elements[pk_col];
+            if (element.col_t == col_t_t::INTEGER) {
+                int32_t i = std::get<int32_t>(v);
+                if (table_pk_ref_INT[table->get_page_id()].count(i)) {
+                    result.msg = "PK exists: \"" + std::to_string(i) + "\"";
+                    return;
+                }
+            }
+            else {
+                std::string s = std::get<std::string >(v);
+                if (table_pk_ref_VARCHAR[table->get_page_id()].count(s)) {
+                    result.msg = "PK exists: \"" + s + "\"";
+                    return;
+                }
+            }
+        }
+        if (elements.size() + 1 != table->col_num_)
+            debug::ERROR_LOG("INSERT VALUES prepare failure\n");
+
+        // insert
+        tree::KVEntry kv;
+        // prepare KeyEntry
+        if (table->hasPK()) {
+            if (table->PK_t() == key_t_t::INTEGER) {
+                kv.kEntry.key_t = table->PK_t();
+                kv.kEntry.key_int = std::get<int32_t>(pk_v);
+            }
+            else {
+                kv.kEntry.key_t = table->PK_t();
+                kv.kEntry.key_str = std::get<std::string>(pk_v);
+            }
+        }
+        else {
+            kv.kEntry.key_t = key_t_t::INTEGER;
+            kv.kEntry.key_int = std::get<int32_t>(elements.back().value);
+        }
+
+        // prepare ValueEntry
+        for (const insert_element& e : elements) {
+            if (e.col_t == col_t_t::INTEGER) {
+                update_vEntry(kv.vEntry, e.range, std::get<int32_t>(e.value));
+            }
+            else {
+                update_vEntry(kv.vEntry, e.range, std::get<std::string>(e.value));
+            }
+        }
+
+        if (!table->bt_->insert(kv))
+            debug::ERROR_LOG("INSERT ERROR\n");
+
+        result.msg = "INSERT ok";
     }
 
-    void VM::doUpdate(process_result_t&, const query::UpdateInfo&)
-    {
-
-
-    }
-
-    void VM::doInsert(process_result_t&, const query::InsertInfo&)
-    {
-
-
-    }
-
-    void VM::doDelete(process_result_t&, const query::DeleteInfo&)
+    void VM::doDelete(process_result_t& result, const query::DeleteInfo& info)
     {
 
 
@@ -501,13 +834,13 @@ namespace DB::vm
         ColumnInfo* pkCol = new ColumnInfo;
         pkCol->col_t_ = col_t_t::INTEGER;
         pkCol->setPK();
-        pkCol->vEntry_offset = 0;
+        pkCol->vEntry_offset_ = 0;
         table->insert_column("tid", pkCol);
 
         ColumnInfo* col = new ColumnInfo;
         col->col_t_ = col_t_t::VARCHAR;
         col->str_len_ = 20;
-        col->vEntry_offset = sizeof(int32_t);
+        col->vEntry_offset_ = sizeof(int32_t);
         table->insert_column("name", col);
 
         db_meta_->insert_table(table->get_page_id(), "test");
@@ -550,6 +883,14 @@ namespace DB::vm
 
     void VM::test_flush() {
         flush();
+    }
+
+
+    void VM::showDB() {
+        // TODO: show DB
+
+
+
     }
 
 

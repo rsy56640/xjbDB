@@ -8,14 +8,14 @@ namespace DB::debug
 {
 
     constexpr bool
-        PAGE_REF = true,
+        PAGE_REF = false,
         LRU_EVICT = false,
         BT_CREATE = false,
 
-        BUFFER_FETCH = true,
-        BUFFER_FLUSH = true,
-        BUFFER_NEW = true,
-        BUFFER_DELETE = true,
+        BUFFER_FETCH = false,
+        BUFFER_FLUSH = false,
+        BUFFER_NEW = false,
+        BUFFER_DELETE = false,
 
         SPLIT_ROOT_INTERNAL = false,
         SPLIT_ROOT_LEAF = false,

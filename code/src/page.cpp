@@ -18,6 +18,19 @@ namespace DB::page
         return std::string(vEntry.content_, MAX_TUPLE_SIZE);
     }
 
+    void update_vEntry(ValueEntry& vEntry, range_t range, int32_t i) {
+        write_int(vEntry.content_ + range.begin, i);
+    }
+
+    void update_vEntry(ValueEntry& vEntry, range_t range, const std::string& s) {
+        std::memcpy(vEntry.content_ + range.begin, 0, range.len);
+        if (s.size() > range.len)
+            std::memcpy(vEntry.content_ + range.begin, s.c_str(), range.len);
+        else
+            std::memcpy(vEntry.content_ + range.begin, s.c_str(), s.size());
+    }
+
+
     int32_t get_range_INT(const ValueEntry& vEntry, range_t range) {
         if (range.begin + range.len > MAX_TUPLE_SIZE || range.len != 4)
             debug::ERROR_LOG("range is not valid for INTEGER\n");
@@ -120,7 +133,7 @@ namespace DB::page
                 str_len = col->str_len_;
             }
 
-            col->vEntry_offset = offset;
+            col->vEntry_offset_ = offset;
             if (col->col_t_ == col_t_t::INTEGER)
                 offset += sizeof(int32_t);
             else
@@ -247,9 +260,6 @@ namespace DB::page
 
 
 
-
-
-    // TODO: all ctor/dtor !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     Page::Page(page_t_t page_t, page_id_t page_id,
         disk::DiskManager* disk_manager, bool isInit)
         :
@@ -322,7 +332,21 @@ namespace DB::page
         page_id_ = disk_manager_->set_next_free_page_id(page_id_);
     }
 
-    void Page::set_free() { page_t_ = page_t_t::FREE; }
+    void Page::set_free() {
+        dirty_ = true;
+
+        if (page_t_ == page_t_t::LEAF)
+            static_cast<LeafPage*>(this)->value_page_->set_free();
+
+        if (page_t_ == page_t_t::ROOT_LEAF)
+            static_cast<RootPage*>(this)->value_page_->set_free();
+
+        if (page_t_ == page_t_t::TABLE_META)
+            static_cast<TableMetaPage*>(this)->value_page_->set_free();
+
+        page_t_ = page_t_t::FREE;
+
+    }
 
     void Page::flush() {
         if (dirty_) {
@@ -504,8 +528,8 @@ namespace DB::page
     //
     TableMetaPage::TableMetaPage(buffer::BufferPoolManager* buffer_pool, page_id_t page_id,
         disk::DiskManager* disk_manager, bool isInit, key_t_t key_t, uint32_t str_len,
+        // below 3 are needed only when (!init)
         page_id_t BT_root_id, uint32_t col_num, page_id_t default_value_page_id)
-        // `BT_root_id` is needed only when (!init)
         :
         Page(page_t_t::TABLE_META, page_id, disk_manager, isInit),
         BT_root_id_(BT_root_id),
@@ -524,11 +548,22 @@ namespace DB::page
         }
         else {
             col_num_ = 0;
-            default_value_page_id_ = NOT_A_PAGE;
+
+            PageInitInfo info;
+            info.page_t = page_t_t::VALUE;
+            info.parent_id = this->get_page_id();
+            value_page_ = static_cast<ValuePage*>(buffer_pool->NewPage(info));
+            default_value_page_id_ = value_page_->get_page_id();
+            buffer_pool->DeletePage(default_value_page_id_);
+            // now value_page has excatly *** 1 ref count ***.
+            write_int(data_ + offset::VALUE_PAGE_ID, default_value_page_id_);
+            value_page_->set_dirty();
+            set_dirty();
+
             // create B+Tree
-            tree::OpenTableInfo info;
-            info.isInit = true;
-            bt_ = new tree::BTree(info, buffer_pool, key_t, str_len);
+            tree::OpenTableInfo btinfo;
+            btinfo.isInit = true;
+            bt_ = new tree::BTree(btinfo, buffer_pool, key_t, str_len);
             BT_root_id_ = bt_->get_root_id();
         }
     }
@@ -586,6 +621,25 @@ namespace DB::page
         return vEntry;
     }
 
+    void TableMetaPage::insert_default_value(ColumnInfo* col, const std::string& default_value) {
+        ValueEntry vEntry;
+        vEntry.value_state_ = value_state::INUSED;
+        if (default_value.size() >= MAX_TUPLE_SIZE) {
+            debug::ERROR_LOG("default value size exceeds\n");
+            std::memcpy(vEntry.content_, default_value.c_str(), MAX_TUPLE_SIZE);
+        }
+        else
+            std::memcpy(vEntry.content_, default_value.c_str(), default_value.size());
+        col->other_value_ = value_page_->write_content(vEntry);
+    }
+
+    void TableMetaPage::insert_default_value(ColumnInfo* col, int32_t default_value) {
+        ValueEntry vEntry;
+        vEntry.value_state_ = value_state::INUSED;
+        write_int(vEntry.content_, default_value);
+        col->other_value_ = value_page_->write_content(vEntry);
+    }
+
 
     bool TableMetaPage::hasPK() const { return pk_col_ != NOT_A_COLUMN; }
 
@@ -603,21 +657,21 @@ namespace DB::page
     range_t TableMetaPage::get_col_range(const std::string& colName) {
         const ColumnInfo* col = col_name2col_.find(colName)->second;
         if (col->col_t_ == col_t_t::INTEGER)
-            return range_t{ col->vEntry_offset, sizeof(int32_t) };
+            return range_t{ col->vEntry_offset_, sizeof(int32_t) };
         else
-            return range_t{ col->vEntry_offset, col->str_len_ };
+            return range_t{ col->vEntry_offset_, col->str_len_ };
     }
 
 
     void TableMetaPage::insert_column(const std::string& col_name, ColumnInfo* col) {
-        cols_.push_back(col_name);
-        col_name2col_[col_name] = col;
-        col_num_++;
         if (col_name.size() > MAX_COLUMN_NAME_STR)
         {
             debug::ERROR_LOG("col name size is invalid: \"%s\"\n", col_name.c_str());
             return;
         }
+        cols_.push_back(col_name);
+        col_name2col_[col_name] = col;
+        col_num_++;
         const uint32_t offset = offset::COLUMN_NAME_STR_START + (col_num_ - 1) * COLUMN_NAME_STR_BLOCK;
         col->col_name_offset_ = offset;
         data_[offset] = static_cast<char>(str_state::INUSED);
@@ -1128,4 +1182,4 @@ namespace DB::page
     }
 
 
-    } // end namespace DB::page
+} // end namespace DB::page

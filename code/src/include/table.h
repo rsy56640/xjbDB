@@ -39,6 +39,7 @@ namespace DB::table
 
         bool hasPK() const;
         page::key_t_t PK_t() const;
+        uint32_t str_len() const;
 
         // return NOT_A_PAGE if not fk
         page::page_id_t fk_ref_table_id(uint32_t fk_col);
@@ -60,8 +61,8 @@ namespace DB::table
 
     struct table_view
     {
-        table_view() {}
-
+        table_view();
+        table_view(const TableInfo& tableInfo);
 
         std::shared_ptr<const TableInfo> table_info_;
     };

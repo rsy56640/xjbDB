@@ -115,6 +115,9 @@ namespace DB::tree
 
         uint32_t size() const;
 
+        // used when drop table
+        void destruct();
+
 
 
         void range_query_begin_lock();
