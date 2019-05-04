@@ -1,6 +1,9 @@
 #include "include/vm.h"
 #include "include/debug_log.h"
+#include "include/table.h"
+#include "include/ast.h"
 #include <iostream>
+#include <variant>
 #include <functional>
 
 namespace DB::vm
@@ -86,61 +89,8 @@ namespace DB::vm
 
 
 
-    row_view::row_view(table_view table_view, row_t row)
-        :eof_(false), table_view_(table_view), row_(std::make_shared<row_t>(row)) {}
-
-    bool row_view::isEOF() const { return eof_; }
-
-    void row_view::setEOF() { eof_ = true; }
-
-    //value_t row_view::getValue(col_name_t colName) const {
-    //}
 
 
-
-
-    VitrualTable::VitrualTable(table_view table_view)
-        :table_view_(table_view), ch_(std::make_shared<channel_t>()) {}
-
-    void VitrualTable::addRow(row_view row) {
-        std::lock_guard<std::mutex> lg{ ch_->mtx_ };
-        ch_->row_buffer_.push(row);
-        ch_->cv_.notify_one();
-    }
-
-    void VitrualTable::addEOF() {
-        row_t null_row;
-        row_view eof_row(table_view_, null_row);
-        eof_row.setEOF();
-        std::lock_guard<std::mutex> lg{ ch_->mtx_ };
-        ch_->row_buffer_.push(eof_row);
-        ch_->cv_.notify_one();
-    }
-
-    void VitrualTable::set_size(uint32_t size) { size_ = size; }
-
-    uint32_t VitrualTable::size() const { return size_; }
-
-    row_view VitrualTable::getRow() {
-        std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
-        ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });
-        row_view row = ch_->row_buffer_.front();
-        ch_->row_buffer_.pop();
-        return row;
-    }
-
-    std::deque<row_view> VitrualTable::waitAll() {
-        std::deque<row_view> ret_table;
-        std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
-        while (ret_table.empty() || !ret_table.back().isEOF()) {
-            ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });
-            while (!ch_->row_buffer_.empty()) {
-                ret_table.push_back(ch_->row_buffer_.front());
-                ch_->row_buffer_.pop();
-            }
-        }
-        return ret_table;
-    }
 
 
 
@@ -206,6 +156,8 @@ namespace DB::vm
 
         } // end rebuild DB
 
+        table::vm_ = this;
+
         // start task pool
         task_pool_.start();
 
@@ -216,6 +168,7 @@ namespace DB::vm
     }
 
 
+
     // run db task until user input "EXIT"
     void VM::start()
     {
@@ -223,22 +176,21 @@ namespace DB::vm
         {
             const std::string sql_statemt = conslole_reader_.get_sql();
 
-            // TODO: get query plan
-
+            query::SQLValue plan = query::sql_parse(sql_statemt);
 
             // handle ErrorMsg or EXIT
+            VM::process_result_t result = query_process(plan);
 
-
-            // EXIT
-            // reader.stop();
+            if (result.exit)
+                return;
+            if (result.error)
+                continue;
 
 
             // UNDONE: if crash, how to find `prev_last_page_id` when rebuild,
             //         since DBMetaPage only writes `cur_page_id` after `query_process();`
             const page::page_id_t prev_last_page_id =
                 storage_engine_.disk_manager_->get_cut_page_id();
-
-            query_process();
 
             task_pool_.join();
 
@@ -258,20 +210,53 @@ namespace DB::vm
     }
 
 
+    std::optional<table::TableInfo> VM::getTableInfo(const std::string& tableName) {
+        auto it = table_meta_.find(tableName);
+        if (it == table_meta_.end())
+            return std::nullopt;
+        const page::TableMetaPage* table_page = it->second;
+        std::vector<std::string> colNames = table_page->cols_;
+        std::vector<page::ColumnInfo> columnInfos;
+        columnInfos.reserve(colNames.size());
+        for (const auto& col_name : colNames)
+            columnInfos.push_back(*(table_page->col_name2col_.find(col_name)->second));
+        table::TableInfo tableInfo;
+        tableInfo.tableName_ = tableName;
+        tableInfo.colNames_ = std::move(colNames);
+        tableInfo.columnInfos_ = std::move(columnInfos);
+        tableInfo.reset(this);
+        return tableInfo;
+    }
+
 
     void VM::send_reply_sql(std::string sql) {
         conslole_reader_.add_sql(std::move(sql));
     }
 
 
-    void VM::query_process()
+    template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+    template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
+    VM::process_result_t VM::query_process(const query::SQLValue& plan)
     {
-        // TODO: query process
-
+        VM::process_result_t result;
+        std::visit(
+            overloaded{
+                [&result](const query::CreateTableInfo& info) {},
+                [&result](const query::DropTableInfo& info) {},
+                [&result](const query::SelectInfo& info) {},
+                [&result](const query::UpdateInfo& info) {},
+                [&result](const query::InsertInfo& info) {},
+                [&result](const query::DeleteInfo& info) {},
+                [&result](query::Exit) { result.exit = true; },
+                [&result](query::ErrorMsg) { result.error = true; },
+            }, plan);
 
 
         // TODO: update PK view
 
+
+
+        return result;
     }
 
 
@@ -302,19 +287,61 @@ namespace DB::vm
     }
 
 
+
+    //
+    // query process functions
+    //
+
+    void VM::doCreate(process_result_t&, const query::CreateTableInfo&)
+    {
+
+    }
+
+    void VM::doDrop(process_result_t&, const query::DropTableInfo&)
+    {
+
+
+    }
+
+    void VM::doSelect(process_result_t&, const query::SelectInfo&)
+    {
+
+
+    }
+
+    void VM::doUpdate(process_result_t&, const query::UpdateInfo&)
+    {
+
+
+    }
+
+    void VM::doInsert(process_result_t&, const query::InsertInfo&)
+    {
+
+
+    }
+
+    void VM::doDelete(process_result_t&, const query::DeleteInfo&)
+    {
+
+
+    }
+
+
+
     //
     // 4 op node service providing for sql logic
     //
 
-    VitrualTable VM::scanTable(const std::string& tableName) {
+    VirtualTable VM::scanTable(const std::string& tableName) {
         table_view tv; // TODO: table_view for scanTable
-        VitrualTable vt(tv);
+        VirtualTable vt(tv);
         std::future<void> no_use =
             register_task(std::mem_fn(&VM::doScanTable), this, vt, tableName);
         return vt;
     }
 
-    void VM::doScanTable(VitrualTable ret, const std::string tableName) {
+    void VM::doScanTable(VirtualTable ret, const std::string tableName) {
         using namespace tree;
         auto table = table_meta_.find(tableName);
         if (table == table_meta_.end()) {
@@ -442,7 +469,7 @@ namespace DB::vm
 
                     ++it;
                 } // end iterate bt
-            
+
             } // end table pk is CHAR / VARCHAR
 
         } // end iterate all table

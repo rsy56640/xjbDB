@@ -6,6 +6,7 @@
 #include "thread_pool.h"
 #include "page.h"
 #include "table.h"
+#include "query.h"
 #include <future>
 #include <unordered_map>
 #include <unordered_set>
@@ -15,8 +16,17 @@
 #include <condition_variable>
 #include <memory>
 #include <deque>
+#include <optional>
 
 namespace DB::tree { class BTree; }
+namespace DB::ast {
+    struct BaseExpr;
+    struct BaseOp;
+    struct ProjectOp;
+    struct FilterOp;
+    struct JoinOp;
+    struct TableOp;
+}
 
 namespace DB::vm
 {
@@ -50,62 +60,8 @@ namespace DB::vm
     };
 
 
-    using table::value_t;
-    using col_name_t = std::string;
-    using row_t = page::ValueEntry;
-
-    class row_view
-    {
-    public:
-
-        row_view(table_view, row_t);
-
-        bool isEOF() const;
-        void setEOF();
-        value_t getValue(col_name_t colName) const;
-
-    private:
-        bool eof_;
-        table_view table_view_;
-        std::shared_ptr<row_t>  row_;
-    };
-
-
-    // used as a temporary table.
-    // implementation might be stream ?? with some sync mechanism.
-    class VitrualTable
-    {
-        struct channel_t {
-            std::queue<row_view> row_buffer_;
-            std::mutex mtx_;
-            std::condition_variable cv_;
-        };
-
-    public:
-
-        VitrualTable(table_view);
-        VitrualTable(const VitrualTable&) = default;
-        VitrualTable& operator=(const VitrualTable&) = default;
-
-        void addRow(row_view row);
-        void addEOF();
-
-        void set_size(uint32_t);            // [maybe_unused], since on sigma-node, we can not
-        uint32_t size() const;              // decide the size before iterating all rows.
-
-        row_view getRow();                  // might be stuck
-        std::deque<row_view> waitAll();     // might be stuck
-
-        table_view table_view_;             // info of table: col, constraint...
-
-    private:
-
-        uint32_t size_;
-        std::shared_ptr<channel_t> ch_;
-
-    };
-
-
+    using table::VirtualTable;
+    using table::row_view;
     //
     //
     //
@@ -135,11 +91,18 @@ namespace DB::vm
 
         void set_next_free_page_id(page::page_id_t);
 
+        std::optional<table::TableInfo> getTableInfo(const std::string& tableName);
+
     private:
 
         void send_reply_sql(std::string);
 
-        void query_process();
+
+        struct process_result_t {
+            bool exit = false;
+            bool error = false;
+        };
+        process_result_t query_process(const query::SQLValue&);
 
         void doWAL(page::page_id_t prev_last_page_id, const std::string& sql);
 
@@ -154,22 +117,41 @@ namespace DB::vm
         disk::log_state_t check_log();
         void replay_log(disk::log_state_t);
 
+
+        // query process functions
+        void doCreate(process_result_t&, const query::CreateTableInfo&);
+
+        void doDrop(process_result_t&, const query::DropTableInfo&);
+
+        void doSelect(process_result_t&, const query::SelectInfo&);
+        void doUpdate(process_result_t&, const query::UpdateInfo&);
+        void doInsert(process_result_t&, const query::InsertInfo&);
+        void doDelete(process_result_t&, const query::DeleteInfo&);
+
+
+
+
         // 4 kinds of op node
         // - scanTable
         // - join
         // - projection
         // - sigma
-        VitrualTable scanTable(const std::string& tableName);
-        void doScanTable(VitrualTable ret, const std::string tableName);
+    public:
+        friend struct TableOp;
+        VirtualTable scanTable(const std::string& tableName);
+        void doScanTable(VirtualTable ret, const std::string tableName);
 
-        VitrualTable join(VitrualTable t1, VitrualTable t2, bool pk);
-        void doJoin(VitrualTable ret, VitrualTable t1, VitrualTable t2, bool pk);
+        friend struct JoinOp;
+        VirtualTable join(VirtualTable t1, VirtualTable t2, bool pk);
+        void doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk);
 
-        VitrualTable projection(VitrualTable t);
-        void doProjection(VitrualTable ret, VitrualTable t);
+        friend struct ProjectOp;
+        VirtualTable projection(VirtualTable t, const std::vector<std::string>& colNames);
+        void doProjection(VirtualTable ret, VirtualTable t);
 
-        VitrualTable sigma(VitrualTable t /* where-root */);
-        void doSigma(VitrualTable ret, VitrualTable t /* where-root */);
+        friend struct FilterOp;
+        VirtualTable sigma(VirtualTable t, ast::BaseExpr*);
+        void doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr*);
 
 
         void init_pk_view();

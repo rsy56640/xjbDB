@@ -50,7 +50,7 @@ int len;	 		vector<string> colNames_;  		vector<table::value_t> defaults;  		vec
 struct default_object_type{ };struct iter_object_type;using object_type = std::variant<ColumnInfo, CreateTableInfo, JoinOp*, InsertInfo, DropTableInfo, SelectInfo, std::vector<ColumnInfo>, string, UpdateInfo, DeleteInfo, col_t_t, comparison_t_t, Elements, Element, ProjectOp*, std::vector<OrderbyElement>, OrderbyElement, math_t_t, Column, BaseExpr*, AtomExpr*, int, logical_t_t, default_object_type, token_type, iter_object_type>;
 namespace utils { extern const std::string * const type_name_map; }
 using ll = long long;
-struct symbol_type;struct iter_object_type {std::vector<symbol_type> data;};
+struct symbol_type; struct iter_object_type { std::vector<symbol_type> data; };
 struct symbol_type{
  ll type; object_type object; 
 symbol_type() = default;
@@ -61,6 +61,7 @@ void operator=(const symbol_type &) = delete;
 void operator=(symbol_type &) = delete;
 symbol_type(const symbol_type &) = default;
 };
+
 template <typename ...Ts> struct overloaded: Ts... { using Ts::operator() ...; };
 template <typename ...Ts> overloaded(Ts...) -> overloaded<Ts...>;
 symbol_type __default_object_type_semantic_process_(const ll left_type, std::vector<symbol_type> &right, pass_info &info) {
@@ -289,7 +290,7 @@ using $Tp = col_t_t;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
 auto& l = get<col_t_t>(left.object);
-l = col_t_t::INT;
+l = col_t_t::INTEGER;
 };
 run();
 __0_0(left, right, info);
