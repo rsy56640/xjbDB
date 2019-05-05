@@ -338,7 +338,7 @@ auto run = [&left, &right, &info]() {
 auto& l = get<ColumnInfo>(left.object);
 l.setDEFAULT();
 auto& expr = get<AtomExpr*>(right[1].object);
-RetValue val = vmVisit(expr);
+value_t val = vmVisitAtom(expr);
 if(auto op = get_if<int>(&val))
 {
 info.defaults.push_back(*op);
