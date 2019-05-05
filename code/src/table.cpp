@@ -100,6 +100,7 @@ namespace DB::table
             }
         }
         debug::ERROR_LOG("column \"%s\" does not exist\n", colName.c_str());
+        return 0;
     }
 
 

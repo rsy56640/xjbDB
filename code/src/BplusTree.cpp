@@ -140,6 +140,10 @@ namespace DB::tree
 
     uint32_t BTree::size() const { return size_; }
 
+    key_t_t BTree::key_t() const { return key_t_; }
+    uint32_t BTree::str_len() const { return str_len_; }
+
+
     void BTree::destruct() {
         std::stack<base_ptr> pages;
         pages.push(root_);

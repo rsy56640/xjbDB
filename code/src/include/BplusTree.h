@@ -115,6 +115,9 @@ namespace DB::tree
 
         uint32_t size() const;
 
+        key_t_t key_t() const;
+        uint32_t str_len() const;
+
         // used when drop table
         void destruct();
 

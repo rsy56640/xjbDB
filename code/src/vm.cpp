@@ -980,7 +980,27 @@ namespace DB::vm
 
 
     void VM::showDB() {
-        // TODO: show DB
+        printf("xjbDB has %d tables\n", db_meta_->table_num_);
+        printf("------------------------------------------------------\n");
+        for (auto const&[name, table] : table_meta_)
+        {
+            printf("table \"%s\"\n", name.c_str());
+            int cnt = 0;
+            table->bt_->range_query_begin_lock();
+            auto it = table->bt_->range_query_from_begin();
+            auto end = table->bt_->range_query_from_end();
+            while (it != end) {
+                if (table->bt_->key_t() == page::key_t_t::INTEGER)
+                    std::printf("%d -> %s\n", it.getK().key_int, it.getV().content_);
+                else
+                    std::printf("%s -> %s\n", it.getK().key_str, it.getV().content_);
+                ++it;
+                cnt++;
+            }
+            table->bt_->range_query_end_unlock();
+            std::printf("output size = %d\n", cnt);
+            printf("------------------------------------------------------\n");
+        }
 
 
 

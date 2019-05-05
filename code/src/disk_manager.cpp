@@ -555,9 +555,9 @@ namespace DB::disk
         for (uint32_t i = 0; i < PAGE_SIZE / 4; i++) {
             check_sum +=
                 static_cast<uint32_t>(buffer[4 * i]) +
-                static_cast<uint32_t>(buffer[4 * i + 1]) << 8 +
-                static_cast<uint32_t>(buffer[4 * i + 2]) << 16 +
-                static_cast<uint32_t>(buffer[4 * i + 3]) << 24;
+                (static_cast<uint32_t>(buffer[4 * i + 1])) << 8 +
+                (static_cast<uint32_t>(buffer[4 * i + 2])) << 16 +
+                (static_cast<uint32_t>(buffer[4 * i + 3])) << 24;
         }
         return check_sum;
     }

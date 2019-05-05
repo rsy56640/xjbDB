@@ -168,7 +168,7 @@ namespace DB::vm
 
         // PK view: pk -> ref
         // if the PK is not ref by any FK, the ref = 1;
-        friend class table::TableInfo;
+        friend struct table::TableInfo;
         std::unordered_map<page::page_id_t,
             std::unordered_map<int32_t, uint32_t>> table_pk_ref_INT;
         std::unordered_map<page::page_id_t,
