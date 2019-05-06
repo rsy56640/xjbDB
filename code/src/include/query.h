@@ -98,6 +98,14 @@ namespace DB::query {
 
     //===========================================================
     //specified for vm
+	struct Show
+	{
+		void print() const
+		{
+			std::cout << "Show" << std::endl;
+
+		}
+	};
 
     struct Exit
     {
@@ -123,7 +131,7 @@ namespace DB::query {
     };
 
     //return type to vm, any exception that occurs will be catched and converted into ErrorMsg
-    using SQLValue = std::variant < CreateTableInfo, DropTableInfo, SelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Exit, ErrorMsg>;
+    using SQLValue = std::variant < CreateTableInfo, DropTableInfo, SelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg>;
 
     void print(const SQLValue &value);
 

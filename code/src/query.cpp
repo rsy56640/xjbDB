@@ -23,6 +23,7 @@ namespace DB::query {
 			[](const UpdateInfo& t) { t.print(); },
 			[](const InsertInfo& t) { t.print(); },
 			[](const DeleteInfo& t) { t.print(); },
+			[](const Show& t) { t.print(); },
 			[](const Exit& t) { t.print(); },
 			[](const ErrorMsg& t) { t.print(); },
             [](auto&&) { debug::ERROR_LOG("`print(SQLValue)`\n"); },

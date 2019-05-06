@@ -59,7 +59,7 @@ namespace DB
 
 		CHAR, VARCHAR, "$",
 		NOT_NULL, DISTINCT, VALUES,
-		CREATE, DROP, INSERT, DELETE, UPDATE, SELECT, 
+		CREATE, DROP, INSERT, DELETE, UPDATE, SELECT, SHOW,
 		TABLE, "FROM", WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
 		DEFAULT, PRIMARY_KEY, REFERENCES, 
@@ -121,6 +121,7 @@ namespace DB
 
 	sqlStatement := ddlStatement
 				  | dmlStatement
+				  | "SHOW", { info.sqlValue = Show(); }
 				  | "EXIT", { info.sqlValue = Exit(); }
 				  ;
 
