@@ -161,7 +161,7 @@ namespace DB
 					string tableName = get<string>(right[2].object);
 					vector<ColumnInfo> columnInfos = get<vector<ColumnInfo>>(right[3].object);
 					vector<string> colNames = info.colNames_;
-					l.tableInfo = TableInfo(tableName, columnInfos, colNames, vm_);
+					l.tableInfo = TableInfo(tableName, colNames, columnInfos, vm_);
 					l.defaults = info.defaults;
 					l.fkTables = info.fkTables;
 				}
@@ -238,6 +238,7 @@ namespace DB
 			{ 
 				auto& l = get<col_t_t>(left.object);
 				l = col_t_t::INTEGER;
+				info.len = sizeof(int32_t);
 			}
 			| "CHAR" "(" positiveNum ")", =
 			{ 
