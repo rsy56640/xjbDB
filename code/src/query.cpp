@@ -3,6 +3,7 @@
 #include "include/query.h"
 #include "include/lexer.h"
 #include "include/parse.h"
+#include "include/debug_log.h"
 
 namespace DB::util
 {
@@ -23,7 +24,8 @@ namespace DB::query {
 			[](const InsertInfo& t) { t.print(); },
 			[](const DeleteInfo& t) { t.print(); },
 			[](const Exit& t) { t.print(); },
-			[](const ErrorMsg& t) { t.print(); }
+			[](const ErrorMsg& t) { t.print(); },
+            [](auto&&) { debug::ERROR_LOG("`print(SQLValue)`\n"); },
 			}, value);
 		std::cout << "=========End SQLValue============================" << std::endl;
 	}

@@ -13,7 +13,7 @@ namespace DB::debug
         BT_CREATE = false,
 
         BUFFER_FETCH = false,
-        BUFFER_FLUSH = false,
+        BUFFER_FLUSH = true,
         BUFFER_NEW = false,
         BUFFER_DELETE = false,
 
@@ -34,10 +34,12 @@ namespace DB::debug
 
         WAL = true,
 
+        FLUSH = true,
+
         DESTROY_LOG = true,
 
         NON_DEBUG = false,
-        DEBUG = true,
+        xbjDB_DEBUG = true,
 
         CONTROL = true;
 

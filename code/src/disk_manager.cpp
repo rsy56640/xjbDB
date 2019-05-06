@@ -364,12 +364,15 @@ namespace DB::disk
         uint32_t undo_check = 0;
         std::set<page_id_t> ditry_pages;
 
-        for (uint32_t i = 0; i < dirty_hash_bucket; i++) {
-            std::unordered_set<page_id_t>& dirty_page_set = dirty_page_sets_[i];
-            for (page_id_t ditry_page : dirty_page_set)
-                if (ditry_page <= prev_last_page_id)
-                    ditry_pages.insert(ditry_page);
-            dirty_page_set.clear();
+        // no need to record undo log when init DB
+        if (prev_last_page_id != page::NOT_A_PAGE) {
+            for (uint32_t i = 0; i < dirty_hash_bucket; i++) {
+                std::unordered_set<page_id_t>& dirty_page_set = dirty_page_sets_[i];
+                for (page_id_t ditry_page : dirty_page_set)
+                    if (ditry_page <= prev_last_page_id)
+                        ditry_pages.insert(ditry_page);
+                dirty_page_set.clear();
+            }
         }
 
         for (const page_id_t db_page_id : ditry_pages)

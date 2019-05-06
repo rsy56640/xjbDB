@@ -40,11 +40,13 @@ namespace DB::vm
             std::string sql = "";
             std::string statement = "";
             while (true) {
-                std::cin >> statement;
+                char buffer[256];
+                std::cin.getline(buffer, 256);
+                statement = buffer;
                 // meet ';'
                 bool meet = false;
                 int32_t semicolon;
-                if (semicolon = check(statement) != -1)
+                if ((semicolon = check(statement)) != -1)
                 {
                     sql += statement.substr(0, semicolon);
                     bool exit = check_exit(sql);
@@ -155,6 +157,9 @@ namespace DB::vm
                 table_meta_[tableName] = table_meta;
             }
 
+            for (auto const&[name, _] : table_meta_)
+                table_info_[name] = getTableInfo(name).value();
+
             init_pk_view(); // cache pk in memory, for FK constraint use
 
         } // end rebuild DB
@@ -181,6 +186,11 @@ namespace DB::vm
 
             query::SQLValue plan = query::sql_parse(sql_statemt);
 
+            // UNDONE: if crash, how to find `prev_last_page_id` when rebuild,
+            //         since DBMetaPage only writes `cur_page_id` after `query_process();`
+            const page::page_id_t prev_last_page_id =
+                storage_engine_.disk_manager_->get_cut_page_id();
+
             // handle ErrorMsg or EXIT
             VM::process_result_t result = query_process(plan);
 
@@ -190,12 +200,6 @@ namespace DB::vm
             if (result.error)
                 continue;
 
-
-            // UNDONE: if crash, how to find `prev_last_page_id` when rebuild,
-            //         since DBMetaPage only writes `cur_page_id` after `query_process();`
-            const page::page_id_t prev_last_page_id =
-                storage_engine_.disk_manager_->get_cut_page_id();
-
             task_pool_.join();
 
             doWAL(prev_last_page_id, sql_statemt);
@@ -203,6 +207,10 @@ namespace DB::vm
             flush();
 
             detroy_log();
+
+#ifdef _xjbDB_test_VM_
+            showDB();
+#endif // _xjbDB_test_VM_
         }
     }
 
@@ -253,6 +261,7 @@ namespace DB::vm
                 [&result,this](const query::DeleteInfo& info) { doDelete(result,info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result](query::ErrorMsg) { result.error = true; },
+                [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
 
         // TODO: update PK view
@@ -267,13 +276,17 @@ namespace DB::vm
         storage_engine_.disk_manager_->doWAL(prev_last_page_id, sql);
     }
 
-    void VM::flush() {
+    void VM::flush()
+    {
         db_meta_->flush();
+
         for (auto&[name, table] : table_meta_)
             table->flush();
+
         for (auto&[name, table] : free_table_)
             delete table;
         free_table_.clear();
+
         storage_engine_.buffer_pool_manager_->flush();
     }
 
@@ -336,6 +349,8 @@ namespace DB::vm
             table_page->insert_column(page::autoPK, col);
             table_page->pk_col_ = page::TableMetaPage::NOT_A_COLUMN;
         }
+
+        table_page->pk_col_ = tableInfo.pk_col_;
 
         for (uint32_t i = 0; i < col_size; i++)
         {
@@ -427,10 +442,10 @@ namespace DB::vm
                 col->col_t_ , col->isFK(), col->other_value_ });
         }
 
+        const table_view tv(table_info_[info.sourceTable]);
         while (it != end)
         {
             ValueEntry vEntry = it.getV();
-            table_view tv(table_info_[info.sourceTable]);
             row_view row(tv, vEntry);
             // check where clause
             if (ast::vmVisit(info.whereExpr, row))
@@ -590,6 +605,9 @@ namespace DB::vm
         // check PK, AUTOPK
         if (elements.size() != table->col_num_)
         {
+            if (elements.size() + 1 != table->col_num_)
+                debug::ERROR_LOG("INSERT VALUES prepare failure\n");
+
             // prepare AUTOPK
             if (pk_col != TableMetaPage::NOT_A_COLUMN)
                 debug::ERROR_LOG("PK column error\n");
@@ -619,11 +637,10 @@ namespace DB::vm
                 }
             }
         }
-        if (elements.size() + 1 != table->col_num_)
-            debug::ERROR_LOG("INSERT VALUES prepare failure\n");
+
 
         // insert
-        tree::KVEntry kv;
+        tree::KVEntry kv{};
         // prepare KeyEntry
         if (table->hasPK()) {
             if (table->PK_t() == key_t_t::INTEGER) {
@@ -788,13 +805,38 @@ namespace DB::vm
 
 
 
+    VirtualTable VM::join(VirtualTable t1, VirtualTable t2, bool pk) {
+        return VirtualTable({});
+    }
+
+    void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk) {
+
+
+    }
 
 
 
+    VirtualTable VM::projection(VirtualTable t, const std::vector<std::string>& colNames) {
+        return VirtualTable({});
+
+    }
+
+    void VM::doProjection(VirtualTable ret, VirtualTable t) {
+
+
+    }
 
 
 
+    VirtualTable VM::sigma(VirtualTable t, ast::BaseExpr*) {
+        return VirtualTable({});
 
+    }
+
+    void VM::doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr*) {
+
+
+    }
 
 
 
@@ -984,16 +1026,47 @@ namespace DB::vm
         printf("------------------------------------------------------\n");
         for (auto const&[name, table] : table_meta_)
         {
-            printf("table \"%s\"\n", name.c_str());
+            std::printf("table \"%s\"\n", name.c_str());
+
+            // prepare colInfo
+            struct output_t {
+                col_t_t col_t;
+                range_t range;
+            };
+            std::vector<output_t> outputCol;
+            outputCol.reserve(table->col_num_);
+            std::printf("      ");
+            for (auto const&[colName, col] : table->col_name2col_) {
+                std::printf("%s\t", colName.c_str());
+                outputCol.push_back(output_t{
+                    col->col_t_, range_t{ col->vEntry_offset_, col->str_len_ }
+                    });
+            }
+            std::printf("\n------------------------------------------------\n");
+
             int cnt = 0;
             table->bt_->range_query_begin_lock();
             auto it = table->bt_->range_query_from_begin();
             auto end = table->bt_->range_query_from_end();
-            while (it != end) {
+            while (it != end)
+            {
                 if (table->bt_->key_t() == page::key_t_t::INTEGER)
-                    std::printf("%d -> %s\n", it.getK().key_int, it.getV().content_);
+                    std::printf("%d -> ", it.getK().key_int);
                 else
-                    std::printf("%s -> %s\n", it.getK().key_str, it.getV().content_);
+                    std::printf("%s -> ", it.getK().key_str);
+
+                ValueEntry vEntry = it.getV();
+                for (output_t output : outputCol) {
+                    if (output.col_t == col_t_t::INTEGER) {
+                        std::printf("%d\t", get_range_INT(vEntry, output.range));
+                    }
+                    else {
+                        std::string s = get_range_VARCHAR(vEntry, output.range);
+                        std::printf("%s\t", s.c_str());
+                    }
+                }
+                std::printf("\n");
+
                 ++it;
                 cnt++;
             }
