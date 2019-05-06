@@ -19,6 +19,8 @@ void test()
     vm::VM vm_;
     vm_.init();
 
+    vm_.start();
+
 
     printf("--------------------- test end ---------------------\n");
 

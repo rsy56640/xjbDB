@@ -23,7 +23,7 @@ namespace DB::page
     }
 
     void update_vEntry(ValueEntry& vEntry, range_t range, const std::string& s) {
-        std::memcpy(vEntry.content_ + range.begin, 0, range.len);
+        std::memset(vEntry.content_ + range.begin, 0, range.len);
         if (s.size() > range.len)
             std::memcpy(vEntry.content_ + range.begin, s.c_str(), range.len);
         else
@@ -139,9 +139,16 @@ namespace DB::page
             else
                 offset += col->str_len_;
 
-            cols[i] = std::string(buffer +
-                offset::COLUMN_NAME_STR_START + i * TableMetaPage::COLUMN_NAME_STR_BLOCK + 1,
-                TableMetaPage::MAX_COLUMN_NAME_STR);
+            if (buffer[offset::COLUMN_NAME_STR_START +
+                i * TableMetaPage::COLUMN_NAME_STR_BLOCK
+                + TableMetaPage::COLUMN_NAME_STR_BLOCK - 1] == '\0')
+                cols[i] = std::string(buffer +
+                    offset::COLUMN_NAME_STR_START + i * TableMetaPage::COLUMN_NAME_STR_BLOCK + 1);
+            else
+                cols[i] = std::string(buffer +
+                    offset::COLUMN_NAME_STR_START + i * TableMetaPage::COLUMN_NAME_STR_BLOCK + 1,
+                    TableMetaPage::MAX_COLUMN_NAME_STR);
+
             col_name2col[cols[i]] = col;
         }
 
@@ -351,8 +358,22 @@ namespace DB::page
     void Page::flush() {
         if (dirty_) {
 #ifndef _xjbDB_test_BPLUSTREE_
+
+            // update this page
             update_data();
             disk_manager_->WritePage(page_id_, data_);
+            debug::DEBUG_LOG(debug::FLUSH,
+                "[page_t=%s] [page=%d] flush\n",
+                page_t_str[static_cast<uint32_t>(page_t_)], page_id_);
+
+            // update attached value page
+            if (page_t_ == page_t_t::ROOT_LEAF) {
+                static_cast<RootPage*>(this)->value_page_->flush();
+            }
+
+            if (page_t_ == page_t_t::TABLE_META) {
+                static_cast<TableMetaPage*>(this)->value_page_->flush();
+            }
 #endif
             dirty_ = false;
         }

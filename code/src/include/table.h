@@ -82,9 +82,10 @@ namespace DB::table
         void setEOF();
         value_t getValue(col_name_t colName) const;
 
+        table_view table_view_;
+
     private:
         bool eof_;
-        table_view table_view_;
         std::shared_ptr<row_t>  row_;
     };
 

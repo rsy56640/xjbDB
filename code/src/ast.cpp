@@ -1,5 +1,6 @@
 #include "include/ast.h"
 #include "include/vm.h"
+#include "include/debug_log.h"
 #include <iostream>
 
 #define DEBUG
@@ -520,13 +521,9 @@ namespace DB::ast {
         case base_t_t::ID:
         {
             const IdExpr* idPtr = static_cast<const IdExpr*>(root);
-            //if (!row)
-            //    throw std::string("value of record cannot be used here");
-            return std::visit(
-                overloaded{
-                    [](int32_t i) { return i; },
-                    [](const std::string & s) { return s; },
-                }, row.getValue(idPtr->_columnName));
+            if (row.table_view_.table_info_)
+                throw std::string("value of record cannot be used here");
+            return row.getValue(idPtr->_columnName);
         }
 #ifdef DEBUG
         default:

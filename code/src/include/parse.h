@@ -181,7 +181,7 @@ auto& l = std::get<CreateTableInfo>(left.object);
 string tableName = get<string>(right[2].object);
 vector<ColumnInfo> columnInfos = get<vector<ColumnInfo>>(right[3].object);
 vector<string> colNames = info.colNames_;
-l.tableInfo = TableInfo(tableName, columnInfos, colNames, vm_);
+l.tableInfo = TableInfo(tableName, colNames, columnInfos, vm_);
 l.defaults = info.defaults;
 l.fkTables = info.fkTables;
 };
@@ -291,6 +291,7 @@ symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
 auto& l = get<col_t_t>(left.object);
 l = col_t_t::INTEGER;
+info.len = sizeof(int32_t);
 };
 run();
 __0_0(left, right, info);
