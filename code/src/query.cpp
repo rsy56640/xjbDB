@@ -33,31 +33,45 @@ namespace DB::query {
 
 	SQLValue sql_parse(const std::string &sql)
 	{
+		SQLValue value;
 		try
 		{
 			DB::lexer::Lexer lexer;
-			std::cout << "\n--Start Tokenize---------------------------------------\n" << std::endl;
+			if (debug::QUERY_LOG)
+				std::cout << "\n--Start Tokenize---------------------------------------\n" << std::endl;
+
 			lexer.tokenize(sql.c_str(), sql.size());
-			lexer.print(std::cout);
-			std::cout << "\n--End Tokenize---------------------------------------\n" << std::endl;
-			std::cout << "\n--Start Parse---------------------------------------\n" << std::endl;
-			DB::query::SQLValue value = analyze(lexer.getTokens()).sqlValue;
-			std::cout << "\n--End Parse---------------------------------------\n" << std::endl;
-			return value;
+
+			if(debug::LEXER_LOG)
+				lexer.print(std::cout);
+
+			if (debug::QUERY_LOG)
+			{
+				std::cout << "\n--End Tokenize---------------------------------------\n" << std::endl;
+				std::cout << "\n--Start Parse---------------------------------------\n" << std::endl;
+			}
+
+			value = analyze(lexer.getTokens()).sqlValue;
+
+			if (debug::QUERY_LOG)
+				std::cout << "\n--End Parse---------------------------------------\n" << std::endl;
 		}
 		catch (const DB::DB_Base_Exception& e)
 		{
 			e.printException(); std::cout << std::endl;
-			return ErrorMsg(e.str());	//change to details
+			value = ErrorMsg(e.str());	//change to details
 		}
 		catch (const std::string &e)
 		{
 			std::cout << e << std::endl;
-			return ErrorMsg(e);
+			value = ErrorMsg(e);
 		}
-		catch (const std::exception& e) { std::cout << e.what() << std::endl << std::endl; }
-		catch (...) { std::cout << "Unexpected Exception" << std::endl << std::endl; }
-		return ErrorMsg("unexpected exception");
+		catch (...) { value = ErrorMsg("unexpected exception"); }
+
+		if (debug::QUERY_LOG)
+			print(value);
+
+		return value;
 	}
 
 } //end namespace DB

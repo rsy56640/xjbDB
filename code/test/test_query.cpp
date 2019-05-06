@@ -21,7 +21,6 @@ void test()
     std::string sql;
     cin >> sql;
     SQLValue plan = query::sql_parse(sql);
-	print(plan);
 
     printf("--------------------- test end ---------------------\n");
 

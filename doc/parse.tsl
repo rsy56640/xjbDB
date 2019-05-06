@@ -17,6 +17,7 @@ alias
 #include "ast.h"
 #include "lexer.h"
 #include "query.h"
+#include "debug_log.h"
 
 using namespace DB;
 using namespace DB::page;
@@ -112,11 +113,14 @@ namespace DB
 	using mathOperator = math_t_t;
 
 	back = {
-        cout << "REDUCE: ";
-        print_symbol(left.type) << ":= ";
-        for (auto &s: right)
-            print_symbol(s.type);
-        cout << endl << endl;
+		if(debug::PARSE_LOG)
+		{
+			cout << "REDUCE: ";
+			print_symbol(left.type) << ":= ";
+			for (auto &s: right)
+				print_symbol(s.type);
+			cout << endl << endl;
+		}
     };
 
 	sqlStatement := ddlStatement
@@ -337,9 +341,6 @@ namespace DB
 						if(right.size() > 3)
 						{
 							l.whereExpr = get<BaseExpr*>(right[4].object);
-							std::cout << "\n--output where expression in delete statment---------------------------------------\n" << std::endl;
-							outputVisit(l.whereExpr, std::cout);
-							std::cout << "\n--end -output in delete statment---------------------------------------\n" << std::endl;
 						}
 					}
 					;
@@ -352,9 +353,6 @@ namespace DB
 						if(right.size() > 4)
 						{
 							l.whereExpr = get<BaseExpr*>(right[5].object);
-							std::cout << "\n--output where expression in update statment---------------------------------------\n" << std::endl;
-							outputVisit(l.whereExpr, std::cout);
-							std::cout << "\n--end output in update statment---------------------------------------\n" << std::endl;
 						}
 					}
 					;
@@ -372,9 +370,6 @@ namespace DB
 							FilterOp* filterOp = new FilterOp(*whereExpr);
 							filterOp->_source = joinOp;
 							baseOp = filterOp;
-							std::cout << "\n--output where expression in select statment---------------------------------------\n" << std::endl;
-							outputVisit(*whereExpr, std::cout);
-							std::cout << "\n--end output in select statment---------------------------------------\n" << std::endl;
 						}
 					brk:
 						ProjectOp* projectOp = get<ProjectOp*>(right[1].object);
@@ -399,9 +394,6 @@ namespace DB
 						auto& l = get<Elements>(left.object);
 						Element ele;
 						ele.valueExpr = get<AtomExpr*>(right[2].object);
-						std::cout << "\n--output expression in insert element---------------------------------------\n" << std::endl;
-						outputVisit(ele.valueExpr, std::cout);
-						std::cout << "\n--end output in insert element---------------------------------------\n" << std::endl;
 						l.push_back(ele);
 						if(right.size() <= 4)
 							return;
@@ -412,9 +404,6 @@ namespace DB
 						{
 							Element ele;
 							ele.valueExpr = get<AtomExpr*>(_right[i].object);
-							std::cout << "\n--output expression in insert element---------------------------------------\n" << std::endl;
-							outputVisit(ele.valueExpr, std::cout);
-							std::cout << "\n--end output in insert element---------------------------------------\n" << std::endl;
 							l.push_back(ele);
 						}
 					}
@@ -442,9 +431,6 @@ namespace DB
 						l.name = get<Column>(right[0].object).second;
 						auto &expr = get<AtomExpr*>(right[2].object);
 						l.valueExpr = expr;
-						std::cout << "\n--output expression in update element---------------------------------------\n" << std::endl;
-						outputVisit(l.valueExpr, std::cout);
-						std::cout << "\n--end output in update element---------------------------------------\n" << std::endl;
 					}
 					;	  
 						  
@@ -475,9 +461,6 @@ namespace DB
 						{
 							auto expr = exprs[i];
 							l->_elements.push_back(expr);
-							std::cout << "\n--output express in select element---------------------------------------\n" << std::endl;
-							outputVisit(expr, std::cout);
-							std::cout << "\n--end output in select element---------------------------------------\n" << std::endl;
 							if(expr->base_t_ == base_t_t::ID)
 							{
 								IdExpr* idPtr = static_cast<IdExpr*>(expr);
