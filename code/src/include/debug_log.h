@@ -39,7 +39,7 @@ namespace DB::debug
         DESTROY_LOG = true,
 
         NON_DEBUG = false,
-        DEBUG = true,
+        xbjDB_DEBUG = true,
 
         CONTROL = true;
 

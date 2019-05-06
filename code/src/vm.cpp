@@ -157,6 +157,9 @@ namespace DB::vm
                 table_meta_[tableName] = table_meta;
             }
 
+            for (auto const&[name, _] : table_meta_)
+                table_info_[name] = getTableInfo(name).value();
+
             init_pk_view(); // cache pk in memory, for FK constraint use
 
         } // end rebuild DB
@@ -439,10 +442,10 @@ namespace DB::vm
                 col->col_t_ , col->isFK(), col->other_value_ });
         }
 
+        const table_view tv(table_info_[info.sourceTable]);
         while (it != end)
         {
             ValueEntry vEntry = it.getV();
-            table_view tv(table_info_[info.sourceTable]);
             row_view row(tv, vEntry);
             // check where clause
             if (ast::vmVisit(info.whereExpr, row))

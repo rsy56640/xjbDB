@@ -3,7 +3,6 @@
 #include "include/debug_log.h"
 #include <iostream>
 
-#define DEBUG
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 
@@ -406,6 +405,7 @@ namespace DB::ast {
         }
     }
 
+    table::value_t _vmVisitAtom(const AtomExpr* root, table::row_view row);
     bool _vmVisit(const BaseExpr* root, table::row_view row)
     {
         base_t_t base_t = root->base_t_;
@@ -414,29 +414,23 @@ namespace DB::ast {
         case base_t_t::LOGICAL_OP:
         {
             const LogicalOpExpr* logicalPtr = static_cast<const LogicalOpExpr*>(root);
-            RetValue left = _vmVisit(logicalPtr->_left, row);
-            RetValue right = _vmVisit(logicalPtr->_right, row);
+            bool left = _vmVisit(logicalPtr->_left, row);
+            bool right = _vmVisit(logicalPtr->_right, row);
             std::string op = logical2str[int(logicalPtr->logical_t_)];  //used for exception info
 
-            //RetValue here must be int / str
-            auto op1 = std::get_if<bool>(&left);
-            auto op2 = std::get_if<bool>(&right);
-            if (op1 && op2)
-            {	//op1 op2 are both bool
-                switch (logicalPtr->logical_t_)
-                {
-                case logical_t_t::AND:
-                    return *op1 && *op2;
-                case logical_t_t::OR:
-                    return *op1 || *op2;
-                }
+            switch (logicalPtr->logical_t_)
+            {
+            case logical_t_t::AND:
+                return left && right;
+            case logical_t_t::OR:
+                return left || right;
             }
         }
         case base_t_t::COMPARISON_OP:
         {
             const ComparisonOpExpr* comparisonPtr = static_cast<const ComparisonOpExpr*>(root);
-            table::value_t left = _vmVisit(comparisonPtr->_left, row);
-            table::value_t right = _vmVisit(comparisonPtr->_right, row);
+            table::value_t left = _vmVisitAtom(comparisonPtr->_left, row);
+            table::value_t right = _vmVisitAtom(comparisonPtr->_right, row);
             std::string op = comparison2str[int(comparisonPtr->comparison_t_)];
 
             //RetValue here must be int / str
@@ -477,7 +471,7 @@ namespace DB::ast {
         return _vmVisit(root, row);
     }
 
-    table::value_t _vmVisit(const AtomExpr* root, table::row_view row)
+    table::value_t _vmVisitAtom(const AtomExpr* root, table::row_view row)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)
@@ -485,8 +479,8 @@ namespace DB::ast {
         case base_t_t::MATH_OP:
         {
             const MathOpExpr* mathPtr = static_cast<const MathOpExpr*>(root);
-            table::value_t left = _vmVisit(mathPtr->_left, row);
-            table::value_t right = _vmVisit(mathPtr->_right, row);
+            table::value_t left = _vmVisitAtom(mathPtr->_left, row);
+            table::value_t right = _vmVisitAtom(mathPtr->_right, row);
             std::string op = math2str[int(mathPtr->math_t_)];	//used for exception info
 
             //RetValue here must be int / str
@@ -521,7 +515,7 @@ namespace DB::ast {
         case base_t_t::ID:
         {
             const IdExpr* idPtr = static_cast<const IdExpr*>(root);
-            if (row.table_view_.table_info_)
+            if (!row.table_view_.table_info_)
                 throw std::string("value of record cannot be used here");
             return row.getValue(idPtr->_columnName);
         }
@@ -538,6 +532,6 @@ namespace DB::ast {
         if (!root)
             throw std::string("AtomExpr* root is nullptr");
 #endif // DEBUG
-        return _vmVisit(root, row);
+        return _vmVisitAtom(root, row);
     }
 }

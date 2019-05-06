@@ -40,7 +40,10 @@ namespace DB::page
     std::string get_range_VARCHAR(const ValueEntry& vEntry, range_t range) {
         if (range.begin + range.len > MAX_TUPLE_SIZE)
             debug::ERROR_LOG("range is not valid for VARCHAR\n");
-        return std::string(vEntry.content_ + range.begin, range.len);
+        if (vEntry.content_[range.begin + range.len - 1] == '\0')
+            return std::string(vEntry.content_ + range.begin);
+        else
+            return std::string(vEntry.content_ + range.begin, range.len);
     }
 
 
