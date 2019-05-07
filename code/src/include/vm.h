@@ -185,8 +185,11 @@ namespace DB::vm
         void test_flush();
         void showDB();
 
-
-        void printXJBDB();
+        template<typename ...Arg>
+        void printXJBDB(const char* format, Arg... args) {
+            std::printf("xjbDB$$$$$: ");
+            std::printf(format, args...);
+        }
 
         void println();
 
