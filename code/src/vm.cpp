@@ -194,7 +194,7 @@ namespace DB::vm
             // handle ErrorMsg or EXIT
             VM::process_result_t result = query_process(plan);
 
-            printf("xjbDB$$$$$: %s\n", result.msg.c_str());
+            printXJBDB("%s\n", result.msg.c_str());
             if (result.exit)
                 return;
             if (result.error)
@@ -208,9 +208,6 @@ namespace DB::vm
 
             detroy_log();
 
-#ifdef _xjbDB_test_VM_
-            showDB();
-#endif // _xjbDB_test_VM_
         }
     }
 
@@ -253,13 +250,14 @@ namespace DB::vm
         VM::process_result_t result;
         std::visit(
             overloaded{
-                [&result,this](const query::CreateTableInfo& info) { doCreate(result,info); },
-                [&result,this](const query::DropTableInfo& info) { doDrop(result,info); },
-                [&result,this](const query::SelectInfo& info) { doSelect(result,info);  },
-                [&result,this](const query::UpdateInfo& info) { doUpdate(result,info); },
-                [&result,this](const query::InsertInfo& info) { doInsert(result,info); },
-                [&result,this](const query::DeleteInfo& info) { doDelete(result,info); },
+                [&result, this](const query::CreateTableInfo& info) { doCreate(result,info); },
+                [&result, this](const query::DropTableInfo& info) { doDrop(result,info); },
+                [&result, this](const query::SelectInfo& info) { doSelect(result,info);  },
+                [&result, this](const query::UpdateInfo& info) { doUpdate(result,info); },
+                [&result, this](const query::InsertInfo& info) { doInsert(result,info); },
+                [&result, this](const query::DeleteInfo& info) { doDelete(result,info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
+                [&result, this](query::Show) { showDB(); },
                 [&result](query::ErrorMsg) { result.error = true; },
                 [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
@@ -1077,7 +1075,7 @@ namespace DB::vm
 
     void VM::showDB() {
         printf("xjbDB has %d tables\n", db_meta_->table_num_);
-        printf("------------------------------------------------------\n");
+        println();
         for (auto const&[name, table] : table_meta_)
         {
             std::printf("table \"%s\"\n", name.c_str());
@@ -1131,10 +1129,6 @@ namespace DB::vm
         }
     }
 
-
-    void VM::printXJBDB() {
-
-    }
 
 
     void VM::println() {
