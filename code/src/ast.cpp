@@ -48,23 +48,11 @@ namespace DB::ast {
 
     AtomExpr::~AtomExpr() { }
 
-    LogicalOpExpr::~LogicalOpExpr()
-    {
-        delete _left;
-        delete _right;
-    }
+    LogicalOpExpr::~LogicalOpExpr() { }
 
-    ComparisonOpExpr::~ComparisonOpExpr()
-    {
-        delete _left;
-        delete _right;
-    }
+    ComparisonOpExpr::~ComparisonOpExpr() { }
 
-    MathOpExpr::~MathOpExpr()
-    {
-        delete _left;
-        delete _right;
-    }
+    MathOpExpr::~MathOpExpr() { }
 
     IdExpr::~IdExpr() { }
 
@@ -72,10 +60,11 @@ namespace DB::ast {
 
     StrExpr::~StrExpr() { }
 
-    BaseOp::~BaseOp() { }
-
     //===========================================================
     //DML
+
+    BaseOp::~BaseOp() { }
+
     table::VirtualTable ProjectOp::getOutput()
     {
         table::VirtualTable table = _source->getOutput();
@@ -110,7 +99,7 @@ namespace DB::ast {
     //visit functions
 
     //output visit
-    void _outputVisit(const BaseExpr* root, std::ostream& os, size_t indent)
+    void _outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os, size_t indent)
     {
         base_t_t base_t = root->base_t_;
         os << std::string(indent * 2, '-') << base2str[int(base_t)] << "  ";
@@ -119,7 +108,7 @@ namespace DB::ast {
         {
         case base_t_t::LOGICAL_OP:
         {
-            const LogicalOpExpr* logicalPtr = static_cast<const LogicalOpExpr*>(root);
+            std::shared_ptr<const LogicalOpExpr> logicalPtr = std::static_pointer_cast<const LogicalOpExpr>(root);
             os << logical2str[int(logicalPtr->logical_t_)] << std::endl;
             _outputVisit(logicalPtr->_left, os, indent);
             _outputVisit(logicalPtr->_right, os, indent);
@@ -127,7 +116,7 @@ namespace DB::ast {
         break;
         case base_t_t::COMPARISON_OP:
         {
-            const ComparisonOpExpr* comparisonPtr = static_cast<const ComparisonOpExpr*>(root);
+			std::shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(root);
             os << comparison2str[int(comparisonPtr->comparison_t_)] << std::endl;
             _outputVisit(comparisonPtr->_left, os, indent);
             _outputVisit(comparisonPtr->_right, os, indent);
@@ -135,7 +124,7 @@ namespace DB::ast {
         break;
         case base_t_t::MATH_OP:
         {
-            const MathOpExpr* mathPtr = static_cast<const MathOpExpr*>(root);
+			std::shared_ptr<const MathOpExpr> mathPtr = std::static_pointer_cast<const MathOpExpr>(root);
             os << math2str[int(mathPtr->math_t_)] << std::endl;
             _outputVisit(mathPtr->_left, os, indent);
             _outputVisit(mathPtr->_right, os, indent);
@@ -143,19 +132,19 @@ namespace DB::ast {
         break;
         case base_t_t::ID:
         {
-            const IdExpr* idPtr = static_cast<const IdExpr*>(root);
+			std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(root);
             os << idPtr->_tableName << "." << idPtr->_columnName << std::endl;
         }
         break;
         case base_t_t::NUMERIC:
         {
-            const NumericExpr* numericPtr = static_cast<const NumericExpr*>(root);
+			std::shared_ptr<const NumericExpr> numericPtr = std::static_pointer_cast<const NumericExpr>(root);
             os << numericPtr->_value << std::endl;
         }
         break;
         case base_t_t::STR:
         {
-            const StrExpr* strPtr = static_cast<const StrExpr*>(root);
+			std::shared_ptr<const StrExpr> strPtr = std::static_pointer_cast<const StrExpr>(root);
             os << strPtr->_value << std::endl;
         }
         break;
@@ -167,10 +156,10 @@ namespace DB::ast {
 
     void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
     {
-        _outputVisit(root.get(), os, 2);
+        _outputVisit(root, os, 2);
     }
 
-    void _outputVisit(const BaseOp* root, std::ostream &os, size_t indent)
+    void _outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os, size_t indent)
     {
         op_t_t op_t = root->op_t_;
         std::string prefix = std::string(indent * 2, '-');
@@ -180,7 +169,7 @@ namespace DB::ast {
         {
         case DB::ast::op_t_t::PROJECT:
         {
-            const ProjectOp* projectOp = static_cast<const ProjectOp*>(root);
+			std::shared_ptr<const ProjectOp> projectOp = std::static_pointer_cast<const ProjectOp>(root);
             os << "Project on ";
             if (projectOp->_elements.empty())
                 os << "ALL" << std::endl;
@@ -198,7 +187,7 @@ namespace DB::ast {
         break;
         case DB::ast::op_t_t::FILTER:
         {
-            const FilterOp* filterOp = static_cast<const FilterOp*>(root);
+			std::shared_ptr<const FilterOp> filterOp = std::static_pointer_cast<const FilterOp>(root);
             os << "Filter with " << std::endl;
             _outputVisit(filterOp->_whereExpr, std::cout, indent);
             os << prefix << "From" << std::endl;
@@ -207,7 +196,7 @@ namespace DB::ast {
         break;
         case DB::ast::op_t_t::JOIN:
         {
-            const JoinOp* joinOp = static_cast<const JoinOp*>(root);
+			std::shared_ptr<const JoinOp> joinOp = std::static_pointer_cast<const JoinOp>(root);
             if (joinOp->_sources.size() > 1)
             {
                 if (joinOp->isJoin)
@@ -224,7 +213,7 @@ namespace DB::ast {
         break;
         case DB::ast::op_t_t::TABLE:
         {
-            const TableOp* tableOp = static_cast<const TableOp*>(root);
+			std::shared_ptr<const TableOp> tableOp = std::static_pointer_cast<const TableOp>(root);
             os << "Table " << tableOp->_tableName << std::endl;
         }
         break;
@@ -235,7 +224,7 @@ namespace DB::ast {
 
     void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
     {
-        _outputVisit(root.get(), os, 0);
+        _outputVisit(root, os, 0);
     }
 
     //check visit
@@ -243,14 +232,75 @@ namespace DB::ast {
     enum class check_t_t { INT, STRING, BOOL };
     const std::string check2str[] = { "INT", "STRING", "BOOL" };
 
-    check_t_t _checkVisit(const BaseExpr* root, const std::string& tableName)
+    check_t_t _checkVisitAtom(std::shared_ptr<const AtomExpr> root, const std::string& tableName)
+    {
+        base_t_t base_t = root->base_t_;
+        switch (base_t)
+        {
+        case base_t_t::MATH_OP:
+        {
+			std::shared_ptr<const MathOpExpr> mathPtr = std::static_pointer_cast<const MathOpExpr>(root);
+            check_t_t left_t = _checkVisitAtom(mathPtr->_left, tableName);
+            check_t_t right_t = _checkVisitAtom(mathPtr->_right, tableName);
+            std::string op = math2str[int(mathPtr->math_t_)];	//used for exception info
+
+            if (left_t == right_t)
+            {
+                if (left_t == check_t_t::STRING && mathPtr->math_t_ != math_t_t::ADD)
+                {
+                    throw std::string("unsupported operation '" + op + "' on string");
+                }
+                return left_t;
+            }
+            else
+            {
+                throw std::string("'" + op + "' on mismatched type " + check2str[int(left_t)] + ", " + check2str[int(right_t)]);
+            }
+        }
+        case base_t_t::NUMERIC:
+            return check_t_t::INT;
+        case base_t_t::STR:
+            return check_t_t::STRING;
+        case base_t_t::ID:
+        {
+			std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(root);
+            page::col_t_t id_t;
+            if (idPtr->_tableName.empty())
+                id_t = table::getColumnInfo(tableName, idPtr->_columnName).col_t_;
+            else
+                id_t = table::getColumnInfo(idPtr->_tableName, idPtr->_columnName).col_t_;
+            if (id_t == page::col_t_t::INTEGER)
+                return check_t_t::INT;
+            else if (id_t == page::col_t_t::CHAR || id_t == page::col_t_t::VARCHAR)
+                return check_t_t::STRING;
+            //more data type...
+        }
+
+        // no expect to happen
+        case base_t_t::LOGICAL_OP:
+        case base_t_t::COMPARISON_OP:
+        default:
+            throw std::string("wrong type for atom");
+        }
+    }
+
+    void checkVisitAtom(std::shared_ptr<const AtomExpr> root, const std::string tableName)
+    {
+#ifdef DEBUG
+        if (!root)
+            throw std::string("AtomExpr* root is nullptr");
+#endif // DEBUG
+        _checkVisitAtom(root, tableName);
+    }
+
+    check_t_t _checkVisit(std::shared_ptr<const BaseExpr> root, const std::string& tableName)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)
         {
         case base_t_t::LOGICAL_OP:
         {
-            const LogicalOpExpr* logicalPtr = static_cast<const LogicalOpExpr*>(root);
+			std::shared_ptr<const LogicalOpExpr> logicalPtr = std::static_pointer_cast<const LogicalOpExpr>(root);
             check_t_t left_t = _checkVisit(logicalPtr->_left, tableName);
             check_t_t right_t = _checkVisit(logicalPtr->_right, tableName);
             std::string op = logical2str[int(logicalPtr->logical_t_)];  //used for exception info
@@ -262,9 +312,9 @@ namespace DB::ast {
         }
         case base_t_t::COMPARISON_OP:
         {
-            const ComparisonOpExpr* comparisonPtr = static_cast<const ComparisonOpExpr*>(root);
-            check_t_t left_t = _checkVisit(comparisonPtr->_left, tableName);
-            check_t_t right_t = _checkVisit(comparisonPtr->_right, tableName);
+			std::shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(root);
+            check_t_t left_t = _checkVisitAtom(comparisonPtr->_left, tableName);
+            check_t_t right_t = _checkVisitAtom(comparisonPtr->_right, tableName);
             std::string op = comparison2str[int(comparisonPtr->comparison_t_)];
 
             //RetValue here must be int / str
@@ -296,68 +346,7 @@ namespace DB::ast {
         if (!root)
             throw std::string("BaseExpr* root is nullptr");
 #endif // DEBUG
-        _checkVisit(root.get(), tableName);
-    }
-
-    check_t_t _checkVisit(const AtomExpr* root, const std::string& tableName)
-    {
-        base_t_t base_t = root->base_t_;
-        switch (base_t)
-        {
-        case base_t_t::MATH_OP:
-        {
-            const MathOpExpr* mathPtr = static_cast<const MathOpExpr*>(root);
-            check_t_t left_t = _checkVisit(mathPtr->_left, tableName);
-            check_t_t right_t = _checkVisit(mathPtr->_right, tableName);
-            std::string op = math2str[int(mathPtr->math_t_)];	//used for exception info
-
-            if (left_t == right_t)
-            {
-                if (left_t == check_t_t::STRING && mathPtr->math_t_ != math_t_t::ADD)
-                {
-                    throw std::string("unsupported operation '" + op + "' on string");
-                }
-                return left_t;
-            }
-            else
-            {
-                throw std::string("'" + op + "' on mismatched type " + check2str[int(left_t)] + ", " + check2str[int(right_t)]);
-            }
-        }
-        case base_t_t::NUMERIC:
-            return check_t_t::INT;
-        case base_t_t::STR:
-            return check_t_t::STRING;
-        case base_t_t::ID:
-        {
-            const IdExpr* idPtr = static_cast<const IdExpr*>(root);
-            page::col_t_t id_t;
-            if (idPtr->_tableName.empty())
-                id_t = table::getColumnInfo(tableName, idPtr->_columnName).col_t_;
-            else
-                id_t = table::getColumnInfo(idPtr->_tableName, idPtr->_columnName).col_t_;
-            if (id_t == page::col_t_t::INTEGER)
-                return check_t_t::INT;
-            else if (id_t == page::col_t_t::CHAR || id_t == page::col_t_t::VARCHAR)
-                return check_t_t::STRING;
-            //more data type...
-        }
-
-        // no expect to happen
-        case base_t_t::LOGICAL_OP:
-        case base_t_t::COMPARISON_OP:
-        default:
-            throw std::string("wrong type for atom");
-        }
-    }
-
-    void checkVisit(std::shared_ptr<const AtomExpr> root, const std::string tableName)
-    {
-#ifdef DEBUG
-        if (!root)
-            throw std::string("AtomExpr* root is nullptr");
-#endif // DEBUG
-        _checkVisit(root.get(), tableName);
+        _checkVisit(root, tableName);
     }
 
 
@@ -405,15 +394,16 @@ namespace DB::ast {
         }
     }
 
-    table::value_t _vmVisitAtom(const AtomExpr* root, table::row_view row);
-    bool _vmVisit(const BaseExpr* root, table::row_view row)
+    table::value_t _vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row);
+
+    bool _vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)
         {
         case base_t_t::LOGICAL_OP:
         {
-            const LogicalOpExpr* logicalPtr = static_cast<const LogicalOpExpr*>(root);
+			std::shared_ptr<const LogicalOpExpr> logicalPtr = std::static_pointer_cast<const LogicalOpExpr>(root);
             bool left = _vmVisit(logicalPtr->_left, row);
             bool right = _vmVisit(logicalPtr->_right, row);
             std::string op = logical2str[int(logicalPtr->logical_t_)];  //used for exception info
@@ -428,7 +418,7 @@ namespace DB::ast {
         }
         case base_t_t::COMPARISON_OP:
         {
-            const ComparisonOpExpr* comparisonPtr = static_cast<const ComparisonOpExpr*>(root);
+			std::shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(root);
             table::value_t left = _vmVisitAtom(comparisonPtr->_left, row);
             table::value_t right = _vmVisitAtom(comparisonPtr->_right, row);
             std::string op = comparison2str[int(comparisonPtr->comparison_t_)];
@@ -464,21 +454,19 @@ namespace DB::ast {
 
     bool vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row)
     {
-#ifdef DEBUG
         if (!root)
             return true;
-#endif // DEBUG
-        return _vmVisit(root.get(), row);
+        return _vmVisit(root, row);
     }
 
-    table::value_t _vmVisitAtom(const AtomExpr* root, table::row_view row)
+    table::value_t _vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)
         {
         case base_t_t::MATH_OP:
         {
-            const MathOpExpr* mathPtr = static_cast<const MathOpExpr*>(root);
+			std::shared_ptr<const MathOpExpr> mathPtr = std::static_pointer_cast<const MathOpExpr>(root);
             table::value_t left = _vmVisitAtom(mathPtr->_left, row);
             table::value_t right = _vmVisitAtom(mathPtr->_right, row);
             std::string op = math2str[int(mathPtr->math_t_)];	//used for exception info
@@ -504,17 +492,17 @@ namespace DB::ast {
         }
         case base_t_t::NUMERIC:
         {
-            const NumericExpr* numericPtr = static_cast<const NumericExpr*>(root);
+			std::shared_ptr<const NumericExpr> numericPtr = std::static_pointer_cast<const NumericExpr>(root);
             return numericPtr->_value;
         }
         case base_t_t::STR:
         {
-            const StrExpr* strPtr = static_cast<const StrExpr*>(root);
+			std::shared_ptr<const StrExpr> strPtr = std::static_pointer_cast<const StrExpr>(root);
             return strPtr->_value;
         }
         case base_t_t::ID:
         {
-            const IdExpr* idPtr = static_cast<const IdExpr*>(root);
+			std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(root);
             if (!row.table_view_.table_info_)
                 throw std::string("value of record cannot be used here");
             return row.getValue(idPtr->_columnName);
@@ -532,6 +520,6 @@ namespace DB::ast {
         if (!root)
             throw std::string("AtomExpr* root is nullptr");
 #endif // DEBUG
-        return _vmVisitAtom(root.get(), row);
+        return _vmVisitAtom(root, row);
     }
 }

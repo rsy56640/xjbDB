@@ -41,8 +41,8 @@ namespace DB::ast {
         virtual ~LogicalOpExpr();
 
         const logical_t_t logical_t_;
-        BaseExpr* _left;
-        BaseExpr* _right;
+        std::shared_ptr<BaseExpr> _left;
+		std::shared_ptr<BaseExpr> _right;
     };
 
     struct ComparisonOpExpr : public NonAtomExpr {
@@ -52,8 +52,8 @@ namespace DB::ast {
         virtual ~ComparisonOpExpr();
 
         const comparison_t_t comparison_t_;
-        AtomExpr* _left;
-        AtomExpr* _right;
+		std::shared_ptr<AtomExpr> _left;
+		std::shared_ptr<AtomExpr> _right;
     };
 
     struct MathOpExpr : public AtomExpr {
@@ -62,8 +62,8 @@ namespace DB::ast {
         virtual ~MathOpExpr();
 
         const math_t_t math_t_;
-        AtomExpr* _left;
-        AtomExpr* _right;
+		std::shared_ptr<AtomExpr> _left;
+		std::shared_ptr<AtomExpr> _right;
     };
 
     struct IdExpr : public AtomExpr {
@@ -103,21 +103,21 @@ namespace DB::ast {
 
     struct ProjectOp : public BaseOp {
         ProjectOp() :BaseOp(op_t_t::PROJECT) {}
-        virtual ~ProjectOp() { delete _source; }
+        virtual ~ProjectOp() { }
         virtual table::VirtualTable getOutput();
 
         std::vector<std::string> _names;	//the name of the accordingly element, not sure if useful
-        std::vector< ast::AtomExpr*> _elements;	//if empty, $ are used, all columns are needed
-        BaseOp* _source;
+        std::vector<std::shared_ptr<ast::AtomExpr>> _elements;	//if empty, $ are used, all columns are needed
+        std::shared_ptr<BaseOp> _source;
     };
 
     struct FilterOp : public BaseOp {
         FilterOp(ast::BaseExpr* whereExpr) :BaseOp(op_t_t::FILTER), _whereExpr(whereExpr) {}
-        virtual ~FilterOp() { delete _whereExpr; delete _source; }
+        virtual ~FilterOp() { }
         virtual table::VirtualTable getOutput();
 
-        ast::BaseExpr* _whereExpr;
-        BaseOp* _source;
+        std::shared_ptr<ast::BaseExpr> _whereExpr;
+		std::shared_ptr<BaseOp> _source;
     };
 
     struct JoinOp : public BaseOp {
@@ -125,7 +125,7 @@ namespace DB::ast {
         virtual ~JoinOp() {}
         virtual table::VirtualTable getOutput();
 
-        std::vector<BaseOp*> _sources;	//currently suppose all sources are TableOp
+        std::vector<std::shared_ptr<BaseOp>> _sources;	//currently suppose all sources are TableOp
         bool isJoin;	//even it's true, not sure if the tables can be joined
     };
 
