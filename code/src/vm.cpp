@@ -414,8 +414,54 @@ namespace DB::vm
 
     void VM::doSelect(process_result_t& result, const query::SelectInfo& info)
     {
+        // now ignore `ORDER BY`
 
+        VirtualTable result_table = info.opRoot->getOutput();
 
+        // print VirtualTable
+        std::shared_ptr<const table::TableInfo> tableInfo = result_table.table_view_.table_info_;
+        std::printf("table \"%s\"\n", tableInfo->tableName_.c_str());
+
+        // prepare colInfo
+        struct output_t {
+            col_t_t col_t;
+            range_t range;
+        };
+        std::vector<output_t> outputCol;
+        const uint32_t col_size = tableInfo->colNames_.size();
+        outputCol.reserve(col_size);
+        std::printf("      ");
+        for (uint32_t i = 0; i < col_size; i++) {
+            const page::ColumnInfo& col = tableInfo->columnInfos_[i];
+            std::printf("%s\t", tableInfo->colNames_[i].c_str());
+            outputCol.push_back(output_t{
+                col.col_t_, range_t{ col.vEntry_offset_, col.str_len_ }
+                });
+        }
+        std::printf("\n");
+        println();
+
+        row_view rv = result_table.getRow();
+        while (!rv.isEOF())
+        {
+            //if (table->bt_->key_t() == page::key_t_t::INTEGER)
+            //    std::printf("%d -> ", it.getK().key_int);
+           // else
+            //    std::printf("%s -> ", it.getK().key_str);
+
+            const ValueEntry& vEntry = *rv.row_;
+            for (output_t output : outputCol) {
+                if (output.col_t == col_t_t::INTEGER) {
+                    std::printf("%d\t", get_range_INT(vEntry, output.range));
+                }
+                else {
+                    std::string s = get_range_VARCHAR(vEntry, output.range);
+                    std::printf("%s\t", s.c_str());
+                }
+            }
+            std::printf("\n");
+            rv = result_table.getRow();
+        }
     }
 
     void VM::doUpdate(process_result_t& result, const query::UpdateInfo& info)
@@ -828,14 +874,22 @@ namespace DB::vm
 
 
 
-    VirtualTable VM::sigma(VirtualTable t, ast::BaseExpr*) {
-        return VirtualTable({});
-
+    VirtualTable VM::sigma(VirtualTable t, ast::BaseExpr* whereExpr) {
+        VirtualTable vt(t.table_view_);
+        std::future<void> no_use =
+            register_task(std::mem_fn(&VM::doSigma), this, vt, t, whereExpr);
+        return vt;
     }
 
-    void VM::doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr*) {
-
-
+    void VM::doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr* whereExpr) {
+        row_view rv = t.getRow();
+        while (!rv.isEOF()) {
+            if (ast::vmVisit(whereExpr, rv)) {
+                ret.addRow(rv);
+            }
+            rv = t.getRow();
+        }
+        ret.addEOF();
     }
 
 
@@ -1042,7 +1096,8 @@ namespace DB::vm
                     col->col_t_, range_t{ col->vEntry_offset_, col->str_len_ }
                     });
             }
-            std::printf("\n------------------------------------------------\n");
+            std::printf("\n");
+            println();
 
             int cnt = 0;
             table->bt_->range_query_begin_lock();
@@ -1072,12 +1127,18 @@ namespace DB::vm
             }
             table->bt_->range_query_end_unlock();
             std::printf("output size = %d\n", cnt);
-            printf("------------------------------------------------------\n");
+            println();
         }
+    }
 
 
+    void VM::printXJBDB() {
 
     }
 
+
+    void VM::println() {
+        std::printf("------------------------------------------------------\n");
+    }
 
 } // end namespace DB::vm

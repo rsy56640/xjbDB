@@ -76,7 +76,7 @@ namespace DB::query {
 
     struct DeleteInfo {
         std::string sourceTable;
-		std::shared_ptr<ast::BaseExpr> whereExpr;
+        std::shared_ptr<ast::BaseExpr> whereExpr;
         void print() const
         {
             std::cout << "Delete from table : " << sourceTable << std::endl;
@@ -99,14 +99,14 @@ namespace DB::query {
 
     //===========================================================
     //specified for vm
-	struct Show
-	{
-		void print() const
-		{
-			std::cout << "Show" << std::endl;
+    struct Show
+    {
+        void print() const
+        {
+            std::cout << "Show" << std::endl;
 
-		}
-	};
+        }
+    };
 
     struct Exit
     {

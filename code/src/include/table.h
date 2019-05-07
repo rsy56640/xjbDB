@@ -84,7 +84,7 @@ namespace DB::table
 
         table_view table_view_;
 
-    private:
+    public:
         bool eof_;
         std::shared_ptr<row_t>  row_;
     };

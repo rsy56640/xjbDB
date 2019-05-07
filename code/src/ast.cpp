@@ -167,7 +167,7 @@ namespace DB::ast {
 
     void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
     {
-        _outputVisit(root.get() , os, 2);
+        _outputVisit(root.get(), os, 2);
     }
 
     void _outputVisit(const BaseOp* root, std::ostream &os, size_t indent)
@@ -466,7 +466,7 @@ namespace DB::ast {
     {
 #ifdef DEBUG
         if (!root)
-            throw std::string("BaseExpr* root is nullptr");
+            return true;
 #endif // DEBUG
         return _vmVisit(root.get(), row);
     }

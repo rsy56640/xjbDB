@@ -185,6 +185,11 @@ namespace DB::vm
         void test_flush();
         void showDB();
 
+
+        void printXJBDB();
+
+        void println();
+
     };
 
 
