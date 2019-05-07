@@ -1,0 +1,27 @@
+CREATE TABLE USER(id INT PK, name VARCHAR(20));
+CREATE TABLE Student(sid INT PK, name VARCHAR(20));
+CREATE TABLE Score(sid INT PK, score INT);
+
+SELECT $ FROM USER
+
+SELECT id + 1, "NAME:" + name
+FROM USER JOIN CLASS
+WHERE CLASS.no > 666 AND USER.id * USER.id > 3 + USER.id AND USER.name == CLASS.name + 'huaji';
+
+INSERT USER(id, name) VALUES(123 * 6 + 233, "huaji" + "666");
+INSERT USER(id, name) VALUES(123, "rsy" + "666");
+INSERT USER(id, name) VALUES(12, "Hello World");
+INSERT USER(id, name) VALUES(666, "HHHHH");
+
+INSERT Student(sid, name) VALUES(1, "zh"+"sh");
+INSERT Student(sid, name) VALUES(222, "rsy");
+INSERT Student(sid, name) VALUES(233, "lgy");
+INSERT Student(sid, name) VALUES(666, "lrk");
+
+UPDATE USER SET name = "huawei" WHERE id == 123;
+UPDATE USER SET name = "hhhh" WHERE name == "hellorsy";
+
+DELETE FROM USER WHERE id == 123;
+DELETE FROM USER WHERE name == "huaji" + "666";
+
+DROP TABLE USER
