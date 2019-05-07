@@ -11,6 +11,7 @@ alias
 #include <iomanip>
 #include <deque>
 #include <stack>
+#include <memory>
 
 #include "page.h"
 #include "table.h"
@@ -36,6 +37,7 @@ using std::endl;
 using std::get;
 using std::get_if;
 using std::string;
+using std::shared_ptr;
 
 using Column = std::pair<std::string, std::string>;
 
@@ -268,7 +270,7 @@ namespace DB
 					{
 						auto& l = get<ColumnInfo>(left.object);
 						l.setDEFAULT();
-						auto& expr = get<AtomExpr*>(right[1].object);
+						auto expr = shared_ptr<AtomExpr>(get<AtomExpr*>(right[1].object));
 						value_t val = vmVisitAtom(expr);
 						if(auto op = get_if<int>(&val))
 						{
@@ -340,7 +342,7 @@ namespace DB
 						l.sourceTable = get<string>(right[2].object);
 						if(right.size() > 3)
 						{
-							l.whereExpr = get<BaseExpr*>(right[4].object);
+							l.whereExpr.reset(get<BaseExpr*>(right[4].object));
 						}
 					}
 					;
@@ -352,7 +354,7 @@ namespace DB
 						l.elements = get<Elements>(right[3].object);
 						if(right.size() > 4)
 						{
-							l.whereExpr = get<BaseExpr*>(right[5].object);
+							l.whereExpr.reset(get<BaseExpr*>(right[5].object));
 						}
 					}
 					;
@@ -376,11 +378,11 @@ namespace DB
 						if(projectOp)
 						{
 							projectOp->_source = baseOp;
-							l.opRoot = projectOp;
+							l.opRoot.reset(projectOp);
 						}
 						else
 						{
-							l.opRoot = baseOp;
+							l.opRoot.reset(baseOp);
 						}
 						
 
@@ -393,7 +395,7 @@ namespace DB
 					{
 						auto& l = get<Elements>(left.object);
 						Element ele;
-						ele.valueExpr = get<AtomExpr*>(right[2].object);
+						ele.valueExpr.reset(get<AtomExpr*>(right[2].object));
 						l.push_back(ele);
 						if(right.size() <= 4)
 							return;
@@ -403,7 +405,7 @@ namespace DB
 						for(size_t i = 1; i < size; i += 2)
 						{
 							Element ele;
-							ele.valueExpr = get<AtomExpr*>(_right[i].object);
+							ele.valueExpr.reset(get<AtomExpr*>(_right[i].object));
 							l.push_back(ele);
 						}
 					}
@@ -430,7 +432,7 @@ namespace DB
 						auto& l = get<Element>(left.object);
 						l.name = get<Column>(right[0].object).second;
 						auto &expr = get<AtomExpr*>(right[2].object);
-						l.valueExpr = expr;
+						l.valueExpr.reset(expr);
 					}
 					;	  
 						  

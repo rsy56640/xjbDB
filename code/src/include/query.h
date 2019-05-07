@@ -5,6 +5,7 @@
 #include <variant>
 #include <optional>
 #include <unordered_map>
+#include <memory>
 #include "table.h"
 #include "ast.h"
 
@@ -38,7 +39,7 @@ namespace DB::query {
 
     struct Element {
         std::string name;
-        ast::AtomExpr* valueExpr;
+        std::shared_ptr<ast::AtomExpr> valueExpr;
     };
     using Elements = std::vector<Element>;
     struct InsertInfo {
@@ -59,7 +60,7 @@ namespace DB::query {
     struct UpdateInfo {
         std::string sourceTable;
         Elements elements;
-        ast::BaseExpr* whereExpr;
+        std::shared_ptr<ast::BaseExpr> whereExpr;
         void print() const
         {
             std::cout << "Update table : " << sourceTable << std::endl;
@@ -75,7 +76,7 @@ namespace DB::query {
 
     struct DeleteInfo {
         std::string sourceTable;
-        ast::BaseExpr* whereExpr;
+		std::shared_ptr<ast::BaseExpr> whereExpr;
         void print() const
         {
             std::cout << "Delete from table : " << sourceTable << std::endl;
@@ -86,7 +87,7 @@ namespace DB::query {
 
     using OrderbyElement = std::pair<ast::BaseExpr*, bool>;	//	orderExpr, isASC
     struct SelectInfo {
-        ast::BaseOp* opRoot;
+        std::shared_ptr<ast::BaseOp> opRoot;
         std::vector<OrderbyElement> orderbys;
         void print() const
         {

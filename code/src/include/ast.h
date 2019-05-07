@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <variant>
+#include <memory>
 #include "table.h"
 
 
@@ -143,9 +144,9 @@ namespace DB::ast {
     *output visit, output the ast to the given ostream
     *regardless of validity
     */
-    void outputVisit(const BaseExpr* root, std::ostream &os);
+    void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream &os);
 
-    void outputVisit(const BaseOp* root, std::ostream &os);
+    void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os);
 
     /*
     *check visit, used in parsing phase
@@ -164,10 +165,10 @@ namespace DB::ast {
     */
 
     //check WHERE clause(expression)
-    void checkVisit(const BaseExpr* root, const std::string tableName = std::string());
+    void checkVisit(std::shared_ptr<const BaseExpr> root, const std::string tableName = std::string());
 
     //check others(expressionAtom)
-    void checkVisit(const AtomExpr* root, const std::string tableName = std::string());
+    void checkVisit(std::shared_ptr<const AtomExpr> root, const std::string tableName = std::string());
 
 
     /*
@@ -178,10 +179,10 @@ namespace DB::ast {
     inline bool comparisonOp(int op1, int op2, comparison_t_t comparison_t);
 
     //for WHERE clause(expression), used for filtering values of a row
-    bool vmVisit(const BaseExpr* root, table::row_view row);
+    bool vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row);
 
     //for others(expressionAtom), used for computing math/string expression and data in the specified row
-    table::value_t vmVisitAtom(const AtomExpr* root, table::row_view row = NULL_ROW);
+    table::value_t vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row = NULL_ROW);
 }
 
 

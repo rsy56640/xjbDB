@@ -165,9 +165,9 @@ namespace DB::ast {
         }
     }
 
-    void outputVisit(const BaseExpr* root, std::ostream& os)
+    void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
     {
-        _outputVisit(root, os, 2);
+        _outputVisit(root.get() , os, 2);
     }
 
     void _outputVisit(const BaseOp* root, std::ostream &os, size_t indent)
@@ -233,9 +233,9 @@ namespace DB::ast {
         }
     }
 
-    void outputVisit(const BaseOp* root, std::ostream &os)
+    void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
     {
-        _outputVisit(root, os, 0);
+        _outputVisit(root.get(), os, 0);
     }
 
     //check visit
@@ -290,13 +290,13 @@ namespace DB::ast {
         }
     }
 
-    void checkVisit(const BaseExpr* root, const std::string tableName)
+    void checkVisit(std::shared_ptr<const BaseExpr> root, const std::string tableName)
     {
 #ifdef DEBUG
         if (!root)
             throw std::string("BaseExpr* root is nullptr");
 #endif // DEBUG
-        _checkVisit(root, tableName);
+        _checkVisit(root.get(), tableName);
     }
 
     check_t_t _checkVisit(const AtomExpr* root, const std::string& tableName)
@@ -351,13 +351,13 @@ namespace DB::ast {
         }
     }
 
-    void checkVisit(const AtomExpr* root, const std::string tableName)
+    void checkVisit(std::shared_ptr<const AtomExpr> root, const std::string tableName)
     {
 #ifdef DEBUG
         if (!root)
             throw std::string("AtomExpr* root is nullptr");
 #endif // DEBUG
-        _checkVisit(root, tableName);
+        _checkVisit(root.get(), tableName);
     }
 
 
@@ -462,13 +462,13 @@ namespace DB::ast {
         }
     }
 
-    bool vmVisit(const BaseExpr* root, table::row_view row)
+    bool vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row)
     {
 #ifdef DEBUG
         if (!root)
             throw std::string("BaseExpr* root is nullptr");
 #endif // DEBUG
-        return _vmVisit(root, row);
+        return _vmVisit(root.get(), row);
     }
 
     table::value_t _vmVisitAtom(const AtomExpr* root, table::row_view row)
@@ -526,12 +526,12 @@ namespace DB::ast {
         }
     }
 
-    table::value_t vmVisitAtom(const AtomExpr* root, table::row_view row)
+    table::value_t vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row)
     {
 #ifdef DEBUG
         if (!root)
             throw std::string("AtomExpr* root is nullptr");
 #endif // DEBUG
-        return _vmVisitAtom(root, row);
+        return _vmVisitAtom(root.get(), row);
     }
 }
