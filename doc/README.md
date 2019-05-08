@@ -391,7 +391,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ## SQL Parser
 ### 模块负责人：黎冠延
 
-
+[ssyram/NovelRulesTranslator](https://github.com/ssyram/NovelRulesTranslator)
 
 
 &nbsp;   
@@ -399,7 +399,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ## Query Plan
 ### 模块负责人：刘瑞康
 
-
+[Reeker-Liu/DB](https://github.com/Reeker-Liu/DB)
 
 
 &nbsp;   
