@@ -41,6 +41,7 @@ namespace DB::vm
             std::string statement = "";
             while (true) {
                 char buffer[256];
+                printXJBDB("");
                 std::cin.getline(buffer, 256);
                 statement = buffer;
                 // meet ';'
@@ -59,7 +60,7 @@ namespace DB::vm
                         return;
                 }
                 else {
-                    sql += statement;
+                    sql += statement + " ";
                 }
 
                 if (meet)
@@ -164,6 +165,7 @@ namespace DB::vm
 
         } // end rebuild DB
 
+        // send vm handler to ast for op nodes service
         table::vm_ = this;
 
         // start task pool
@@ -194,11 +196,12 @@ namespace DB::vm
             // handle ErrorMsg or EXIT
             VM::process_result_t result = query_process(plan);
 
-            printXJBDB("%s\n", result.msg.c_str());
             if (result.exit)
                 return;
-            if (result.error)
+            if (result.error) {
+                printXJBDB("\n%s\n", result.msg.c_str());
                 continue;
+            }
 
             task_pool_.join();
 
@@ -258,7 +261,7 @@ namespace DB::vm
                 [&result, this](const query::DeleteInfo& info) { doDelete(result,info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result, this](query::Show) { showDB(); },
-                [&result](query::ErrorMsg) { result.error = true; },
+                [&result](query::ErrorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log"; },
                 [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
 
@@ -442,11 +445,6 @@ namespace DB::vm
         row_view rv = result_table.getRow();
         while (!rv.isEOF())
         {
-            //if (table->bt_->key_t() == page::key_t_t::INTEGER)
-            //    std::printf("%d -> ", it.getK().key_int);
-           // else
-            //    std::printf("%s -> ", it.getK().key_str);
-
             const ValueEntry& vEntry = *rv.row_;
             for (output_t output : outputCol) {
                 if (output.col_t == col_t_t::INTEGER) {
@@ -861,25 +859,62 @@ namespace DB::vm
 
 
     VirtualTable VM::projection(VirtualTable t, const std::vector<std::string>& colNames) {
-        return VirtualTable({});
+        std::vector<std::string> _colNames;
+        std::vector<page::ColumnInfo> _colInfos;
+        std::vector<page::range_t> _origin_ranges;
+        auto table_info_ = t.table_view_.table_info_;
+        const uint32_t col_size = table_info_->colNames_.size();
+
+        // TODO: maybe some compaction for projetion
+
+        for (auto const& colName : colNames) {
+            for (uint32_t i = 0; i < col_size; i++)
+                if (colName == table_info_->colNames_[i]) {
+                    _colNames.push_back(colName);
+                    _colInfos.push_back(table_info_->columnInfos_[i]);
+                    _origin_ranges.push_back(
+                        { _colInfos.back().vEntry_offset_, _colInfos.back().str_len_ });
+                }
+        }
+
+        table::TableInfo tableInfo(table_info_->tableName_,
+            std::move(_colNames), std::move(_colInfos), this);
+        VirtualTable vt(tableInfo);
+        std::future<void> no_use =
+            register_task(std::mem_fn(&VM::doProjection), this, vt, t, std::move(_origin_ranges));
+        return vt;
+    }
+
+    void VM::doProjection(VirtualTable ret, VirtualTable t, const std::vector<page::range_t> origin_ranges) {
+        auto table_info_ = ret.table_view_.table_info_;
+        row_view rv = t.getRow();
+        const uint32_t col_size = table_info_->columnInfos_.size();
+        while (!rv.isEOF()) {
+            ValueEntry vEntry = *rv.row_;
+            for (uint32_t i = 0; i < col_size; i++) {
+                page::range_t origin_range = origin_ranges[i];
+                std::memcpy(vEntry.content_ + table_info_->columnInfos_[i].vEntry_offset_,
+                    rv.row_->content_ + origin_range.begin,
+                    origin_range.len);
+            }
+            update_vEntry(*rv.row_, vEntry);
+            ret.addRow(rv);
+            rv = t.getRow();
+        }
+        ret.addEOF();
 
     }
 
-    void VM::doProjection(VirtualTable ret, VirtualTable t) {
 
 
-    }
-
-
-
-    VirtualTable VM::sigma(VirtualTable t, ast::BaseExpr* whereExpr) {
+    VirtualTable VM::sigma(VirtualTable t, std::shared_ptr<ast::BaseExpr> whereExpr) {
         VirtualTable vt(t.table_view_);
         std::future<void> no_use =
             register_task(std::mem_fn(&VM::doSigma), this, vt, t, whereExpr);
         return vt;
     }
 
-    void VM::doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr* whereExpr) {
+    void VM::doSigma(VirtualTable ret, VirtualTable t, std::shared_ptr<ast::BaseExpr> whereExpr) {
         row_view rv = t.getRow();
         while (!rv.isEOF()) {
             if (ast::vmVisit(whereExpr, rv)) {
@@ -1131,7 +1166,7 @@ namespace DB::vm
 
 
 
-    void VM::println() {
+    void println() {
         std::printf("------------------------------------------------------\n");
     }
 

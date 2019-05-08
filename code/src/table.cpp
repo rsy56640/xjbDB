@@ -6,6 +6,8 @@
 namespace DB::table
 {
 
+    vm::VM* table::vm_ = nullptr;
+
     TableInfo::TableInfo() {}
 
     TableInfo::TableInfo(const std::string& tableName,

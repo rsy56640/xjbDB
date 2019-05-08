@@ -233,6 +233,7 @@ namespace DB::page
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
     };
     struct range_t { uint32_t begin = 0, len = 0; };
+    void update_vEntry(ValueEntry&, const ValueEntry&);
     void update_vEntry(ValueEntry&, range_t range, int32_t);
     void update_vEntry(ValueEntry&, range_t range, const std::string&);
     int32_t get_range_INT(const ValueEntry&, range_t range);

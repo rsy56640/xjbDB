@@ -18,7 +18,7 @@ namespace DB::table
 
     using value_t = std::variant<int32_t, std::string>;
 
-    static vm::VM* vm_;
+    extern vm::VM* vm_; // define as nullptr in table.cpp
 
 #define NULL_ROW table::row_view{ {}, {} }
 

@@ -18,6 +18,11 @@ namespace DB::page
         return std::string(vEntry.content_, MAX_TUPLE_SIZE);
     }
 
+    void update_vEntry(ValueEntry& dest, const ValueEntry& src) {
+        dest.value_state_ = src.value_state_;
+        std::memcpy(dest.content_, src.content_, MAX_TUPLE_SIZE);
+    }
+
     void update_vEntry(ValueEntry& vEntry, range_t range, int32_t i) {
         write_int(vEntry.content_ + range.begin, i);
     }

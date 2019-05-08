@@ -146,11 +146,11 @@ namespace DB::vm
 
         //friend struct ProjectOp;
         VirtualTable projection(VirtualTable t, const std::vector<std::string>& colNames);
-        void doProjection(VirtualTable ret, VirtualTable t);
+        void doProjection(VirtualTable ret, VirtualTable t, const std::vector<page::range_t> origin);
 
         //friend struct FilterOp;
-        VirtualTable sigma(VirtualTable t, ast::BaseExpr*);
-        void doSigma(VirtualTable ret, VirtualTable t, ast::BaseExpr*);
+        VirtualTable sigma(VirtualTable t, std::shared_ptr<ast::BaseExpr>);
+        void doSigma(VirtualTable ret, VirtualTable t, std::shared_ptr<ast::BaseExpr>);
 
 
         void init_pk_view();
@@ -185,16 +185,17 @@ namespace DB::vm
         void test_flush();
         void showDB();
 
-        template<typename ...Arg>
-        void printXJBDB(const char* format, Arg... args) {
-            std::printf("xjbDB$$$$$: ");
-            std::printf(format, args...);
-        }
-
-        void println();
 
     };
 
+
+    template<typename ...Arg>
+    void printXJBDB(const char* format, Arg... args) {
+        std::printf("xjbDB>>> ");
+        std::printf(format, args...);
+    }
+
+    void println();
 
 
 } // end namespace DB::vm
