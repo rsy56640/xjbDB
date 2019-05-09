@@ -56,6 +56,14 @@ namespace DB::ast {
 
     IdExpr::~IdExpr() { }
 
+	const std::string IdExpr::getFullColumnName() const
+	{
+		if (_tableName.empty())
+			return _columnName;
+		else
+			return _tableName + "." + _columnName;
+	}
+
     NumericExpr::~NumericExpr() { }
 
     StrExpr::~StrExpr() { }
@@ -170,16 +178,10 @@ namespace DB::ast {
         case DB::ast::op_t_t::PROJECT:
         {
 			std::shared_ptr<const ProjectOp> projectOp = std::static_pointer_cast<const ProjectOp>(root);
-            os << "Project on ";
-            if (projectOp->_elements.empty())
-                os << "ALL" << std::endl;
-            else
+            os << "Project on " << std::endl;
+            for (auto expr : projectOp->_elements)
             {
-                os << std::endl;
-                for (auto expr : projectOp->_elements)
-                {
-                    _outputVisit(expr, std::cout, indent);
-                }
+                _outputVisit(expr, std::cout, indent);
             }
             os << prefix << "From" << std::endl;
             _outputVisit(projectOp->_source, os, indent);
@@ -505,7 +507,7 @@ namespace DB::ast {
 			std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(root);
             if (!row.table_view_.table_info_)
                 throw std::string("value of record cannot be used here");
-            return row.getValue(idPtr->_columnName);
+            return row.getValue(idPtr->getFullColumnName());
         }
 #ifdef DEBUG
         default:

@@ -18,8 +18,9 @@ void test()
     vm::VM vm_;
     vm_.init();
 
-    std::string sql;
-    cin >> sql;
+	char buffer[256];
+	cin.getline(buffer, 256);
+    std::string sql(buffer);
     SQLValue plan = query::sql_parse(sql);
 
     printf("--------------------- test end ---------------------\n");

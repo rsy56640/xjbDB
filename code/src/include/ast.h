@@ -71,6 +71,7 @@ namespace DB::ast {
             AtomExpr(base_t_t::ID), _tableName(tableName), _columnName(columnName) {}
         virtual ~IdExpr();
 
+		const std::string getFullColumnName() const;
         std::string _tableName;
         std::string _columnName;
     };

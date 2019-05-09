@@ -507,7 +507,7 @@ namespace DB
 					if(right.size() <= 2)
 						return;
 
-					auto _right = get<iter_object_type>(right[1].object).data;
+					auto _right = get<iter_object_type>(right[2].object).data;
 					size_t size = _right.size();
 					for(size_t i = 1; i < size; i += 2)
 					{
