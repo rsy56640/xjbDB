@@ -8,6 +8,7 @@
 #include <functional>
 #include <vector>
 #include <deque>
+#include <tuple>
 
 namespace DB::vm
 {
@@ -431,7 +432,6 @@ namespace DB::vm
         std::vector<output_t> outputCol;
         const uint32_t col_size = tableInfo->colNames_.size();
         outputCol.reserve(col_size);
-        std::printf("      ");
         for (uint32_t i = 0; i < col_size; i++) {
             const page::ColumnInfo& col = tableInfo->columnInfos_[i];
             std::printf("%s\t", tableInfo->colNames_[i].c_str());
@@ -848,12 +848,133 @@ namespace DB::vm
 
 
     VirtualTable VM::join(VirtualTable t1, VirtualTable t2, bool pk) {
-        return VirtualTable({});
+        std::string _tableName;
+        std::vector<std::string> _colNames;
+        std::vector<page::ColumnInfo> _colInfos;
+        uint32_t vEntry_offset = 0;
+        std::vector<bool> range_map;
+        auto table1 = t1.table_view_.table_info_;
+        auto table2 = t2.table_view_.table_info_;
+        _tableName = table1->tableName_ + " JOIN " + table2->tableName_;
+        const uint32_t size1 = table1->colNames_.size();
+        const uint32_t size2 = table2->colNames_.size();
+
+        auto new_col_name = [](const std::string& tableName, const std::string& colName)->std::string
+        {
+            return tableName + "." + colName;
+        };
+
+        if (pk) {
+            _tableName += " ON PK";
+            _colNames.reserve(size1 + size2 - 1);
+            _colInfos.reserve(size1 + size2 - 1);
+            range_map.reserve(size1 + size2 - 1);
+            // a(id, name) b(id, name) // ignore the second PK name
+            // (a.id, a.name, b.name)  // range_t -> <bool, range_t>
+            //  true,  true,  false    // bool denotes whether it's the first table
+            for (uint32_t i = 0; i < size1; i++) {
+                _colNames.push_back(new_col_name(table1->tableName_, table1->colNames_[i]));
+                _colInfos.push_back(table1->columnInfos_[i]);
+                vEntry_offset = table1->columnInfos_[i].vEntry_offset_;
+                range_map.push_back(true);
+            }
+            for (uint32_t i = 0; i < size2; i++) {
+                if (i == table2->pk_col_)
+                    continue;
+                _colNames.push_back(new_col_name(table2->tableName_, table2->colNames_[i]));
+                _colInfos.push_back(table2->columnInfos_[i]);
+                _colInfos.back().vEntry_offset_ += vEntry_offset;
+                range_map.push_back(false);
+            }
+        }
+        else {
+            _colNames.reserve(size1 + size2);
+            _colInfos.reserve(size1 + size2);
+            range_map.reserve(size1 + size2);
+            // a(id, name) b(id, name)
+            // (a.id, a.name, b.id, b.name) // range_t -> <bool, range_t>
+            //  true,  true,  false, false  // bool denotes whether it's the first table
+            for (uint32_t i = 0; i < size1; i++) {
+                _colNames.push_back(new_col_name(table1->tableName_, table1->colNames_[i]));
+                _colInfos.push_back(table1->columnInfos_[i]);
+                vEntry_offset = table1->columnInfos_[i].vEntry_offset_ + table1->columnInfos_[i].str_len_;
+                range_map.push_back(true);
+            }
+            for (uint32_t i = 0; i < size2; i++) {
+                _colNames.push_back(new_col_name(table2->tableName_, table2->colNames_[i]));
+                _colInfos.push_back(table2->columnInfos_[i]);
+                _colInfos.back().vEntry_offset_ += vEntry_offset;
+                range_map.push_back(false);
+            }
+            if (table1->hasPK())
+                _colInfos[table1->pk_col_].setNONPK();
+            if (table2->hasPK())
+                _colInfos[size1 + table2->pk_col_].setNONPK();
+        }
+
+        if (_colInfos.back().vEntry_offset_ + _colInfos.back().str_len_ > page::MAX_TUPLE_SIZE)
+            debug::ERROR_LOG("exceed tuple size when joining \"%s\" and \"%s\" \n",
+                table1->tableName_.c_str(), table2->tableName_.c_str());
+
+        table::TableInfo tableInfo(std::move(_tableName), std::move(_colNames), std::move(_colInfos), this);
+        VirtualTable vt(tableInfo);
+        std::future<void> no_use =
+            register_task(std::mem_fn(&VM::doJoin), this, vt, t1, t2, pk, std::move(range_map), vEntry_offset);
+        return vt;
     }
 
-    void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk) {
+    void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk, std::vector<bool> range_map, uint32_t vEntry_offset) {
+        // TODO: optimization by zhushen
+        // here is just an example for test
+        // use O(n^2) for-loop-join
+
+        // splice 2 row into 1 row
+        auto tableInfo = ret.table_view_.table_info_;
+        const uint32_t col_size = tableInfo->colNames_.size();
+        auto splice = [&range_map, &tableInfo, col_size, vEntry_offset](row_view r1, row_view r2) -> row_view
+        {
+            ValueEntry vEntry;
+            vEntry.value_state_ = value_state::INUSED;
+            for (uint32_t i = 0; i < col_size; i++) {
+                const page::ColumnInfo& col = tableInfo->columnInfos_[i];
+                range_t range{ col.vEntry_offset_, col.str_len_ };
+                if (range_map[i])
+                    page::update_vEntry(vEntry, range, *r1.row_, range);
+                else
+                    page::update_vEntry(vEntry, range, *r2.row_, range_t{ range.begin - vEntry_offset, range.len });
+            }
+            return row_view(*tableInfo, vEntry);
+        };
+
+        if (pk) {
+            // < 0
+            // = 0
+            // > 0
+            auto pk_cmp = []()->int32_t
+            {
 
 
+
+            };
+
+
+
+
+        }
+        else {
+            std::deque<row_view> table1 = t1.waitAll();
+            std::deque<row_view> table2 = t2.waitAll();
+            for (row_view r1 : table1) {
+                if (r1.isEOF())
+                    break;
+                for (row_view r2 : table2) {
+                    if (r2.isEOF())
+                        break;
+                    ret.addRow(splice(r1, r2));
+                }
+            }
+            ret.addEOF();
+        }
     }
 
 
@@ -866,6 +987,7 @@ namespace DB::vm
         const uint32_t col_size = table_info_->colNames_.size();
 
         // TODO: maybe some compaction for projetion
+        // TODO: (for subquery) promise the col offset is in asending order
 
         for (auto const& colName : colNames) {
             for (uint32_t i = 0; i < col_size; i++)
@@ -902,7 +1024,6 @@ namespace DB::vm
             rv = t.getRow();
         }
         ret.addEOF();
-
     }
 
 

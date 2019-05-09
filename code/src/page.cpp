@@ -23,6 +23,15 @@ namespace DB::page
         std::memcpy(dest.content_, src.content_, MAX_TUPLE_SIZE);
     }
 
+    void update_vEntry(ValueEntry& dest, range_t dest_range, const ValueEntry& src, range_t src_range) {
+        // TODO: maybe copy NULL tag
+        if (dest_range.len != src_range.len)
+            debug::ERROR_LOG("in update_vEntry(), 2 segments range length don't match");
+        std::memcpy(dest.content_ + dest_range.begin,
+            src.content_ + src_range.begin,
+            dest_range.len);
+    }
+
     void update_vEntry(ValueEntry& vEntry, range_t range, int32_t i) {
         write_int(vEntry.content_ + range.begin, i);
     }

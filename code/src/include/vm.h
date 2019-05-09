@@ -141,8 +141,12 @@ namespace DB::vm
         void doScanTable(VirtualTable ret, const std::string tableName);
 
         //friend struct JoinOp;
+        // if JOIN ON PK, ignore the second pk name
+        // vector<bool>             denotes range_map[i] is t1(true) or t2(false)
+        // uint32_t vEntry_offset   denotes the t2 rows' offset after t1 rows
         VirtualTable join(VirtualTable t1, VirtualTable t2, bool pk);
-        void doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk);
+        void doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk,
+            std::vector<bool> range_map, uint32_t vEntry_offset);
 
         //friend struct ProjectOp;
         VirtualTable projection(VirtualTable t, const std::vector<std::string>& colNames);

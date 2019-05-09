@@ -233,7 +233,8 @@ namespace DB::page
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
     };
     struct range_t { uint32_t begin = 0, len = 0; };
-    void update_vEntry(ValueEntry&, const ValueEntry&);
+    void update_vEntry(ValueEntry& dest, const ValueEntry& src);
+    void update_vEntry(ValueEntry& dest, range_t dest_range, const ValueEntry& src, range_t src_range);
     void update_vEntry(ValueEntry&, range_t range, int32_t);
     void update_vEntry(ValueEntry&, range_t range, const std::string&);
     int32_t get_range_INT(const ValueEntry&, range_t range);
@@ -273,6 +274,7 @@ namespace DB::page
         bool isNOT_NULL() const noexcept { return constraint_t_ & constraint_t_t::NOT_NULL; }
         bool isDEFAULT() const noexcept { return constraint_t_ & constraint_t_t::DEFAULT; }
         void setPK() { constraint_t_ |= constraint_t_t::PK; }
+        void setNONPK() { constraint_t_ &= ~constraint_t_t::PK; }
         void setFK() { constraint_t_ |= constraint_t_t::FK; }
         void setNOT_NULL() { constraint_t_ |= constraint_t_t::NOT_NULL; }
         void setDEFAULT() { constraint_t_ |= constraint_t_t::DEFAULT; }

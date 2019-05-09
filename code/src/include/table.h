@@ -47,7 +47,7 @@ namespace DB::table
         // init from outside
         std::string tableName_;
         std::vector<std::string> colNames_;
-        std::vector<page::ColumnInfo> columnInfos_;
+        std::vector<page::ColumnInfo> columnInfos_; // col offset is in asending order !!!
         const std::unordered_map<page::page_id_t,
             std::unordered_map<int32_t, uint32_t>>*table_pk_ref_INT;
         const std::unordered_map<page::page_id_t,
