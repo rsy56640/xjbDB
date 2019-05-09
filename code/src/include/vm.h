@@ -142,11 +142,11 @@ namespace DB::vm
 
         //friend struct JoinOp;
         // if JOIN ON PK, ignore the second pk name
-        // vector<bool>             denotes range_map[i] is t1(true) or t2(false)
-        // uint32_t vEntry_offset   denotes the t2 rows' offset after t1 rows
+        // uint32_t table2_col_start    denotes (t1.col, t1.col, t2.col, t2.col)
+        // uint32_t vEntry_offset       denotes the t2 rows' offset after t1 rows
         VirtualTable join(VirtualTable t1, VirtualTable t2, bool pk);
         void doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk,
-            std::vector<bool> range_map, uint32_t vEntry_offset);
+            uint32_t table2_col_start, uint32_t vEntry_offset);
 
         //friend struct ProjectOp;
         VirtualTable projection(VirtualTable t, const std::vector<std::string>& colNames);
@@ -189,6 +189,18 @@ namespace DB::vm
         void test_flush();
         void showDB();
 
+        bool output_line_start = true;
+        template<typename ...Arg>
+        void query_print(const char* format, Arg... args) {
+            if (output_line_start) {
+                std::printf(">>> ");
+                output_line_start = false;
+            }
+            std::printf(format, args...);
+        }
+        void query_print_n();
+
+        void println();
 
     };
 
@@ -198,8 +210,6 @@ namespace DB::vm
         std::printf("xjbDB>>> ");
         std::printf(format, args...);
     }
-
-    void println();
 
 
 } // end namespace DB::vm

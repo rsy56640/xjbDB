@@ -422,7 +422,8 @@ namespace DB::vm
 
         // print VirtualTable
         std::shared_ptr<const table::TableInfo> tableInfo = result_table.table_view_.table_info_;
-        std::printf("table \"%s\"\n", tableInfo->tableName_.c_str());
+        query_print("table \"%s\"", tableInfo->tableName_.c_str());
+        query_print_n();
 
         // prepare colInfo
         struct output_t {
@@ -434,30 +435,36 @@ namespace DB::vm
         outputCol.reserve(col_size);
         for (uint32_t i = 0; i < col_size; i++) {
             const page::ColumnInfo& col = tableInfo->columnInfos_[i];
-            std::printf("%s\t", tableInfo->colNames_[i].c_str());
+            query_print("%s\t", tableInfo->colNames_[i].c_str());
             outputCol.push_back(output_t{
                 col.col_t_, range_t{ col.vEntry_offset_, col.str_len_ }
                 });
         }
-        std::printf("\n");
+        query_print_n();
         println();
 
+        uint32_t cnt = 0;
         row_view rv = result_table.getRow();
         while (!rv.isEOF())
         {
+            cnt++;
             const ValueEntry& vEntry = *rv.row_;
             for (output_t output : outputCol) {
                 if (output.col_t == col_t_t::INTEGER) {
-                    std::printf("%d\t", get_range_INT(vEntry, output.range));
+                    query_print("%d\t", get_range_INT(vEntry, output.range));
                 }
                 else {
                     std::string s = get_range_VARCHAR(vEntry, output.range);
-                    std::printf("%s\t", s.c_str());
+                    query_print("%s\t", s.c_str());
                 }
             }
-            std::printf("\n");
+            query_print_n();
             rv = result_table.getRow();
         }
+        println();
+        query_print("output size = %d", cnt);
+        query_print_n();
+        println();
     }
 
     void VM::doUpdate(process_result_t& result, const query::UpdateInfo& info)
@@ -852,7 +859,6 @@ namespace DB::vm
         std::vector<std::string> _colNames;
         std::vector<page::ColumnInfo> _colInfos;
         uint32_t vEntry_offset = 0;
-        std::vector<bool> range_map;
         auto table1 = t1.table_view_.table_info_;
         auto table2 = t2.table_view_.table_info_;
         _tableName = table1->tableName_ + " JOIN " + table2->tableName_;
@@ -868,15 +874,12 @@ namespace DB::vm
             _tableName += " ON PK";
             _colNames.reserve(size1 + size2 - 1);
             _colInfos.reserve(size1 + size2 - 1);
-            range_map.reserve(size1 + size2 - 1);
             // a(id, name) b(id, name) // ignore the second PK name
-            // (a.id, a.name, b.name)  // range_t -> <bool, range_t>
-            //  true,  true,  false    // bool denotes whether it's the first table
+            // (a.id, a.name, b.name)  // range_t -> range_t
             for (uint32_t i = 0; i < size1; i++) {
                 _colNames.push_back(new_col_name(table1->tableName_, table1->colNames_[i]));
                 _colInfos.push_back(table1->columnInfos_[i]);
                 vEntry_offset = table1->columnInfos_[i].vEntry_offset_;
-                range_map.push_back(true);
             }
             for (uint32_t i = 0; i < size2; i++) {
                 if (i == table2->pk_col_)
@@ -884,13 +887,11 @@ namespace DB::vm
                 _colNames.push_back(new_col_name(table2->tableName_, table2->colNames_[i]));
                 _colInfos.push_back(table2->columnInfos_[i]);
                 _colInfos.back().vEntry_offset_ += vEntry_offset;
-                range_map.push_back(false);
             }
         }
         else {
             _colNames.reserve(size1 + size2);
             _colInfos.reserve(size1 + size2);
-            range_map.reserve(size1 + size2);
             // a(id, name) b(id, name)
             // (a.id, a.name, b.id, b.name) // range_t -> <bool, range_t>
             //  true,  true,  false, false  // bool denotes whether it's the first table
@@ -898,13 +899,11 @@ namespace DB::vm
                 _colNames.push_back(new_col_name(table1->tableName_, table1->colNames_[i]));
                 _colInfos.push_back(table1->columnInfos_[i]);
                 vEntry_offset = table1->columnInfos_[i].vEntry_offset_ + table1->columnInfos_[i].str_len_;
-                range_map.push_back(true);
             }
             for (uint32_t i = 0; i < size2; i++) {
                 _colNames.push_back(new_col_name(table2->tableName_, table2->colNames_[i]));
                 _colInfos.push_back(table2->columnInfos_[i]);
                 _colInfos.back().vEntry_offset_ += vEntry_offset;
-                range_map.push_back(false);
             }
             if (table1->hasPK())
                 _colInfos[table1->pk_col_].setNONPK();
@@ -919,11 +918,11 @@ namespace DB::vm
         table::TableInfo tableInfo(std::move(_tableName), std::move(_colNames), std::move(_colInfos), this);
         VirtualTable vt(tableInfo);
         std::future<void> no_use =
-            register_task(std::mem_fn(&VM::doJoin), this, vt, t1, t2, pk, std::move(range_map), vEntry_offset);
+            register_task(std::mem_fn(&VM::doJoin), this, vt, t1, t2, pk, size1, vEntry_offset);
         return vt;
     }
 
-    void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk, std::vector<bool> range_map, uint32_t vEntry_offset) {
+    void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk, uint32_t table2_col_start, uint32_t vEntry_offset) {
         // TODO: optimization by zhushen
         // here is just an example for test
         // use O(n^2) for-loop-join
@@ -931,14 +930,14 @@ namespace DB::vm
         // splice 2 row into 1 row
         auto tableInfo = ret.table_view_.table_info_;
         const uint32_t col_size = tableInfo->colNames_.size();
-        auto splice = [&range_map, &tableInfo, col_size, vEntry_offset](row_view r1, row_view r2) -> row_view
+        auto splice = [&tableInfo, col_size, table2_col_start, vEntry_offset](row_view r1, row_view r2) -> row_view
         {
             ValueEntry vEntry;
             vEntry.value_state_ = value_state::INUSED;
             for (uint32_t i = 0; i < col_size; i++) {
                 const page::ColumnInfo& col = tableInfo->columnInfos_[i];
                 range_t range{ col.vEntry_offset_, col.str_len_ };
-                if (range_map[i])
+                if (i < table2_col_start)
                     page::update_vEntry(vEntry, range, *r1.row_, range);
                 else
                     page::update_vEntry(vEntry, range, *r2.row_, range_t{ range.begin - vEntry_offset, range.len });
@@ -1230,11 +1229,13 @@ namespace DB::vm
 
 
     void VM::showDB() {
-        printf("xjbDB has %d tables\n", db_meta_->table_num_);
+        printf("xjbDB has %d tables", db_meta_->table_num_);
+        query_print_n();
         println();
         for (auto const&[name, table] : table_meta_)
         {
-            std::printf("table \"%s\"\n", name.c_str());
+            query_print("table \"%s\"", name.c_str());
+            query_print_n();
 
             // prepare colInfo
             struct output_t {
@@ -1243,52 +1244,57 @@ namespace DB::vm
             };
             std::vector<output_t> outputCol;
             outputCol.reserve(table->col_num_);
-            std::printf("      ");
+            query_print("      ");
             for (auto const&[colName, col] : table->col_name2col_) {
-                std::printf("%s\t", colName.c_str());
+                query_print("%s\t", colName.c_str());
                 outputCol.push_back(output_t{
                     col->col_t_, range_t{ col->vEntry_offset_, col->str_len_ }
                     });
             }
-            std::printf("\n");
+            query_print_n();
             println();
 
-            int cnt = 0;
+            uint32_t cnt = 0;
             table->bt_->range_query_begin_lock();
             auto it = table->bt_->range_query_from_begin();
             auto end = table->bt_->range_query_from_end();
             while (it != end)
             {
                 if (table->bt_->key_t() == page::key_t_t::INTEGER)
-                    std::printf("%d -> ", it.getK().key_int);
+                    query_print("%d -> ", it.getK().key_int);
                 else
-                    std::printf("%s -> ", it.getK().key_str);
+                    query_print("%s -> ", it.getK().key_str);
 
                 ValueEntry vEntry = it.getV();
                 for (output_t output : outputCol) {
                     if (output.col_t == col_t_t::INTEGER) {
-                        std::printf("%d\t", get_range_INT(vEntry, output.range));
+                        query_print("%d\t", get_range_INT(vEntry, output.range));
                     }
                     else {
                         std::string s = get_range_VARCHAR(vEntry, output.range);
-                        std::printf("%s\t", s.c_str());
+                        query_print("%s\t", s.c_str());
                     }
                 }
-                std::printf("\n");
+                query_print_n();
 
                 ++it;
                 cnt++;
             }
             table->bt_->range_query_end_unlock();
-            std::printf("output size = %d\n", cnt);
+            query_print("output size = %d", cnt);
+            query_print_n();
             println();
         }
     }
 
+    void VM::query_print_n() {
+        printf("\n");
+        output_line_start = true;
+    }
 
-
-    void println() {
-        std::printf("------------------------------------------------------\n");
+    void VM::println() {
+        query_print("------------------------------------------------------\n");
+        output_line_start = true;
     }
 
 } // end namespace DB::vm
