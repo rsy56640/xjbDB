@@ -149,7 +149,7 @@ namespace DB::tree
         pages.push(root_);
         root_->ref();
         while (!pages.empty()) {
-            base_ptr node = pages.top();
+            base_ptr node = pages.top(); pages.pop();
             switch (node->page_t_) {
             case page_t_t::ROOT_INTERNAL:
             case page_t_t::INTERNAL:

@@ -70,11 +70,12 @@ namespace DB::disk
     page_id_t DiskManager::set_next_free_page_id(page_id_t next_free_page_id)
     {
         page_id_t previous_free_head;
-        while (next_free_page_id_lock_.test_and_set(std::memory_order_acquire));
+        while (next_free_page_id_lock_.test_and_set(std::memory_order_acquire))
+            ;
         previous_free_head = next_free_page_id_;
         next_free_page_id_ = next_free_page_id;
         vm_->set_next_free_page_id(next_free_page_id);
-        next_free_page_id_lock_.clear();
+        next_free_page_id_lock_.clear(std::memory_order_release);
         return previous_free_head;
     }
 
@@ -148,24 +149,24 @@ namespace DB::disk
     {
         bool allocate_free = false;
         page_id_t free_page_id;
-        while (next_free_page_id_lock_.test_and_set(std::memory_order_acquire)) {
-            if (next_free_page_id_ != page::NOT_A_PAGE) {
-                allocate_free = true;
-                free_page_id = next_free_page_id_;
-                // read next free page
-                // NB: free page must be not in buffer pool,
-                //     since the becoming free page is still not flush,
-                //     after flush, the free page is not is buffer pool.
-                char buffer[4];
-                db_io_.seekg(next_free_page_id_ * PAGE_SIZE + page::offset::PAGE_ID,
-                    std::ios_base::beg);
-                db_io_.read(buffer, sizeof(uint32_t));
+        while (next_free_page_id_lock_.test_and_set(std::memory_order_acquire))
+            ;
+        if (next_free_page_id_ != page::NOT_A_PAGE) {
+            allocate_free = true;
+            free_page_id = next_free_page_id_;
+            // read next free page
+            // NB: free page must be not in buffer pool,
+            //     since the becoming free page is still not flush,
+            //     after flush, the free page is not is buffer pool.
+            char buffer[4];
+            db_io_.seekg(next_free_page_id_ * PAGE_SIZE + page::offset::PAGE_ID,
+                std::ios_base::beg);
+            db_io_.read(buffer, sizeof(uint32_t));
 
-                next_free_page_id_ = page::read_int(buffer);
-                vm_->set_next_free_page_id(next_free_page_id_);
-            }
+            next_free_page_id_ = page::read_int(buffer);
+            vm_->set_next_free_page_id(next_free_page_id_);
         }
-        next_free_page_id_lock_.clear();
+        next_free_page_id_lock_.clear(std::memory_order_release);
 
         if (allocate_free)
             return free_page_id;

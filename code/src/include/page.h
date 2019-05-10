@@ -55,6 +55,8 @@ namespace DB::page
         "INTERNAL",
         "LEAF",
         "VALUE",
+
+        "FREE",
     };
 
     // use 32 bit integer to represent the page_id.
@@ -139,8 +141,8 @@ namespace DB::page
         bool is_dirty() noexcept;
 
         // called when update_data and FREE-PAGE
-        // reset page_id_ to next_free_page_id
-        void add_free_page();
+        // return to next_free_page_id
+        page_id_t add_free_page();
         // called when
         //          1. table page is drop, TableMetaPage, and all BTree Pages // TODO:
         //          2. merge, Internal or Leaf-Value, do not forget merge in ROOT-erase
@@ -174,6 +176,7 @@ namespace DB::page
         page_id_t page_id_; // might be used for next_free_page_id when FREE
         char data_[PAGE_SIZE];
         bool dirty_;
+        bool free_update_ = false;
 
     private:
         mutable std::shared_mutex rw_page_mutex_;
