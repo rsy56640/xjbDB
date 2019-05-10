@@ -471,8 +471,9 @@ namespace DB::page
 
     DBMetaPage::~DBMetaPage() {
 #ifndef _xjbDB_test_BPLUSTREE_
-        update_data();
-        force_flush();
+        // no need to flush here because command `EXIT` do nothing.
+        //update_data();
+        //force_flush();
 #endif
         delete[] table_page_ids_;
         delete[] table_name_offset_;
@@ -616,10 +617,11 @@ namespace DB::page
     TableMetaPage::~TableMetaPage()
     {
 #ifndef _xjbDB_test_BPLUSTREE_
-        if (dirty_)
+        if (dirty_) {
+            dirty_ = false; // for FREE PAGE LIST
             update_data();
-        dirty_ = false; // for FREE PAGE LIST
-        force_flush();
+            force_flush();
+        }
 #endif
         if (default_value_page_id_ != NOT_A_PAGE)
             value_page_->unref();

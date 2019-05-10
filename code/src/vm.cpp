@@ -1157,8 +1157,8 @@ namespace DB::vm
         conslole_reader_.stop();
         task_pool_.stop();
         delete db_meta_;
-        for (auto&[k, v] : table_meta_)
-            delete v;
+        for (auto&[name, table] : table_meta_)
+            delete table;
         delete storage_engine_.buffer_pool_manager_;
         delete storage_engine_.disk_manager_;
     }
