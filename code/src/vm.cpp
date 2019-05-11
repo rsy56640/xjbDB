@@ -947,12 +947,12 @@ namespace DB::vm
             auto table2_info = t2.table_view_.table_info_;
 
             const page::ColumnInfo& pk1_col = table1_info->columnInfos_[table1_info->pk_col_];
-            const page::ColumnInfo& pk2_col = table2_info->columnINfos_[table2_info->pk_col_];
+            const page::ColumnInfo& pk2_col = table2_info->columnInfos_[table2_info->pk_col_];
 
             col_t_t col_type = pk1_col.col_t_;
 
-            range_t pk1_range range{ pk1_col.vEntry_offset_, pk1_col.str_len_ };
-            range_t pk2_range range{ pk2_col.vEntry_offset_, pk2_col.str_len_ };
+            range_t pk1_range{ pk1_col.vEntry_offset_, pk1_col.str_len_ };
+            range_t pk2_range{ pk2_col.vEntry_offset_, pk2_col.str_len_ };
             // < 0
             // = 0
             // > 0
@@ -962,27 +962,30 @@ namespace DB::vm
                     int32_t pk1_value = get_range_INT(*r1.row_, pk1_range);
                     int32_t pk2_value = get_range_INT(*r2.row_, pk2_range);
                     return pk1_value - pk2_value;
-                } else {
+                }
+                else {
                     std::string pk1_value = get_range_VARCHAR(*r1.row_, pk1_range);
                     std::string pk2_value = get_range_VARCHAR(*r2.row_, pk2_range);
                     return pk1_value.compare(pk2_value);
                 }
             };
 
-            row_view r1 = table1.getRow();
-            row_view r2 = table2.getRow();
+            row_view r1 = t1.getRow();
+            row_view r2 = t2.getRow();
 
             while (!r1.isEOF() && !r2.isEOF()) {
                 const int32_t flag = pk_cmp(r1, r2);
 
                 if (flag == 0) {
                     ret.addRow(splice(r1, r2));
-                    r1 = table1.getRow();
-                    r2 = table2.getRow();
-                } else if (flag < 0) {
-                    r1 = table1.getRow();
-                } else {
-                    r2 = table2.getRow();
+                    r1 = t1.getRow();
+                    r2 = t2.getRow();
+                }
+                else if (flag < 0) {
+                    r1 = t1.getRow();
+                }
+                else {
+                    r2 = t2.getRow();
                 }
             }
 
@@ -990,11 +993,12 @@ namespace DB::vm
         }
         else {
             std::deque<row_view> table1 = t1.waitAll();
-            row_view r2 = table2.getRow();
+            row_view r2 = t2.getRow();
             while (!r2.isEOF()) {
                 for (row_view r1 : table1) {
                     ret.addRow(splice(r1, r2));
                 }
+                r2 = t2.getRow();
             }
             ret.addEOF();
         }

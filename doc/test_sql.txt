@@ -1,6 +1,6 @@
 CREATE TABLE USER(id INT PK, name VARCHAR(20));
 CREATE TABLE Student(sid INT PK, name VARCHAR(20));
-
+CREATE TABLE Teacher(tid INT PK, name VARCHAR(20), sid INT REFERENCES Student);
 
 CREATE TABLE Score(sid INT PK, score INT);
 
@@ -15,6 +15,15 @@ SELECT USER.id, Student.sid, Student.name
 FROM USER, Student
 WHERE USER.id >= 200 OR Student.name == "rsy" OR Student.name == "zhsh";
 
+SELECT $
+FROM USER JOIN Student
+WHERE USER.id >= 100;
+
+
+SELECT Student.sid, Student.name, Teacher.tid, Teacher.name
+FROM Student, Teacher
+WHERE Student.sid == Teacher.sid;
+
 
 INSERT USER(id, name) VALUES(123 * 6 + 233, "huaji" + "666");
 INSERT USER(id, name) VALUES(123, "rsy" + "666");
@@ -22,10 +31,18 @@ INSERT USER(id, name) VALUES(12, "Hello World");
 INSERT USER(id, name) VALUES(666, "HHHHH");
 
 INSERT Student(sid, name) VALUES(1, "zh"+"sh");
-INSERT Student(sid, name) VALUES(222, "rsy");
+INSERT Student(sid, name) VALUES(12, "xxx");
+INSERT Student(sid, name) VALUES(123, "rsy");
 INSERT Student(sid, name) VALUES(233, "lgy");
 INSERT Student(sid, name) VALUES(666, "lrk");
 
+INSERT Teacher(tid, name, sid) VALUES(1, "teacher A", 666);
+INSERT Teacher(tid, name, sid) VALUES(2, "teacher B", 1);
+INSERT Teacher(tid, name, sid) VALUES(3, "teacher C", 233);
+INSERT Teacher(tid, name, sid) VALUES(4, "teacher D", 233);
+INSERT Teacher(tid, name, sid) VALUES(5, "teacher E", 5);
+
+DELETE FROM Student WHERE sid == 666;
 
 
 UPDATE USER SET name = "huawei" WHERE id == 123;
