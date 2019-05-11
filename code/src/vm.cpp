@@ -879,7 +879,7 @@ namespace DB::vm
             for (uint32_t i = 0; i < size1; i++) {
                 _colNames.push_back(new_col_name(table1->tableName_, table1->colNames_[i]));
                 _colInfos.push_back(table1->columnInfos_[i]);
-                vEntry_offset = table1->columnInfos_[i].vEntry_offset_;
+                vEntry_offset = table1->columnInfos_[i].vEntry_offset_ + table1->columnInfos_[i].str_len_;
             }
             for (uint32_t i = 0; i < size2; i++) {
                 if (i == table2->pk_col_)
@@ -923,10 +923,6 @@ namespace DB::vm
     }
 
     void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk, uint32_t table2_col_start, uint32_t vEntry_offset) {
-        // TODO: optimization by zhushen
-        // here is just an example for test
-        // use O(n^2) for-loop-join
-
         // splice 2 row into 1 row
         auto tableInfo = ret.table_view_.table_info_;
         const uint32_t col_size = tableInfo->colNames_.size();
@@ -946,29 +942,57 @@ namespace DB::vm
         };
 
         if (pk) {
+            // get col_t_ and pk ranges for pk_cmp
+            auto table1_info = t1.table_view_.table_info_;
+            auto table2_info = t2.table_view_.table_info_;
+
+            const page::ColumnInfo& pk1_col = table1_info->columnInfos_[table1_info->pk_col_];
+            const page::ColumnInfo& pk2_col = table2_info->columnINfos_[table2_info->pk_col_];
+
+            col_t_t col_type = pk1_col.col_t_;
+
+            range_t pk1_range range{ pk1_col.vEntry_offset_, pk1_col.str_len_ };
+            range_t pk2_range range{ pk2_col.vEntry_offset_, pk2_col.str_len_ };
             // < 0
             // = 0
             // > 0
-            auto pk_cmp = []()->int32_t
+            auto pk_cmp = [col_type, pk1_range, pk2_range](row_view r1, row_view r2)->int32_t
             {
-
-
-
+                if (col_type == col_t_t::INTEGER) {
+                    int32_t pk1_value = get_range_INT(*r1.row_, pk1_range);
+                    int32_t pk2_value = get_range_INT(*r2.row_, pk2_range);
+                    return pk1_value - pk2_value;
+                } else {
+                    std::string pk1_value = get_range_VARCHAR(*r1.row_, pk1_range);
+                    std::string pk2_value = get_range_VARCHAR(*r2.row_, pk2_range);
+                    return pk1_value.compare(pk2_value);
+                }
             };
 
+            row_view r1 = table1.getRow();
+            row_view r2 = table2.getRow();
 
+            while (!r1.isEOF() && !r2.isEOF()) {
+                const int32_t flag = pk_cmp(r1, r2);
 
+                if (flag == 0) {
+                    ret.addRow(splice(r1, r2));
+                    r1 = table1.getRow();
+                    r2 = table2.getRow();
+                } else if (flag < 0) {
+                    r1 = table1.getRow();
+                } else {
+                    r2 = table2.getRow();
+                }
+            }
 
+            ret.addEOF();
         }
         else {
             std::deque<row_view> table1 = t1.waitAll();
-            std::deque<row_view> table2 = t2.waitAll();
-            for (row_view r1 : table1) {
-                if (r1.isEOF())
-                    break;
-                for (row_view r2 : table2) {
-                    if (r2.isEOF())
-                        break;
+            row_view r2 = table2.getRow();
+            while (!r2.isEOF()) {
+                for (row_view r1 : table1) {
                     ret.addRow(splice(r1, r2));
                 }
             }
