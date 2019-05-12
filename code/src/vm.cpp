@@ -197,12 +197,12 @@ namespace DB::vm
             // handle ErrorMsg or EXIT
             VM::process_result_t result = query_process(plan);
 
+            if (!result.msg.empty())
+                printXJBDB("\n%s\n", result.msg.c_str());
             if (result.exit)
                 return;
-            if (result.error) {
-                printXJBDB("\n%s\n", result.msg.c_str());
+            if (result.error)
                 continue;
-            }
 
             task_pool_.join();
 
@@ -719,7 +719,30 @@ namespace DB::vm
         if (!table->bt_->insert(kv))
             debug::ERROR_LOG("INSERT ERROR\n");
 
-        result.msg = "INSERT ok";
+        // update PK view
+        if (table->PK_t() == key_t_t::INTEGER) {
+            int32_t i = std::get<int32_t>(pk_v);
+            table_pk_ref_INT[table->get_page_id()][i]++; // set to 1
+        }
+        else {
+            std::string s = std::get<std::string>(pk_v);
+            table_pk_ref_VARCHAR[table->get_page_id()][s]++; // set to 1
+        }
+        // update FK view
+        for (const insert_element& e : elements) {
+            if (e.fk) {
+                if (e.col_t == col_t_t::INTEGER) {
+                    int32_t i = std::get<int32_t>(e.value);
+                    table_pk_ref_INT[e.fk_table][i]++;
+                }
+                else {
+                    std::string s = std::get<std::string>(e.value);
+                    table_pk_ref_VARCHAR[e.fk_table][s]++;
+                }
+            }
+        }
+
+        result.msg = "INSERT OK";
     }
 
     void VM::doDelete(process_result_t& result, const query::DeleteInfo& info)
