@@ -52,7 +52,6 @@ namespace DB::query {
             {
                 std::cout << "Column : " << ele.name << std::endl;
                 ast::outputVisit(ele.valueExpr, std::cout);
-
             }
         }
     };
@@ -69,8 +68,11 @@ namespace DB::query {
                 std::cout << "Column : " << ele.name << std::endl;
                 ast::outputVisit(ele.valueExpr, std::cout);
             }
-            std::cout << "Where Expression:" << std::endl;
-            ast::outputVisit(whereExpr, std::cout);
+			if (whereExpr)
+			{
+				std::cout << "Where Expression:" << std::endl;
+				ast::outputVisit(whereExpr, std::cout);
+			}
         }
     };
 
@@ -80,8 +82,11 @@ namespace DB::query {
         void print() const
         {
             std::cout << "Delete from table : " << sourceTable << std::endl;
-            std::cout << "Where Expression:" << std::endl;
-            ast::outputVisit(whereExpr, std::cout);
+			if (whereExpr)
+			{
+				std::cout << "Where Expression:" << std::endl;
+				ast::outputVisit(whereExpr, std::cout);
+			}
         }
     };
 

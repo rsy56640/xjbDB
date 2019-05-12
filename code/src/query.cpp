@@ -37,7 +37,7 @@ namespace DB::query {
 		try
 		{
 			DB::lexer::Lexer lexer;
-			if (debug::QUERY_LOG)
+			if (debug::LEXER_LOG)
 				std::cout << "\n--Start Tokenize---------------------------------------\n" << std::endl;
 
 			lexer.tokenize(sql.c_str(), sql.size());
@@ -45,15 +45,18 @@ namespace DB::query {
 			if(debug::LEXER_LOG)
 				lexer.print(std::cout);
 
-			if (debug::QUERY_LOG)
+			if (debug::LEXER_LOG)
 			{
 				std::cout << "\n--End Tokenize---------------------------------------\n" << std::endl;
+			}
+			if (debug::PARSE_LOG)
+			{
 				std::cout << "\n--Start Parse---------------------------------------\n" << std::endl;
 			}
 
 			value = analyze(lexer.getTokens()).sqlValue;
 
-			if (debug::QUERY_LOG)
+			if (debug::PARSE_LOG)
 				std::cout << "\n--End Parse---------------------------------------\n" << std::endl;
 		}
 		catch (const DB::DB_Base_Exception& e)

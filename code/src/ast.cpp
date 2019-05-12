@@ -164,7 +164,8 @@ namespace DB::ast {
 
     void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
     {
-        _outputVisit(root, os, 2);
+		if(root)
+			_outputVisit(root, os, 2);
     }
 
     void _outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os, size_t indent)
@@ -226,7 +227,8 @@ namespace DB::ast {
 
     void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
     {
-        _outputVisit(root, os, 0);
+		if(root)
+			_outputVisit(root, os, 0);
     }
 
     //check visit

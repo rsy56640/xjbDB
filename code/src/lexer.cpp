@@ -45,7 +45,7 @@ namespace DB::lexer::analyzers {
 			'!', '=', '<', '>', //'%', '.', ':', '+', '^', '*', '/',
 	};
 	const static unordered_set<char> singleOperatorSet = {
-			'(', ')', '{', '}', '[', ']', ',', '?', '%', '.', ':', '+', '^', '*', '/', '$',
+			'(', ')', '{', '}', '[', ']', ',', '?', '%', '.', ':', '+', '-', '^', '*', '/', '$',
 	};
 	const static unordered_set<char> secondCombinableOperatorSet = {
 			'=', //'|', '&', '.', ':', '<', '>', '+',
