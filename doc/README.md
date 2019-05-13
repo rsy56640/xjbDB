@@ -6,7 +6,7 @@
 - [VM](#4)
 - [SQL Parser](#5)
 - [Query Plan](#6)
-- [Transaction](#7)
+- [Operator Tree's post order traversal，Pipeline Channel 与 FIFO Task Queue](#7)
 
 
 &nbsp;   
@@ -382,8 +382,72 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 <a id="4"></a>
 ## VM
 
-我想了很久，决定让事务串行化执行，没有并发控制。
+我想了很久，决定让事务串行化执行，没有并发控制。   
+主要原因是：我没有搞懂怎么在B+树里面上**行锁**，而且B+树的kv操作都是一遍下去拿着page锁，提前也不知道锁在哪的。。。
 
+### 读入 sql
+
+开一个线程，专门负责从命令行读入，每当遇到 `';'`，就送进 sql pool。   
+碰到一个有趣的问题：参考 issue#2 https://github.com/rsy56640/xjbDB/issues/2，用户输入 `"EXIT;"`，放进 sql pool 之后，就阻塞在 `std::cin::getline()` 上了，vm 没办法通知这个线程，所以还得检查 `"EXIT;"`。
+
+### VM 初始化
+
+对于空DB，初始化 DBMetaPage。   
+对于非空DB，rebuild 过程如下：
+
+- 检查 log，如果需要，就做 undo 和 redo
+- 读入 DBMetaPage
+- 读入所有 TableMetaPage
+- 扫一遍所有 table 的 B+树，统计 PK view（*我还没研究过正经数据库是怎么做的*）
+- 开启 任务池 和 sql读入线程
+
+### VM 运行
+
+`VM::start()`：`while(true)` 循环，流程如下：
+
+- 拿 sql（阻塞地从 sql pool）
+- 解析 sql，得到 plan
+- 保存当前 `cur_page_no`
+- 执行 Query Plan
+- 如果 `"EXIT;"`，就退出
+- 等待任务池中所有任务结束
+- doWAL：找到 dirty_page_set 中 < 之前 `page_no`，这些 page 全部 copy 到 log（用来做 undo），并写 log metadata（如果 sql 语句不长，就记录下来做 redo）
+- Flush：落盘
+- 销毁 log metadata
+
+### Query Process
+总共有6种：
+
+#### doCreate
+注意一些 constraint 信息：
+
+- auto PK
+- FK table ID
+- Default Value
+
+#### doDrop
+
+- 检查 FK 约束
+- 从 DB meta 中删除
+- destruct 整棵 B+树
+- 从 table meta 中删除，但是**不立即析构，而是等到 WAL 之后才析构落盘**
+- 清除 PK view
+
+### doSelect
+
+总共有4种结点：
+
+#### scanTable
+
+
+
+#### sigma
+
+
+#### projection
+
+
+#### join
 
 
 
@@ -407,13 +471,31 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ![](assets/Join_Op.png)
 
 
+#### doUpdate
+
+- 遍历所有行（*可能的优化：把 PK 判断单独提出来，就可以在B+树上缩小范围*）
+- 因为有可能**某些 cell 的 update 违反 FK 余约束，所以对 PK view 采用一种类似  2PC 的方法**：记录下要增加或删除的 pk 的 ref 的引用，直到最后确认该 row 可以被 update，那么修改内容，并提交这些 pk ref 的变更
+
+#### doInsert
+
+- 准备 auto PK, Default Value
+- 检查 FK constraint
+- 插入B+树
+- 更新 PK view 和 某些列的 fk 对应的 PK view
+
+#### doDelete
+
+- 遍历每一行，检查 FK 约束，记录可以删除的 key-value（*可能的优化：把 PK 判断单独提出来，就可以在B+树上缩小范围*）
+- 从 B+树上删除这些 key，并删除 key 对应的 PK view
+- 对于 key 对应的 value，将其中 FK 对应的 PK view 的引用计数减一
+
+
 
 &nbsp;   
 <a id="5"></a>
 
 ## SQL Parser
 ### 模块负责人：黎冠延
-
 [ssyram/NovelRulesTranslator](https://github.com/ssyram/NovelRulesTranslator)
 
 
@@ -421,19 +503,10 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 <a id="6"></a>
 ## Query Plan
 ### 模块负责人：刘瑞康
-
 [Reeker-Liu/DB](https://github.com/Reeker-Liu/DB)
 
 
 &nbsp;   
 <a id="7"></a>
-## Transaction
+## Operator Tree's post order traversal，Pipeline Channel 与 FIFO Task Queue
 
-流程：
-
-- SQL 解析，返回 query plan
-- 保存当前 `cur_page_no`
-- 执行 Query Plan
-- doWAL：找到 dirty_page_set 中 < 之前 `page_no`，这些 page 全部 copy 到 log（用来做 undo），并写 log metadata（如果 sql 语句不长，就记录下来做 redo）（如果记录了 redo，这里就可以返回了；否则 flush 后才可以返回）
-- Flush：落盘
-- 销毁 log metadata
