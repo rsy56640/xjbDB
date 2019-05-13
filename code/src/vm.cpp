@@ -28,6 +28,7 @@ namespace DB::vm
                 return -1;
             };
             // check if "  EXIT "
+            // refer to issue #2 https://github.com/rsy56640/xjbDB/issues/2
             auto check_exit = [](const std::string& sql)->bool {
                 if (sql.empty()) return false;
                 uint32_t first = 0;
@@ -189,8 +190,6 @@ namespace DB::vm
 
             query::SQLValue plan = query::sql_parse(sql_statemt);
 
-            // UNDONE: if crash, how to find `prev_last_page_id` when rebuild,
-            //         since DBMetaPage only writes `cur_page_id` after `query_process();`
             const page::page_id_t prev_last_page_id =
                 storage_engine_.disk_manager_->get_cut_page_id();
 
@@ -265,11 +264,6 @@ namespace DB::vm
                 [&result](query::ErrorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log"; },
                 [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
-
-        // TODO: update PK view
-
-
-
         return result;
     }
 
@@ -397,10 +391,38 @@ namespace DB::vm
         }
 
         page::TableMetaPage* table = it->second;
+
+        // check FK constraint
+        {
+            bool ok_to_drop = true;
+            if (table->bt_->key_t() == key_t_t::INTEGER) {
+                const std::unordered_map<int32_t, uint32_t >& pk_ref
+                    = table_pk_ref_INT[table->get_page_id()];
+                for (auto const&[k, ref] : pk_ref)
+                    if (ref != NON_FK_REF) {
+                        ok_to_drop = false;
+                        break;
+                    }
+            }
+            else {
+                const std::unordered_map<std::string, uint32_t >& pk_ref
+                    = table_pk_ref_VARCHAR[table->get_page_id()];
+                for (auto const&[k, ref] : pk_ref)
+                    if (ref != NON_FK_REF) {
+                        ok_to_drop = false;
+                        break;
+                    }
+            }
+            if (!ok_to_drop) {
+                result.msg = "table \"" + info.tableName + "\" cannot be dropped due to FK constraint";
+                return;
+            }
+        } // end check FK constraint
+
         db_meta_->drop_table(info.tableName);
         table->bt_->destruct();
         table->set_free(); // also set default_value_page free
-        free_table_[info.tableName] = table; // will flush later
+        free_table_[info.tableName] = table; // will flush later for WAL
         table_meta_.erase(info.tableName);
         table_info_.erase(info.tableName);
 
@@ -716,17 +738,18 @@ namespace DB::vm
             }
         }
 
+        // checked in PK view before
         if (!table->bt_->insert(kv))
             debug::ERROR_LOG("INSERT ERROR\n");
 
         // update PK view
         if (table->PK_t() == key_t_t::INTEGER) {
             int32_t i = std::get<int32_t>(pk_v);
-            table_pk_ref_INT[table->get_page_id()][i]++; // set to 1
+            table_pk_ref_INT[table->get_page_id()][i] = NON_FK_REF; // set to 1
         }
         else {
             std::string s = std::get<std::string>(pk_v);
-            table_pk_ref_VARCHAR[table->get_page_id()][s]++; // set to 1
+            table_pk_ref_VARCHAR[table->get_page_id()][s] = NON_FK_REF; // set to 1
         }
         // update FK view
         for (const insert_element& e : elements) {
@@ -776,12 +799,12 @@ namespace DB::vm
                 KeyEntry kEntry = it.getK();
                 if (kEntry.key_t == key_t_t::INTEGER) {
                     // some FK ref
-                    if (pk_ref_INT[kEntry.key_int] > 1)
+                    if (pk_ref_INT[kEntry.key_int] != NON_FK_REF)
                         ok_to_delete = false;
                 }
                 else {
                     // some FK ref
-                    if (pk_ref_VARCHAR[kEntry.key_str] > 1)
+                    if (pk_ref_VARCHAR[kEntry.key_str] != NON_FK_REF)
                         ok_to_delete = false;
                 }
                 if (ok_to_delete)
@@ -830,7 +853,6 @@ namespace DB::vm
         }
 
         result.msg = "delete " + std::to_string(to_be_deleted.size()) + " rows";
-        // TODO: delete info.whereExpr;
     }
 
 
