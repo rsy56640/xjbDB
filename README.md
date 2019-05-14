@@ -10,7 +10,7 @@ Team Project for Software Engineering course
 ## 项目使用
 
 ### 一些宏的说明
-- `_xjbDB_MSVC_`：/src/include/env.h，主要是一些类型
+- `_xjbDB_MSVC_`：/src/include/env.h，主要是一些基础类型
 - `_xjbDB_RELEASE_ `：/main.cpp，程序入口
 - `SIMPLE_TEST`：/src/page.cpp，页锁，用于并发B+树，定以后表示单线程B+树
 - `_xjbDB_test_STORAGE_ENGINE_`：/test/test_storage_engine.cpp

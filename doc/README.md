@@ -1,5 +1,6 @@
 # xjbDB：一个 xjb 写的 DB
 
+- [整体架构](#0)
 - [数据库的限制](#1)
 - [Pager](#2)
 - [Tree](#3)
@@ -8,6 +9,14 @@
 - [Query Plan](#6)
 - [Operator Tree's post order traversal，Pipeline Channel 与 FIFO Task Queue](#7)
 
+
+&nbsp;   
+<a id="0"></a>
+## 整体架构
+
+![](assets/Architecture.png)
+
+> 使用
 
 &nbsp;   
 <a id="1"></a>
@@ -388,7 +397,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ### 读入 sql
 
 开一个线程，专门负责从命令行读入，每当遇到 `';'`，就送进 sql pool。   
-碰到一个有趣的问题：参考 issue#2 https://github.com/rsy56640/xjbDB/issues/2，用户输入 `"EXIT;"`，放进 sql pool 之后，就阻塞在 `std::cin::getline()` 上了，vm 没办法通知这个线程，所以还得检查 `"EXIT;"`。
+碰到一个有趣的问题：参考 issue#2 (https://github.com/rsy56640/xjbDB/issues/2)，用户输入 `"EXIT;"`，放进 sql pool 之后，就阻塞在 `std::cin::getline()` 上了，vm 没办法通知这个线程，所以还得检查 `"EXIT;"`。
 
 ### VM 初始化
 
@@ -433,24 +442,27 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 - 从 table meta 中删除，但是**不立即析构，而是等到 WAL 之后才析构落盘**
 - 清除 PK view
 
-### doSelect
+#### doSelect
 
 总共有4种结点：
 
-#### scanTable
+##### scanTable
+从对应的B+树里面拿 row（*可能的优化：把 PK 判断单独提出来，就可以在B+树上缩小范围*）
 
+##### sigma
+对输入的所有 row 做 filter
 
+##### projection
+选择要投影的列（*可能的优化：在物理列上压缩，可选地实现 lazy压缩。但是现在我还没有设计好协议，所以就没有压缩，反正现在也没有子查询*）
 
-#### sigma
+##### join
+因为现在不支持子查询，所以表名和列名我就随便拼了。   
+根据是否是 pk join 来准备新表的 `TableInfo`：
 
-
-#### projection
-
-
-#### join
-
-
-
+- 新表名叫做 "表1 JOIN 表2 ON PK" 或 "表1 JOIN 表2"
+- 新列名是 "原表名.原列名"
+- pk 列叫做 "表1.表1pk列名"
+- 表2的物理列要往后平移
 
 -----
 
@@ -464,12 +476,13 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 
 #### 非PK Join
 
-最直接的非PK Join为首先获取两个表的所有row_view， 然后双重for循环，做Cartesian Product。但是这样会面临很大的效率问题；第一是时间上的问题，首先对于两个表调用`waitAll()`函数来获取这个表的所有行`waitAll()`函数后的操作必须要等其中较慢的一个函数结束之后才能继续执行，这样如果一个表非常庞大，会需要很长的等待时间。第二个随之而来的问题是内存的开销，如果需要把一个很大的表的所有行都存到内存中，会占用很大的内存。
+最直接的非PK Join为首先获取两个表的所有 `row_view`， 然后双重for循环，做Cartesian Product。但是这样会面临很大的效率问题；第一是时间上的问题，首先对于两个表调用 `VirtualTable::waitAll()` 函数来获取这个表的所有行 `VirtualTable::waitAll()` 函数后的操作必须要等其中较慢的一个函数结束之后才能继续执行，这样如果一个表非常庞大，会需要很长的等待时间。第二个随之而来的问题是内存的开销，如果需要把一个很大的表的所有行都存到内存中，会占用很大的内存。
 
-我们暂时对此问题的处理方案是只对第一个表调用`waitAll()`函数，然后不断消费第二个表管道中生成的`row_view`，这样可以解决时间以及内存问题。当然，这个方法在第一个表很大的时候没有太大的作用，我们下一步的优化方案是根据数据库的历史统计信息来调整选择哪个表调用`waitAll()`阻塞。
+我们暂时对此问题的处理方案是只对第一个表调用 `VirtualTable::waitAll()` 函数，然后不断消费第二个表管道中生成的 `row_view`，这样可以解决时间以及内存问题。当然，这个方法在第一个表很大的时候没有太大的作用，我们下一步的优化方案是根据数据库的历史统计信息来调整选择哪个表调用 `VirtualTable::waitAll()` 阻塞。
 
 ![](assets/Join_Op.png)
 
+-----
 
 #### doUpdate
 
@@ -486,9 +499,8 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 #### doDelete
 
 - 遍历每一行，检查 FK 约束，记录可以删除的 key-value（*可能的优化：把 PK 判断单独提出来，就可以在B+树上缩小范围*）
-- 从 B+树上删除这些 key，并删除 key 对应的 PK view
+- 从B+树上删除这些 key，并删除 key 对应的 PK view
 - 对于 key 对应的 value，将其中 FK 对应的 PK view 的引用计数减一
-
 
 
 &nbsp;   
@@ -510,3 +522,77 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 <a id="7"></a>
 ## Operator Tree's post order traversal，Pipeline Channel 与 FIFO Task Queue
 
+主要idea：**在 Volcano 模型中使用 Pipeline 方式来执行 query**
+
+![](assets/operator_tree.png)
+
+### VirtualTable as Channel
+
+**首先讲一下 `VirtualTable`， 作为 query 的中间表，其本身是一个 Channel，提供了一个 pipeline 的生产者消费者模型。**
+
+```c++
+    class VirtualTable
+    {
+        struct channel_t {
+            std::queue<row_view> row_buffer_;
+            std::mutex mtx_;
+            std::condition_variable cv_;
+        };
+
+    public:
+        // for producer
+        void addRow(row_view row);
+        void addEOF();
+        
+        // for consumer
+        row_view getRow();                  // might be stuck
+        std::deque<row_view> waitAll();     // might be stuck
+
+    private:
+        std::shared_ptr<channel_t> ch_;
+    };
+```
+
+- 对于消费者
+  - `row_view getRow();`：阻塞式的消费一个 row
+  - `std::deque<row_view> waitAll();`：阻塞式的一次性全部拿出来
+- 对于生产者
+  - `void addRow(row_view row);`：插入新的 row
+  - `void addEOF();`：标记结尾
+
+### Volcano 模型中使用 pipeline
+
+与 Volcano 模型 的 `next()` 不同，每一个 op 结点都只实现了 `VirtualTable getOutput();`，并且**只调用一次**。   
+在执行 operator tree 时，我们对根结点调用 `getOutput()` 来 dfs 遍历整棵树。（如上图中红色虚线所示）
+
+- **前序遍历**到一个结点时
+  - 如果是 scanTable 结点，那么直接继续该结点的后序遍历
+  - 否则，调用子结点的 `getOutput()` 继续向下遍历
+- **后序遍历**到一个结点时
+  - 创建 `VirtualTable`，即一个 Channel
+  - 向任务队列注册该结点的任务（注册任务是阻塞的，任务执行是异步的，并且是 FIFO）
+  - 返回 `VirtualTable` 给父节点，至此，两个结点间的管道建立完毕
+
+比如 sigma 结点的 `getOutput()`
+
+```c++
+    VirtualTable FilterOp::getOutput()
+    {
+        VirtualTable table = _source->getOutput();
+        return vm_->sigma(table, _whereExpr);
+    }
+```
+
+### FIFO task queue & post-order traversal
+
+任务队列（如上图所示）
+
+- ① Scan Table 1
+- ② Sigma (filter)
+- ③ Scan Table 2
+- ④ Join
+- ⑤ Projection
+
+注意到一个性质：**后续遍历到一个结点时，其子树一定已经被后序遍历过了，那么该结点任务一定排在所有子树结点任务之后**。   
+于是大胆推测一下（xjb扯）：只要结点任务不太卡，那么几乎可以做到完全并发（即任务队列中的执行线程数），除了 join 结点有时会成为 pipeline breaker。   
+关于并发性的xjb分析：
