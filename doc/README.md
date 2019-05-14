@@ -486,7 +486,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 #### doUpdate
 
 - 遍历所有行（*可能的优化：把 PK 判断单独提出来，就可以在B+树上缩小范围*）
-- 因为有可能**某些 cell 的 update 违反 FK 余约束，所以对 PK view 采用一种类似  2PC 的方法**：记录下要增加或删除的 pk 的 ref 的引用，直到最后确认该 row 可以被 update，那么修改内容，并提交这些 pk ref 的变更
+- 因为有可能**某些 cell 的 update 违反 FK 约束，所以对 PK view 采用一种类似  2PC 的方法来更新**：记录下要增加或删除的 pk 的 ref 的引用，直到最后确认该 row 可以被 update，那么修改内容，并提交这些 pk ref 的变更（+1 或 -1）
 
 #### doInsert
 
@@ -554,8 +554,8 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ```
 
 - 对于消费者
-  - `row_view getRow();`：阻塞式的消费一个 row
-  - `std::deque<row_view> waitAll();`：阻塞式的一次性全部拿出来
+  - `row_view getRow();`：阻塞式地消费一个 row
+  - `std::deque<row_view> waitAll();`：阻塞式地一次性全部拿出来
 - 对于生产者
   - `void addRow(row_view row);`：插入新的 row
   - `void addEOF();`：标记结尾
@@ -578,7 +578,9 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ```c++
     VirtualTable FilterOp::getOutput()
     {
+        // pre-order traversal
         VirtualTable table = _source->getOutput();
+        // post-order traversal
         return vm_->sigma(table, _whereExpr);
     }
 ```
@@ -593,7 +595,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 - ④ Join
 - ⑤ Projection
 
-注意到一个性质：**后续遍历到一个结点时，其子树一定已经被后序遍历过了，那么该结点任务一定排在所有子树结点任务之后**。   
+注意到一个性质：**后续遍历到一个结点时，其子树一定已经被后序遍历过了，那么该结点任务一定排在所有子树结点任务之后**。换句话说，之前的 channel 已经建立完毕，直接在结点任务中消费然后向自己创建的 channel 生产就可以了。   
 于是大胆推测一下（xjb扯）：只要结点任务不太卡，那么几乎可以做到完全并发（即任务队列中的执行线程数），除了 join 结点有时会成为 pipeline breaker。   
 关于并发性的xjb分析：
 
