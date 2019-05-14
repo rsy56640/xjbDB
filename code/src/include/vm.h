@@ -166,6 +166,10 @@ namespace DB::vm
         ConsoleReader conslole_reader_;
         page::DBMetaPage* db_meta_;
         std::unordered_map<std::string, page::TableMetaPage*> table_meta_;
+        // bad design to store `table::TableInfo` here, since need to update twice
+        // infrastructure service is imperfect and we are not willing to be troubled with meta-info preparation and conversion
+        // maybe we can replace it by providing `page::TableMetaPage*` -> `table::TableInfo`
+        // In short, not good at all.
         std::unordered_map<std::string, table::TableInfo> table_info_;
         std::unordered_map<std::string, page::TableMetaPage*> free_table_;
 

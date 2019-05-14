@@ -44,6 +44,9 @@ INSERT Teacher(tid, name, sid) VALUES(5, "teacher E", 5);
 
 DELETE FROM Student WHERE sid == 666;
 
+UPDATE Teacher SET sid = sid + 11;
+UPDATE Teacher SET sid = 666;
+
 
 UPDATE USER SET name = "huawei" WHERE id == 123;
 UPDATE USER SET name = "hhhh" WHERE name == "hellorsy";

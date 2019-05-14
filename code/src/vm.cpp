@@ -320,7 +320,7 @@ namespace DB::vm
             return;
         }
 
-        const table::TableInfo& tableInfo = info.tableInfo;
+        table::TableInfo tableInfo = info.tableInfo;
         const page_id_t table_id = storage_engine_.disk_manager_->AllocatePage();
         page::TableMetaPage* table_page = new TableMetaPage(
             storage_engine_.buffer_pool_manager_, table_id, storage_engine_.disk_manager_,
@@ -333,7 +333,7 @@ namespace DB::vm
         uint32_t vEntry_offset = 0;
 
         // AUTOPK
-        if (info.tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN) {
+        if (tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN) {
             page::ColumnInfo* col = new ColumnInfo{};
             col->col_t_ = col_t_t::INTEGER;
             col->setPK();
@@ -344,6 +344,11 @@ namespace DB::vm
 
             table_page->insert_column(page::autoPK, col);
             table_page->pk_col_ = page::TableMetaPage::NOT_A_COLUMN;
+
+            // update tableInfo
+            tableInfo.colNames_.insert(tableInfo.colNames_.begin(), page::autoPK);
+            tableInfo.columnInfos_.insert(tableInfo.columnInfos_.begin(), *col);
+            tableInfo.pk_col_ = page::TableMetaPage::NOT_A_COLUMN;
         }
 
         table_page->pk_col_ = tableInfo.pk_col_;
@@ -372,6 +377,12 @@ namespace DB::vm
             }
 
             table_page->insert_column(tableInfo.colNames_[i], col);
+
+            // update tableInfo
+            if (tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN)
+                tableInfo.columnInfos_[i + 1] = *col;
+            else
+                tableInfo.columnInfos_[i] = *col;
         }
 
         db_meta_->insert_table(table_id, tableInfo.tableName_);
@@ -418,6 +429,44 @@ namespace DB::vm
                 return;
             }
         } // end check FK constraint
+
+        // unref PK view for fk cols
+        {
+            struct fk_info_t {
+                col_t_t col_t;
+                page_id_t fk_table;
+                range_t range;
+            };
+            std::vector<fk_info_t> fk_cols;
+            for (auto const&[name, col] : table->col_name2col_) {
+                if (col->isFK()) {
+                    fk_cols.push_back(fk_info_t{
+                        col->col_t_,
+                        col->other_value_,
+                        range_t{ col->vEntry_offset_, col->str_len_ }
+                        });
+                }
+            }
+
+            table->bt_->range_query_begin_lock();
+            tree::BTit it = table->bt_->range_query_from_begin();
+            tree::BTit end = table->bt_->range_query_from_end();
+            while (it != end) {
+                const ValueEntry vEntry = it.getV();
+                for (auto const& fk_info : fk_cols) {
+                    if (fk_info.col_t == col_t_t::INTEGER) {
+                        int i = get_range_INT(vEntry, fk_info.range);
+                        table_pk_ref_INT[fk_info.fk_table][i]--;
+                    }
+                    else {
+                        std::string s = get_range_VARCHAR(vEntry, fk_info.range);
+                        table_pk_ref_VARCHAR[fk_info.fk_table][s]--;
+                    }
+                }
+                ++it;
+            }
+            table->bt_->range_query_end_unlock();
+        } // end unref PK view for fk cols
 
         db_meta_->drop_table(info.tableName);
         table->bt_->destruct();
@@ -1318,7 +1367,8 @@ namespace DB::vm
             std::vector<output_t> outputCol;
             outputCol.reserve(table->col_num_);
             query_print("      ");
-            for (auto const&[colName, col] : table->col_name2col_) {
+            for (auto const& colName : table->cols_) {
+                const ColumnInfo* col = table->col_name2col_[colName];
                 query_print("%s\t", colName.c_str());
                 outputCol.push_back(output_t{
                     col->col_t_, range_t{ col->vEntry_offset_, col->str_len_ }
@@ -1357,8 +1407,30 @@ namespace DB::vm
             query_print("output size = %d", cnt);
             query_print_n();
             println();
-        }
-    }
+
+            // show PK view
+            query_print("PK view:");
+            query_print_n();
+            if (table->bt_->key_t() == key_t_t::INTEGER) {
+                const std::unordered_map<int32_t, uint32_t>& pk_ref
+                    = table_pk_ref_INT[table->get_page_id()];
+                for (auto const&[key, ref] : pk_ref) {
+                    query_print("%d\t->\t%d", key, ref);
+                    query_print_n();
+                }
+            }
+            else {
+                const std::unordered_map<std::string, uint32_t>& pk_ref
+                    = table_pk_ref_VARCHAR[table->get_page_id()];
+                for (auto const&[key, ref] : pk_ref) {
+                    query_print("%s\t->\t%d", key.c_str(), ref);
+                    query_print_n();
+                }
+            }
+            println();
+
+        } // end iterate all tables
+    } // end showDB();
 
     void VM::query_print_n() {
         printf("\n");
