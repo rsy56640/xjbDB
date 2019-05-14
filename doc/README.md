@@ -16,7 +16,7 @@
 
 ![](assets/Architecture.png)
 
-> 使用 [xjbDB.drawio](https://github.com/rsy56640/xjbDB/blob/presentation/doc/DB.drawio) 登录 [draw.io](https://www.draw.io/) 看矢量图
+> 使用 [xjbDB.drawio](https://github.com/rsy56640/xjbDB/blob/presentation/doc/xjbDB.drawio) 登录 [draw.io](https://www.draw.io/) 看矢量图
 
 &nbsp;   
 <a id="1"></a>
