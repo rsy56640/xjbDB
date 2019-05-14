@@ -5,7 +5,7 @@
 - [Pager](#2)
 - [Tree](#3)
 - [VM](#4)
-- [SQL Parser](#5)
+- [SQL Description Parser](#5)
 - [Query Plan](#6)
 - [Operator Tree's post order traversal，Pipeline Channel 与 FIFO Task Queue](#7)
 
@@ -31,7 +31,6 @@
 - 事务是串行化处理的
 - 列的限制
   - FK 不能是 DEAULT
-  - 
 - UPDATE 不能改 PK
 
 
@@ -397,7 +396,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ### 读入 sql
 
 开一个线程，专门负责从命令行读入，每当遇到 `';'`，就送进 sql pool。   
-碰到一个有趣的问题：参考 issue#2 (https://github.com/rsy56640/xjbDB/issues/2)，用户输入 `"EXIT;"`，放进 sql pool 之后，就阻塞在 `std::cin::getline()` 上了，vm 没办法通知这个线程，所以还得检查 `"EXIT;"`。
+碰到一个有趣的问题：参考 issue#2 https://github.com/rsy56640/xjbDB/issues/2 ，用户输入 `"EXIT;"`，放进 sql pool 之后，就阻塞在 `std::cin::getline()` 上了，vm 没办法通知这个线程，所以还得检查 `"EXIT;"`。
 
 ### VM 初始化
 
@@ -516,6 +515,8 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 ### 模块负责人：刘瑞康
 [Reeker-Liu/DB](https://github.com/Reeker-Liu/DB)
 
+> 当前版本没有 query optimization，也就是 sigma 结点其实在 join 结点之后
+
 
 &nbsp;   
 <a id="7"></a>
@@ -595,3 +596,8 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 注意到一个性质：**后续遍历到一个结点时，其子树一定已经被后序遍历过了，那么该结点任务一定排在所有子树结点任务之后**。   
 于是大胆推测一下（xjb扯）：只要结点任务不太卡，那么几乎可以做到完全并发（即任务队列中的执行线程数），除了 join 结点有时会成为 pipeline breaker。   
 关于并发性的xjb分析：
+
+- 任务队列中线程的创建与回收
+- 阻塞
+  - 一个 row 阻塞
+  - join 结点拿所有 row 阻塞

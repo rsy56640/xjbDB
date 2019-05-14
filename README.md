@@ -24,6 +24,17 @@ Team Project for Software Engineering course
 /src/include/debug_log.h 中的一些bool常量：用于开启 log 输出，对于 debug 或者 想了解并大脑跟进执行流程 非常有用
 
 
+## 目前 presentation 版本 支持 和 不支持 的操作
+
+- 长度限制（参考设计文档）
+- FROM 之后最多跟2个表
+  - FROM a
+  - FROM a, b
+  - FROM a JOIN b
+- UPDATE 不能 SET PK
+- 没有 Query Optimization
+
+
 ## 谈一谈最近的经验
 基础服务很重要，前期存储引擎里面的基础服务抽象的挺不错。比如：
 
