@@ -16,7 +16,7 @@
 
 ![](assets/Architecture.png)
 
-> 使用
+> 使用 [xjbDB.drawio](https://github.com/rsy56640/xjbDB/blob/presentation/doc/DB.drawio) 登录 [draw.io](https://www.draw.io/) 看矢量图
 
 &nbsp;   
 <a id="1"></a>
@@ -505,7 +505,6 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 
 &nbsp;   
 <a id="5"></a>
-
 ## SQL Description Parser
 ### 模块负责人：黎冠延
 [ssyram/NovelRulesTranslator](https://github.com/ssyram/NovelRulesTranslator)
