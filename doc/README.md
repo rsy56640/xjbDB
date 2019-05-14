@@ -506,7 +506,7 @@ split 分为 `split_internal` 和 `split_leaf`，要求 node 是 **非满的**
 &nbsp;   
 <a id="5"></a>
 
-## SQL Parser
+## SQL Description Parser
 ### 模块负责人：黎冠延
 [ssyram/NovelRulesTranslator](https://github.com/ssyram/NovelRulesTranslator)
 
