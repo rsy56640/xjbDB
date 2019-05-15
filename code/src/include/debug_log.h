@@ -34,7 +34,7 @@ namespace DB::debug
 
 		WAL = true,
 
-		FLUSH = true,
+		FLUSH = false,
 
 		DESTROY_LOG = true,
 

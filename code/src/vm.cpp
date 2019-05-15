@@ -573,6 +573,7 @@ namespace DB::vm
                 // "SET name = name +"asd", value = value / 2"
                 // update cannot modify PK !!!
                 bool ok_to_update = true;
+                uint32_t diff_num = 0;
                 // maybe someone break FK constraint, so we use a measure like 2PC
                 std::vector<uint32_t*> add_ref;
                 std::vector<uint32_t*> sub_ref;
@@ -593,6 +594,8 @@ namespace DB::vm
                             if (!table_pk_ref_INT[targets[k].fk_table].count(i))
                                 ok_to_update = false;
                             else {
+                                if (i != old_i)
+                                    diff_num++;
                                 add_ref.push_back(&table_pk_ref_INT[targets[k].fk_table][i]);
                                 sub_ref.push_back(&table_pk_ref_INT[targets[k].fk_table][old_i]);
                             }
@@ -609,6 +612,8 @@ namespace DB::vm
                             if (!table_pk_ref_VARCHAR[targets[k].fk_table].count(s))
                                 ok_to_update = false;
                             else {
+                                if (s != old_s)
+                                    diff_num++;
                                 add_ref.push_back(&table_pk_ref_VARCHAR[targets[k].fk_table][s]);
                                 sub_ref.push_back(&table_pk_ref_VARCHAR[targets[k].fk_table][old_s]);
                             }
@@ -620,14 +625,15 @@ namespace DB::vm
                 } // end maybe update all column
 
                 // finally commit
-                if (ok_to_update)
-                {
-                    it.updateV(vEntry);
-                    updated_row_num++;
-                    for (uint32_t* pi : add_ref)
-                        *pi = *pi + 1;
-                    for (uint32_t* pi : sub_ref)
-                        *pi = *pi - 1;
+                if (ok_to_update) {
+                    if (diff_num > 0) {
+                        it.updateV(vEntry);
+                        updated_row_num++;
+                        for (uint32_t* pi : add_ref)
+                            *pi = *pi + 1;
+                        for (uint32_t* pi : sub_ref)
+                            *pi = *pi - 1;
+                    }
                 }
 
             } // end whereExpr
@@ -1090,7 +1096,8 @@ namespace DB::vm
             row_view r2 = t2.getRow();
             while (!r2.isEOF()) {
                 for (row_view r1 : table1) {
-                    ret.addRow(splice(r1, r2));
+                    if (!r1.isEOF())
+                        ret.addRow(splice(r1, r2));
                 }
                 r2 = t2.getRow();
             }
