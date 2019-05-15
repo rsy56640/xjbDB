@@ -7,40 +7,42 @@
 namespace DB::debug
 {
 
-    constexpr bool
-        PAGE_REF = false,
-        LRU_EVICT = false,
-        BT_CREATE = false,
+	constexpr bool
+		PAGE_REF = false,
+		LRU_EVICT = false,
+		BT_CREATE = false,
 
-        BUFFER_FETCH = false,
-        BUFFER_FLUSH = true,
-        BUFFER_NEW = false,
-        BUFFER_DELETE = false,
+		BUFFER_FETCH = false,
+		BUFFER_FLUSH = true,
+		BUFFER_NEW = false,
+		BUFFER_DELETE = false,
 
-        SPLIT_ROOT_INTERNAL = false,
-        SPLIT_ROOT_LEAF = false,
-        SPLIT_INTERNAL = false,
-        SPLIT_LEAF = false,
+		SPLIT_ROOT_INTERNAL = false,
+		SPLIT_ROOT_LEAF = false,
+		SPLIT_INTERNAL = false,
+		SPLIT_LEAF = false,
 
-        MERGE_INTERNAL = false,
-        MERGE_LEAF = false,
+		MERGE_INTERNAL = false,
+		MERGE_LEAF = false,
 
-        ERASE_ROOT_LEAF = false,
-        ERASE_ROOT_INTERNAL = false,
-        ERASE_NONMIN_LEAF = false,
-        ERASE_NONMIN_INTERNAL = false,
+		ERASE_ROOT_LEAF = false,
+		ERASE_ROOT_INTERNAL = false,
+		ERASE_NONMIN_LEAF = false,
+		ERASE_NONMIN_INTERNAL = false,
 
-        QUERY_PROCESS = true,
+		QUERY_PROCESS = true,
 
-        WAL = true,
+		WAL = true,
 
-        FLUSH = true,
+		FLUSH = true,
 
-        DESTROY_LOG = true,
+		DESTROY_LOG = true,
 
-        LEXER_LOG = false,
-        PARSE_LOG = false,
-        QUERY_LOG = false,
+		LEXER_LOG = false,
+		PARSE_LOG = false,
+		QUERY_LOG = false,
+
+		PARSE_TREE_PNG = false,
 
         NON_DEBUG = false,
         xbjDB_DEBUG = true,
