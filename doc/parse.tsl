@@ -110,6 +110,7 @@ namespace DB
 	using expression = BaseExpr*;
 	using predicate = BaseExpr*;
 	using expressionAtom = AtomExpr*;
+	using expressionAtomOp = AtomExpr*;
 	using constantNum = int;
 	using positiveNum = int;
 	using comparisonOperator = comparison_t_t;
@@ -127,538 +128,593 @@ namespace DB
 		}
     };
 
-	sqlStatement := ddlStatement
-				  | dmlStatement
-				  | "SHOW", { info.sqlValue = Show(); }
-				  | "EXIT", { info.sqlValue = Exit(); }
-				  ;
+	sqlStatement := 
+		ddlStatement
+		| dmlStatement
+		| "SHOW", { info.sqlValue = Show(); }
+		| "EXIT", { info.sqlValue = Exit(); }
+		;
 
 
-	ddlStatement := createTable, =
-				{ 
-					info.sqlValue = get<CreateTableInfo>(right[0].object);
-				}
-				| dropTable, =
-				{
-					info.sqlValue = get<DropTableInfo>(right[0].object);
-				}
-				;
+	ddlStatement := 
+		createTable, =
+		{ 
+			info.sqlValue = get<CreateTableInfo>(right[0].object);
+		}
+		| dropTable, =
+		{
+			info.sqlValue = get<DropTableInfo>(right[0].object);
+		}
+		;
 
 
-	dmlStatement := selectStatement, =
-				{ 
-					info.sqlValue = get<SelectInfo>(right[0].object);
-				}
-				| insertStatement, =
-				{ 
-					info.sqlValue = get<InsertInfo>(right[0].object);
-				}
-				| updateStatement, =
-				{ 
-					info.sqlValue = get<UpdateInfo>(right[0].object);
-				}
-				| deleteStatement, =
-				{ 
-					info.sqlValue = get<DeleteInfo>(right[0].object);
-				}
-				;
+	dmlStatement := 
+		selectStatement, =
+		{ 
+			info.sqlValue = get<SelectInfo>(right[0].object);
+		}
+		| insertStatement, =
+		{ 
+			info.sqlValue = get<InsertInfo>(right[0].object);
+		}
+		| updateStatement, =
+		{ 
+			info.sqlValue = get<UpdateInfo>(right[0].object);
+		}
+		| deleteStatement, =
+		{ 
+			info.sqlValue = get<DeleteInfo>(right[0].object);
+		}
+		;
 
 	// Data Definition Language
-	createTable := "CREATE" "TABLE" tableName createDefinitions, =
-				{
-					auto& l = std::get<CreateTableInfo>(left.object);
-					string tableName = get<string>(right[2].object);
-					vector<ColumnInfo> columnInfos = get<vector<ColumnInfo>>(right[3].object);
-					vector<string> colNames = info.colNames_;
-					l.tableInfo = TableInfo(tableName, colNames, columnInfos, vm_);
-					l.defaults = info.defaults;
-					l.fkTables = info.fkTables;
-				}
-				;
+	createTable := 
+		"CREATE" "TABLE" tableName createDefinitions, =
+		{
+			auto& l = std::get<CreateTableInfo>(left.object);
+			string tableName = get<string>(right[2].object);
+			vector<ColumnInfo> columnInfos = get<vector<ColumnInfo>>(right[3].object);
+			vector<string> colNames = info.colNames_;
+			l.tableInfo = TableInfo(tableName, colNames, columnInfos, vm_);
+			l.defaults = info.defaults;
+			l.fkTables = info.fkTables;
+		}
+		;
 
-	dropTable := "DROP" "TABLE" tableName, =
-				{
-					auto& l = std::get<DropTableInfo>(left.object);
-					l.tableName = get<string>(right[2].object);
-				}
-			   	;
+	dropTable := 
+		"DROP" "TABLE" tableName, =
+		{
+			auto& l = std::get<DropTableInfo>(left.object);
+			l.tableName = get<string>(right[2].object);
+		}
+		;
 
-	createDefinitions := "(" createDefinition [{"," createDefinition}*] ")", =
-					{
-						auto& l = get<vector<ColumnInfo>>(left.object);
-						l.push_back(get<ColumnInfo>(right[1].object));
+	createDefinitions := 
+		"(" createDefinition [{"," createDefinition}*] ")", =
+		{
+			auto& l = get<vector<ColumnInfo>>(left.object);
+			l.push_back(get<ColumnInfo>(right[1].object));
 
-						if(right.size() < 4)
-							return;
+			if(right.size() < 4)
+				return;
 
-						auto _right = get<iter_object_type>(right[2].object).data;
-						size_t size = _right.size();
+			auto _right = get<iter_object_type>(right[2].object).data;
+			size_t size = _right.size();
 
-						for(size_t i = 1; i < size; i += 2)
-						{
-							l.push_back(get<ColumnInfo>(_right[i].object));
-						}
-					}
-					;
+			for(size_t i = 1; i < size; i += 2)
+			{
+				l.push_back(get<ColumnInfo>(_right[i].object));
+			}
+		}
+		;
  
 	// need tableConstraint
-	createDefinition := "ID" dataType [columnConstraint*], =
-					{
-						auto& l = std::get<ColumnInfo>(left.object);
+	createDefinition := 
+		"ID" dataType [columnConstraint*], =
+		{
+			auto& l = std::get<ColumnInfo>(left.object);
 
-						auto& token = get<Token>(right[0].object);
-						string columnName = get<identifier>(token._token);
-						info.colNames_.push_back(columnName);
+			auto& token = get<Token>(right[0].object);
+			string columnName = get<identifier>(token._token);
+			info.colNames_.push_back(columnName);
 
-						auto& dataType = get<col_t_t>(right[1].object);
-						l.col_t_ = dataType;
-						l.str_len_ = info.len;
+			auto& dataType = get<col_t_t>(right[1].object);
+			l.col_t_ = dataType;
+			l.str_len_ = info.len;
 
-						//no duplicate checking on columnConstraint,
-						//the last one overwrite the original
-						if(right.size() <= 2)
-							return;
-						auto _right = get<iter_object_type>(right[2].object).data;
-						size_t size = _right.size();
-						for(size_t i = 0; i < size; ++i)
-						{
-							ColumnInfo& column = get<ColumnInfo>(_right[i].object);
-							if(column.isPK())
-							{
-								l.setPK();
-							}
-							else if(column.isFK())
-							{
-								l.setFK();
-							}
-							else if(column.isNOT_NULL())
-							{
-								l.setNOT_NULL();
-							}
-							else if(column.isDEFAULT())
-							{
-								l.setDEFAULT();
-							}
-						}
-					}
-					;
-
-	dataType := "INT", =
-			{ 
-				auto& l = get<col_t_t>(left.object);
-				l = col_t_t::INTEGER;
-				info.len = sizeof(int32_t);
+			//no duplicate checking on columnConstraint,
+			//the last one overwrite the original
+			if(right.size() <= 2)
+				return;
+			auto _right = get<iter_object_type>(right[2].object).data;
+			size_t size = _right.size();
+			for(size_t i = 0; i < size; ++i)
+			{
+				ColumnInfo& column = get<ColumnInfo>(_right[i].object);
+				if(column.isPK())
+				{
+					l.setPK();
+				}
+				else if(column.isFK())
+				{
+					l.setFK();
+				}
+				else if(column.isNOT_NULL())
+				{
+					l.setNOT_NULL();
+				}
+				else if(column.isDEFAULT())
+				{
+					l.setDEFAULT();
+				}
 			}
-			| "CHAR" "(" positiveNum ")", =
-			{ 
-				auto& l = get<col_t_t>(left.object);
-				l = col_t_t::CHAR;
-				info.len = get<int>(right[2].object);
-			}
-			| "VARCHAR" "(" positiveNum ")", =
-			{ 
-				auto& l = get<col_t_t>(left.object);
-				l = col_t_t::VARCHAR;
-				info.len = get<int>(right[2].object);
-			}
-			;
+		}
+		;
 
-	columnConstraint := "NOT_NULL", = 
-					{ 
-						auto& l = get<ColumnInfo>(left.object);
-						l.setNOT_NULL();
-					}
-					| "DEFAULT" expressionAtom, =
-					{
-						auto& l = get<ColumnInfo>(left.object);
-						l.setDEFAULT();
-						auto expr = shared_ptr<AtomExpr>(get<AtomExpr*>(right[1].object));
-						value_t val = vmVisitAtom(expr);
-						if(auto op = get_if<int>(&val))
-						{
-							info.defaults.push_back(*op);
-						}
-						else if(auto op = get_if<string>(&val))
-						{
-							info.defaults.push_back(*op);
-						}
-					}
-					| "PRIMARY_KEY", =
-					{ 
-						auto& l = get<ColumnInfo>(left.object);
-						l.setPK();
-					}
-					| "REFERENCES" tableName, =
-					{
-						auto& l = get<ColumnInfo>(left.object);
-						l.setFK();
-						string fkTable = get<string>(right[1].object);
-						info.fkTables.push_back(fkTable);
-					}
-					;
+	dataType := 
+		"INT", =
+		{ 
+			auto& l = get<col_t_t>(left.object);
+			l = col_t_t::INTEGER;
+			info.len = sizeof(int32_t);
+		}
+		| "CHAR" "(" positiveNum ")", =
+		{ 
+			auto& l = get<col_t_t>(left.object);
+			l = col_t_t::CHAR;
+			info.len = get<int>(right[2].object);
+		}
+		| "VARCHAR" "(" positiveNum ")", =
+		{ 
+			auto& l = get<col_t_t>(left.object);
+			l = col_t_t::VARCHAR;
+			info.len = get<int>(right[2].object);
+		}
+		;
+
+	columnConstraint := 
+		"NOT_NULL", = 
+		{ 
+			auto& l = get<ColumnInfo>(left.object);
+			l.setNOT_NULL();
+		}
+		| "DEFAULT" expressionAtom, =
+		{
+			auto& l = get<ColumnInfo>(left.object);
+			l.setDEFAULT();
+			auto expr = shared_ptr<AtomExpr>(get<AtomExpr*>(right[1].object));
+			value_t val = vmVisitAtom(expr);
+			if(auto op = get_if<int>(&val))
+			{
+				info.defaults.push_back(*op);
+			}
+			else if(auto op = get_if<string>(&val))
+			{
+				info.defaults.push_back(*op);
+			}
+		}
+		| "PRIMARY_KEY", =
+		{ 
+			auto& l = get<ColumnInfo>(left.object);
+			l.setPK();
+		}
+		| "REFERENCES" tableName, =
+		{
+			auto& l = get<ColumnInfo>(left.object);
+			l.setFK();
+			string fkTable = get<string>(right[1].object);
+			info.fkTables.push_back(fkTable);
+		}
+		;
 
 
 	// Data Manipulation Language
-	insertStatement := "INSERT" tableName insertElements, =
-					{
-						//match ID and value in insertElement
-						auto& l = get<InsertInfo>(left.object);
-						l.elements = get<Elements>(right[2].object);
-						l.sourceTable = get<string>(right[1].object);
-					}
-					| "INSERT" tableName "(" "ID" [{"," "ID"}*] ")" insertElements, =
-					{
-						//match ID and value in insertElement
-						auto& l = get<InsertInfo>(left.object);
-						l.sourceTable = get<string>(right[1].object);
-						l.elements = get<Elements>(right[right.size() - 1].object);
+	insertStatement := 
+		"INSERT" tableName insertElements, =
+		{
+			//match ID and value in insertElement
+			auto& l = get<InsertInfo>(left.object);
+			l.elements = get<Elements>(right[2].object);
+			l.sourceTable = get<string>(right[1].object);
+		}
+		| "INSERT" tableName "(" "ID" [{"," "ID"}*] ")" insertElements, =
+		{
+			//match ID and value in insertElement
+			auto& l = get<InsertInfo>(left.object);
+			l.sourceTable = get<string>(right[1].object);
+			l.elements = get<Elements>(right[right.size() - 1].object);
 
-						vector<string> columnNames;
-						auto& token = get<Token>(right[3].object);
-						columnNames.push_back(get<identifier>(token._token));
+			vector<string> columnNames;
+			auto& token = get<Token>(right[3].object);
+			columnNames.push_back(get<identifier>(token._token));
 
-						if(right.size() <= 6)
-							return;
+			if(right.size() <= 6)
+				return;
 
-						auto _right = get<iter_object_type>(right[4].object).data;
-						size_t size = _right.size();
-						for(size_t i = 1; i < size; i += 2)
-						{
-							auto& token = get<Token>(_right[i].object);
-							columnNames.push_back(get<identifier>(token._token));
-						}
+			auto _right = get<iter_object_type>(right[4].object).data;
+			size_t size = _right.size();
+			for(size_t i = 1; i < size; i += 2)
+			{
+				auto& token = get<Token>(_right[i].object);
+				columnNames.push_back(get<identifier>(token._token));
+			}
 
-						if(columnNames.size() != l.elements.size())
-							throw string("the number of columns and elements don't match");
-						
-						for(size_t i = 0; i < l.elements.size(); ++i)
-						{
-							l.elements[i].name = columnNames[i];
-						}
-					}
-					;
+			if(columnNames.size() != l.elements.size())
+				throw string("the number of columns and elements don't match");
+			
+			for(size_t i = 0; i < l.elements.size(); ++i)
+			{
+				l.elements[i].name = columnNames[i];
+			}
+		}
+		;
 
-	deleteStatement := "DELETE" "FROM" tableName ["WHERE" expression], =
-					{
-						auto& l = get<DeleteInfo>(left.object);
-						l.sourceTable = get<string>(right[2].object);
-						if(right.size() > 3)
-						{
-							l.whereExpr.reset(get<BaseExpr*>(right[4].object));
-						}
-					}
-					;
+	deleteStatement := 
+		"DELETE" "FROM" tableName ["WHERE" expression], =
+		{
+			auto& l = get<DeleteInfo>(left.object);
+			l.sourceTable = get<string>(right[2].object);
+			if(right.size() > 3)
+			{
+				l.whereExpr.reset(get<BaseExpr*>(right[4].object));
+			}
+		}
+		;
 
-	updateStatement := "UPDATE" tableName "SET" updateElements ["WHERE" expression], =
-					{
-						auto& l = get<UpdateInfo>(left.object);
-						l.sourceTable = get<string>(right[1].object);
-						l.elements = get<Elements>(right[3].object);
-						if(right.size() > 4)
-						{
-							l.whereExpr.reset(get<BaseExpr*>(right[5].object));
-						}
-					}
-					;
+	updateStatement := 
+		"UPDATE" tableName "SET" updateElements ["WHERE" expression], =
+		{
+			auto& l = get<UpdateInfo>(left.object);
+			l.sourceTable = get<string>(right[1].object);
+			l.elements = get<Elements>(right[3].object);
+			if(right.size() > 4)
+			{
+				l.whereExpr.reset(get<BaseExpr*>(right[5].object));
+			}
+		}
+		;
 
 	// need  ["DISTINCT"]
-	selectStatement := "SELECT" selectElements fromClause ["WHERE" expression] [orderByClause], =
-					{
-						auto& l = std::get<SelectInfo>(left.object);
-						JoinOp* joinOp = get<JoinOp*>(right[2].object);
-						BaseOp* baseOp = joinOp;
-						if(right.size() > 3)
-						{
-							auto whereExpr = get_if<BaseExpr*>(&right[4].object);
-							if(!whereExpr) goto brk;
-							FilterOp* filterOp = new FilterOp(*whereExpr);
-							filterOp->_source.reset(joinOp);
-							baseOp = filterOp;
-						}
-					brk:
-						ProjectOp* projectOp = get<ProjectOp*>(right[1].object);
-						if(projectOp)
-						{
-							projectOp->_source.reset(baseOp);
-							l.opRoot.reset(projectOp);
-						}
-						else
-						{
-							l.opRoot.reset(baseOp);
-						}
-						
+	selectStatement := 
+		"SELECT" selectElements fromClause ["WHERE" expression] [orderByClause], =
+		{
+			auto& l = std::get<SelectInfo>(left.object);
+			JoinOp* joinOp = get<JoinOp*>(right[2].object);
+			BaseOp* baseOp = joinOp;
+			if(right.size() > 3)
+			{
+				auto whereExpr = get_if<BaseExpr*>(&right[4].object);
+				if(!whereExpr) goto brk;
+				FilterOp* filterOp = new FilterOp(*whereExpr);
+				filterOp->_source.reset(joinOp);
+				baseOp = filterOp;
+			}
+		brk:
+			ProjectOp* projectOp = get<ProjectOp*>(right[1].object);
+			if(projectOp)
+			{
+				projectOp->_source.reset(baseOp);
+				l.opRoot.reset(projectOp);
+			}
+			else
+			{
+				l.opRoot.reset(baseOp);
+			}
 
-						//currently not handle orderby
-					}
-					;
+			//currently not handle orderby
+		}
+		;
 
 	// need selectStatement
-	insertElements := "VALUES" "(" expressionAtom [{"," expressionAtom}*] ")", =
-					{
-						auto& l = get<Elements>(left.object);
-						Element ele;
-						ele.valueExpr.reset(get<AtomExpr*>(right[2].object));
-						l.push_back(ele);
-						if(right.size() <= 4)
-							return;
-						
-						auto _right = get<iter_object_type>(right[3].object).data;
-						size_t size = _right.size();
-						for(size_t i = 1; i < size; i += 2)
-						{
-							Element ele;
-							ele.valueExpr.reset(get<AtomExpr*>(_right[i].object));
-							l.push_back(ele);
-						}
-					}
-					;
+	insertElements := 
+		"VALUES" "(" expressionAtom [{"," expressionAtom}*] ")", =
+		{
+			auto& l = get<Elements>(left.object);
+			Element ele;
+			ele.valueExpr.reset(get<AtomExpr*>(right[2].object));
+			l.push_back(ele);
+			if(right.size() <= 4)
+				return;
+			
+			auto _right = get<iter_object_type>(right[3].object).data;
+			size_t size = _right.size();
+			for(size_t i = 1; i < size; i += 2)
+			{
+				Element ele;
+				ele.valueExpr.reset(get<AtomExpr*>(_right[i].object));
+				l.push_back(ele);
+			}
+		}
+		;
 	
-	updateElements := updateElement [{"," updateElement}*], =
-					{
-						auto& l = get<Elements>(left.object);
-						l.push_back(get<Element>(right[0].object));	
+	updateElements := 
+		updateElement [{"," updateElement}*], =
+		{
+			auto& l = get<Elements>(left.object);
+			l.push_back(get<Element>(right[0].object));	
 
-						if(right.size() == 1)
-							return;
-						auto _right = get<iter_object_type>(right[1].object).data;
-						size_t size = _right.size();
-						for(size_t i = 1; i < size; i += 2)
-						{
-							l.push_back(get<Element>(_right[i].object));
-						}
-					}
-					;
+			if(right.size() == 1)
+				return;
+			auto _right = get<iter_object_type>(right[1].object).data;
+			size_t size = _right.size();
+			for(size_t i = 1; i < size; i += 2)
+			{
+				l.push_back(get<Element>(_right[i].object));
+			}
+		}
+		;
 
-	updateElement := columnName "=" expressionAtom, =
-					{
-						auto& l = get<Element>(left.object);
-						l.name = get<Column>(right[0].object).second;
-						auto &expr = get<AtomExpr*>(right[2].object);
-						l.valueExpr.reset(expr);
-					}
-					;	  
+	updateElement := 
+		columnName "=" expressionAtom, =
+		{
+			auto& l = get<Element>(left.object);
+			l.name = get<Column>(right[0].object).second;
+			auto &expr = get<AtomExpr*>(right[2].object);
+			l.valueExpr.reset(expr);
+		}
+		;
 						  
 	// Select Statement"s Details
-	selectElements := "$", = 
-					{
-						auto& l = get<ProjectOp*>(left.object);
-						l = nullptr;
-					}
-					| expressionAtom [{"," expressionAtom}*], =
-					{
-						auto& l = get<ProjectOp*>(left.object);
-						l = new ProjectOp();
+	selectElements := 
+		"$", = 
+		{
+			auto& l = get<ProjectOp*>(left.object);
+			l = nullptr;
+		}
+		| expressionAtom [{"," expressionAtom}*], =
+		{
+			auto& l = get<ProjectOp*>(left.object);
+			l = new ProjectOp();
 
-						vector<shared_ptr<AtomExpr>> exprs;
-						exprs.push_back(shared_ptr<AtomExpr>(get<AtomExpr*>(right[0].object)));
+			vector<shared_ptr<AtomExpr>> exprs;
+			exprs.push_back(shared_ptr<AtomExpr>(get<AtomExpr*>(right[0].object)));
 
-						if(right.size() > 1)
-						{
-							auto _right = get<iter_object_type>(right[1].object).data;
-							size_t size = _right.size();
-							for(size_t i = 1; i < size; i += 2)
-								exprs.push_back(shared_ptr<AtomExpr>(get<AtomExpr*>(_right[i].object)));
+			if(right.size() > 1)
+			{
+				auto _right = get<iter_object_type>(right[1].object).data;
+				size_t size = _right.size();
+				for(size_t i = 1; i < size; i += 2)
+					exprs.push_back(shared_ptr<AtomExpr>(get<AtomExpr*>(_right[i].object)));
 
-						}
+			}
 
-						for(size_t i = 0; i < exprs.size(); ++i)
-						{
-							auto expr = exprs[i];
-							l->_elements.push_back(expr);
-							if(expr->base_t_ == base_t_t::ID)
-							{
-								shared_ptr<IdExpr> idPtr = static_pointer_cast<IdExpr>(expr);
-								if(idPtr->_tableName.empty())
-								{
-									l->_names.push_back(idPtr->_columnName);
-								}
-								else
-								{
-									l->_names.push_back(idPtr->_tableName + "." + idPtr->_columnName);
-								}
-							}
-							else
-							{
-								l->_names.push_back("Column" + std::to_string(i));
-							}
-						}
-					}
-					;
-
-	orderByClause := "ORDERBY" orderByExpression [{"," orderByExpression}*], =
-				   {
-					   bool useless;
-				   }
-				   ;
-
-	orderByExpression := expressionAtom ["ASC"|"DESC"], =
-					   {
-						  bool useless;
-					   }
-					   ;
-
-	fromClause := "FROM" tableName [{"," tableName}*], =
+			for(size_t i = 0; i < exprs.size(); ++i)
+			{
+				auto expr = exprs[i];
+				l->_elements.push_back(expr);
+				if(expr->base_t_ == base_t_t::ID)
 				{
-					auto& l = get<JoinOp*>(left.object);
-					l = new JoinOp();
-					l->isJoin = false;
-					l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
-
-					if(right.size() <= 2)
-						return;
-
-					auto _right = get<iter_object_type>(right[2].object).data;
-					size_t size = _right.size();
-					for(size_t i = 1; i < size; i += 2)
+					shared_ptr<IdExpr> idPtr = static_pointer_cast<IdExpr>(expr);
+					if(idPtr->_tableName.empty())
 					{
-						l->_sources.push_back(make_shared<TableOp>(get<string>(_right[i].object)));
+						l->_names.push_back(idPtr->_columnName);
+					}
+					else
+					{
+						l->_names.push_back(idPtr->_tableName + "." + idPtr->_columnName);
 					}
 				}
-				| "FROM" tableName "JOIN" tableName, =
+				else
 				{
-					auto& l = get<JoinOp*>(left.object);
-					l = new JoinOp();
-					l->isJoin = true;
-					l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
-					l->_sources.push_back(make_shared<TableOp>(get<string>(right[3].object)));
+					l->_names.push_back("Column" + std::to_string(i));
 				}
-				;
+			}
+		}
+		;
+
+	orderByClause := 
+		"ORDERBY" orderByExpression [{"," orderByExpression}*], =
+		{
+			bool useless;
+		}
+		;
+
+	orderByExpression := 
+		expressionAtom ["ASC"|"DESC"], =
+		{
+			bool useless;
+		}
+		;
+
+	fromClause := 
+		"FROM" tableName [{"," tableName}*], =
+		{
+			auto& l = get<JoinOp*>(left.object);
+			l = new JoinOp();
+			l->isJoin = false;
+			l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
+
+			if(right.size() <= 2)
+				return;
+
+			auto _right = get<iter_object_type>(right[2].object).data;
+			size_t size = _right.size();
+			for(size_t i = 1; i < size; i += 2)
+			{
+				l->_sources.push_back(make_shared<TableOp>(get<string>(_right[i].object)));
+			}
+		}
+		| "FROM" tableName "JOIN" tableName, =
+		{
+			auto& l = get<JoinOp*>(left.object);
+			l = new JoinOp();
+			l->isJoin = true;
+			l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
+			l->_sources.push_back(make_shared<TableOp>(get<string>(right[3].object)));
+		}
+		;
 
 
-	tableName := "ID", =
-				{
-					auto& l = get<string>(left.object);
-					auto& token = get<Token>(right[0].object);
-					l = get<identifier>(token._token);
-				}
-				;
+	tableName := 
+		"ID", =
+		{
+			auto& l = get<string>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = get<identifier>(token._token);
+		}
+		;
 
-	columnName := "ID" "." "ID", =
-				{ 
-					auto& l = get<Column>(left.object);
-					auto& token1 = get<Token>(right[0].object);
-					auto& token2 = get<Token>(right[2].object);
-					string _tableName = get<identifier>(token1._token);
-					string _columnName = get<identifier>(token2._token);
-					l = make_pair(_tableName, _columnName); 
-				}
-				| "ID", =
-				{ 
-					auto& l = get<Column>(left.object);
-					auto& token = get<Token>(right[0].object);
-					l = make_pair("", get<identifier>(token._token));
-				}
-				;
+	columnName := 
+		"ID" "." "ID", =
+		{ 
+			auto& l = get<Column>(left.object);
+			auto& token1 = get<Token>(right[0].object);
+			auto& token2 = get<Token>(right[2].object);
+			string _tableName = get<identifier>(token1._token);
+			string _columnName = get<identifier>(token2._token);
+			l = make_pair(_tableName, _columnName); 
+		}
+		| "ID", =
+		{ 
+			auto& l = get<Column>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = make_pair("", get<identifier>(token._token));
+		}
+		;
 
 
 	left logicOp;
 
-	expression := expression logicalOperator expression, logicOp, =
-				{
-					auto& l = get<BaseExpr*>(left.object);
-					logical_t_t logical_t = get<logical_t_t>(right[1].object);
-					BaseExpr* expr1 = get<BaseExpr*>(right[0].object);
-					BaseExpr* expr2 = get<BaseExpr*>(right[2].object);
+	expression := 
+		expression logicalOperator expression, logicOp, =
+		{
+			auto& l = get<BaseExpr*>(left.object);
+			logical_t_t logical_t = get<logical_t_t>(right[1].object);
+			BaseExpr* expr1 = get<BaseExpr*>(right[0].object);
+			BaseExpr* expr2 = get<BaseExpr*>(right[2].object);
 
-					//need check if exprs can be supported by logical op
+			//need check if exprs can be supported by logical op
 
-					l = new LogicalOpExpr(logical_t, expr1, expr2);
-				}
-				| predicate, =
-				{ 
-					auto& l = get<BaseExpr*>(left.object);
-					l = get<BaseExpr*>(right[0].object);
-				}
-				;
+			l = new LogicalOpExpr(logical_t, expr1, expr2);
+		}
+		| predicate, =
+		{ 
+			auto& l = get<BaseExpr*>(left.object);
+			l = get<BaseExpr*>(right[0].object);
+		}
+		;
 
 	// predicate need (in select) and (like) form and (exists)
-	predicate := expressionAtom comparisonOperator expressionAtom, =
-			   {
-					auto& l = get<BaseExpr*>(left.object);
-					comparison_t_t comparison_t = get<comparison_t_t>(right[1].object);
-					AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
-					AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
-					l = new ComparisonOpExpr(comparison_t, expr1, expr2);
-			   }
-			   | expressionAtom, =
-			   { 
-				   auto& l = get<BaseExpr*>(left.object);
-				   l = get<AtomExpr*>(right[0].object);
-				}
-			   ;
+	predicate := 
+		expressionAtom comparisonOperator expressionAtom, =
+		{
+			auto& l = get<BaseExpr*>(left.object);
+			comparison_t_t comparison_t = get<comparison_t_t>(right[1].object);
+			AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+			AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+			l = new ComparisonOpExpr(comparison_t, expr1, expr2);
+		}
+		| expressionAtom, =
+		{ 
+			auto& l = get<BaseExpr*>(left.object);
+			l = get<AtomExpr*>(right[0].object);
+		}
+		;
+
+	expressionAtom  := 
+		constantNum, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			l = new NumericExpr(get<int>(right[0].object));
+		}
+		| "STR_LITERAL", =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = new StrExpr(get<0>(get<string_literal_t>(token._token)));
+		}
+		| columnName, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& column = get<Column>(right[0].object);
+			l = new IdExpr(column.second, column.first);
+		}
+		| expressionAtomOp, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			l = get<AtomExpr*>(right[0].object);
+		}
+		;
 
 	left mathOp;
 
-	expressionAtom  := constantNum, =
-					{
-						auto& l = get<AtomExpr*>(left.object);
-						l = new NumericExpr(get<int>(right[0].object));
-					}
-					| "STR_LITERAL", =
-					{
-						auto& l = get<AtomExpr*>(left.object);
-						auto& token = get<Token>(right[0].object);
-						l = new StrExpr(get<0>(get<string_literal_t>(token._token)));
-					}
-					| columnName, =
-					{
-						auto& l = get<AtomExpr*>(left.object);
-						auto& column = get<Column>(right[0].object);
-						l = new IdExpr(column.second, column.first);
-					}
-					| expressionAtom mathOperator expressionAtom, mathOp, =
-					{
-						auto& l = get<AtomExpr*>(left.object);
-						math_t_t math_t = get<math_t_t>(right[1].object);
-						AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
-						AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
-						l = new MathOpExpr(math_t, expr1, expr2);
-					}
-					;
-
-	constantNum := ["-"] positiveNum, =
-				{
-					auto& l = get<int>(left.object);
-					if(right.size() > 1)
-					{
-						int val = get<int>(right[1].object);
-						l = -val;
-					}
-					else
-					{
-						l = get<int>(right[0].object);
-					}
-				}
-				;
-	
-	positiveNum := "NUMBER_CONSTANT", =
-				{ 
-					auto& l = get<int>(left.object);
-					auto& token = get<Token>(right[0].object);
-					l = get<0>(get<numeric_t>(token._token));
-				}
-				;
-				 
-	comparisonOperator := "==", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::EQ; }
-						| ">", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::GREATER; }
-						| "<", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::LESS; }
-						| "<=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::LEQ; }
-						| ">=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::GEQ; }
-						| "!=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::NEQ; }
-						;
-
-	logicalOperator := "AND", logicOp, ={ auto& l = get<logical_t_t>(left.object); l = logical_t_t::AND; }
-					 | "OR", logicOp, ={ auto& l = get<logical_t_t>(left.object); l = logical_t_t::OR; }
-					 ;
 	rank {
 		properties = mathOp;
-		mathOperator := "*", 0, ={ auto& l = get<math_t_t>(left.object); l = math_t_t::MUL; }
-					  | "/", 0, ={ auto& l = get<math_t_t>(left.object); l = math_t_t::DIV; }
-					  | "%", 1, ={ auto& l = get<math_t_t>(left.object); l = math_t_t::MOD; }
-					  | "+", 2, ={ auto& l = get<math_t_t>(left.object); l = math_t_t::ADD; }
-					  | "-", 2, ={ auto& l = get<math_t_t>(left.object); l = math_t_t::SUB; }
-					  ;
-    }
+		expressionAtomOp := 
+			expressionAtom {"*"|"/"|"%"} expressionAtom, 1, =
+			{
+				auto& l = get<AtomExpr*>(left.object);
+				auto& token = get<Token>(right[1].object);
+				math_t_t math_t;
+				auto& t = get<type>(token._token);
+				if(t == type::MUL)
+					math_t = math_t_t::MUL;
+				else if(t == type::DIV)
+					math_t = math_t_t::DIV;
+				else if(t == type::MOD)
+					math_t = math_t_t::MOD;
+				AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+				AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+				l = new MathOpExpr(math_t, expr1, expr2);
+			}
+			| expressionAtom {"+"|"-"} expressionAtom, 0, =
+			{
+				auto& l = get<AtomExpr*>(left.object);
+				auto& token = get<Token>(right[1].object);
+				math_t_t math_t;
+				auto& t = get<type>(token._token);
+				if(t == type::ADD)
+					math_t = math_t_t::ADD;
+				else if(t == type::SUB)
+					math_t = math_t_t::SUB;
+				AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+				AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+				l = new MathOpExpr(math_t, expr1, expr2);
+			}
+			;
+	}
+
+	
+
+	constantNum := 
+		["-"] positiveNum, =
+		{
+			auto& l = get<int>(left.object);
+			if(right.size() > 1)
+			{
+				int val = get<int>(right[1].object);
+				l = -val;
+			}
+			else
+			{
+				l = get<int>(right[0].object);
+			}
+		}
+		;
+	
+	positiveNum := 
+		"NUMBER_CONSTANT", =
+		{ 
+			auto& l = get<int>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = get<0>(get<numeric_t>(token._token));
+		}
+		;
+				 
+	comparisonOperator := 
+		"==", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::EQ; }
+		| ">", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::GREATER; }
+		| "<", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::LESS; }
+		| "<=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::LEQ; }
+		| ">=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::GEQ; }
+		| "!=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::NEQ; }
+		;
+
+	logicalOperator := 
+		"AND", logicOp, ={ auto& l = get<logical_t_t>(left.object); l = logical_t_t::AND; }
+		| "OR", logicOp, ={ auto& l = get<logical_t_t>(left.object); l = logical_t_t::OR; }
+		;
+	
 	```
 	ostream &print_symbol(const long long s) {
         if (s < 0)
