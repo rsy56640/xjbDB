@@ -88,7 +88,6 @@ namespace DB
 		vector<string> colNames_; //for create definition
 		vector<table::value_t> defaults; //for constrain default
 		vector<string> fkTables; //for constrain 
-		stack<Node *> stk;
 	};
 	
 
