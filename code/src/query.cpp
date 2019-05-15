@@ -57,13 +57,6 @@ namespace DB::query {
 			auto res = analyze(lexer.getTokens());
 			value = res.sqlValue;
 
-			if (debug::PARSE_TREE_PNG)
-			{
-				auto root = res.stk.top();
-				std::fstream fs("ast.dot", std::fstream::out);
-				DotGen(root, fs);
-				fs.close();
-			}
 
 			if (debug::PARSE_LOG)
 				std::cout << "\n--End Parse---------------------------------------\n" << std::endl;

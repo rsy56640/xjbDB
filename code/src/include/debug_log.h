@@ -42,8 +42,6 @@ namespace DB::debug
 		PARSE_LOG = false,
 		QUERY_LOG = false,
 
-		PARSE_TREE_PNG = false,
-
         NON_DEBUG = false,
         xbjDB_DEBUG = true,
 

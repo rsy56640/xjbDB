@@ -15,66 +15,6 @@ alias
 #include <queue>
 #include <cassert>
 
-struct Node
-{
-	Node(std::string s) :content(std::move(s)) {}
-	std::deque<Node *> childs;
-	const std::string content;
-	int index;
-	void push_back(Node* child) { childs.push_back(child); }
-	~Node() {
-		for (Node* nptr : childs) {
-			delete nptr;
-		}
-	}
-};
-using Node_ptr = Node * ;
-
-void DotGen(Node_ptr root, std::ostream& out) {
-	int curIndex = 1;
-	std::queue<Node *> nodesToBeRead;
-	root->index = curIndex++;
-	nodesToBeRead.push(root);
-
-	out << "digraph tree{" << std::endl;
-
-	while (!nodesToBeRead.empty()) {
-		Node *currentNode = nodesToBeRead.front();
-		nodesToBeRead.pop();
-
-		for (Node_ptr p : currentNode->childs) {
-			p->index = curIndex++;
-			nodesToBeRead.push(p);
-			out << std::to_string(currentNode->index) + "->" + std::to_string(p->index) << std::endl;
-		}
-
-		out << std::to_string(currentNode->index) + "[label=\"" + currentNode->content + "\"];" << std::endl;
-	}
-
-	out << "}" << std::endl;
-}
-
-
-template<typename _Ty>
-void _reduce_(Node_ptr __root, _Ty arg)
-{
-	if constexpr(std::is_same_v<std::decay_t<_Ty>, Node_ptr>) {
-		__root->push_back(arg);
-	}
-	else {
-		static_assert(
-			std::is_same_v<std::decay_t<_Ty>, std::decay_t<const char*>>,
-			"Require const char* for terminate symbol");
-		__root->push_back(make_node(arg));
-	}
-}
-
-template<typename _Ty, typename ..._Rest>
-void _reduce_(Node_ptr __root, _Ty arg, _Rest... args)
-{
-	_reduce_(__root, arg);
-	_reduce_(__root, args...);
-}
 
 #include "page.h"
 #include "table.h"
@@ -182,22 +122,6 @@ namespace DB
 	using mathOperator = math_t_t;
 
 	back = {
-		if (debug::PARSE_TREE_PNG)
-		{
-			Node *left_node = new Node(utils::type_name_map[left.type]);
-			for (size_t i = right.size() - 1; i < right.size(); --i)
-			{
-				if (right[i].type < 0) 
-				{
-					left_node->childs.push_front(info.stk.top());
-					info.stk.pop();
-				}
-				else
-					left_node->childs.push_front(new Node(utils::type_name_map[right[i].type]));
-			}
-			info.stk.push(left_node);
-		}
-		
 		if(debug::PARSE_LOG)
 		{
 			cout << "REDUCE: ";
