@@ -185,7 +185,7 @@ namespace DB
 		if (debug::PARSE_TREE_PNG)
 		{
 			Node *left_node = new Node(utils::type_name_map[left.type]);
-			for (size_t i = right.size() - 1; i < right.size(); --i) 
+			for (size_t i = right.size() - 1; i < right.size(); --i)
 			{
 				if (right[i].type < 0) 
 				{
@@ -717,42 +717,40 @@ namespace DB
 		;
 
 	left mathOp;
+	rank opRank;
 
-	rank {
-		properties = mathOp;
-		expressionAtomOp := 
-			expressionAtom {"*"|"/"|"%"} expressionAtom, 1, =
-			{
-				auto& l = get<AtomExpr*>(left.object);
-				auto& token = get<Token>(right[1].object);
-				math_t_t math_t;
-				auto& t = get<type>(token._token);
-				if(t == type::MUL)
-					math_t = math_t_t::MUL;
-				else if(t == type::DIV)
-					math_t = math_t_t::DIV;
-				else if(t == type::MOD)
-					math_t = math_t_t::MOD;
-				AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
-				AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
-				l = new MathOpExpr(math_t, expr1, expr2);
-			}
-			| expressionAtom {"+"|"-"} expressionAtom, 0, =
-			{
-				auto& l = get<AtomExpr*>(left.object);
-				auto& token = get<Token>(right[1].object);
-				math_t_t math_t;
-				auto& t = get<type>(token._token);
-				if(t == type::ADD)
-					math_t = math_t_t::ADD;
-				else if(t == type::SUB)
-					math_t = math_t_t::SUB;
-				AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
-				AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
-				l = new MathOpExpr(math_t, expr1, expr2);
-			}
-			;
-	}
+	expressionAtomOp := 
+		expressionAtom {"*"|"/"|"%"} expressionAtom, opRank 1 mathOp, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& token = get<Token>(right[1].object);
+			math_t_t math_t;
+			auto& t = get<type>(token._token);
+			if(t == type::MUL)
+				math_t = math_t_t::MUL;
+			else if(t == type::DIV)
+				math_t = math_t_t::DIV;
+			else if(t == type::MOD)
+				math_t = math_t_t::MOD;
+			AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+			AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+			l = new MathOpExpr(math_t, expr1, expr2);
+		}
+		| expressionAtom {"+"|"-"} expressionAtom, opRank 0 mathOp, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& token = get<Token>(right[1].object);
+			math_t_t math_t;
+			auto& t = get<type>(token._token);
+			if(t == type::ADD)
+				math_t = math_t_t::ADD;
+			else if(t == type::SUB)
+				math_t = math_t_t::SUB;
+			AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+			AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+			l = new MathOpExpr(math_t, expr1, expr2);
+		}
+		;
 
 	
 
