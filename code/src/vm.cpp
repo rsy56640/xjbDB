@@ -588,14 +588,14 @@ namespace DB::vm
                     if (targets[k].col_t == col_t_t::INTEGER)
                     {
                         int32_t i = std::get<int32_t>(v);
+                        int32_t old_i = page::get_range_INT(vEntry, targets[k].range);
+                        if (i != old_i)
+                            diff_num++;
                         // FK constraint
                         if (targets[k].fk) {
-                            int32_t old_i = page::get_range_INT(vEntry, targets[k].range);
                             if (!table_pk_ref_INT[targets[k].fk_table].count(i))
                                 ok_to_update = false;
                             else {
-                                if (i != old_i)
-                                    diff_num++;
                                 add_ref.push_back(&table_pk_ref_INT[targets[k].fk_table][i]);
                                 sub_ref.push_back(&table_pk_ref_INT[targets[k].fk_table][old_i]);
                             }
@@ -606,14 +606,14 @@ namespace DB::vm
                     else
                     {
                         std::string s = std::get<std::string>(v);
+                        std::string old_s = page::get_range_VARCHAR(vEntry, targets[k].range);
+                        if (s != old_s)
+                            diff_num++;
                         // FK constraint
                         if (targets[k].fk) {
-                            std::string old_s = page::get_range_VARCHAR(vEntry, targets[k].range);
                             if (!table_pk_ref_VARCHAR[targets[k].fk_table].count(s))
                                 ok_to_update = false;
                             else {
-                                if (s != old_s)
-                                    diff_num++;
                                 add_ref.push_back(&table_pk_ref_VARCHAR[targets[k].fk_table][s]);
                                 sub_ref.push_back(&table_pk_ref_VARCHAR[targets[k].fk_table][old_s]);
                             }
