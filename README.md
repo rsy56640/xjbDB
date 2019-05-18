@@ -1,4 +1,31 @@
 # xjbDB
+
+新开一个 branch 叫做 **presentation-opt**，用于交付学校的暑期实验项目。
+
+基于 branch presentation 做了一些工作：
+
+### Bug fixed
+
+- issue https://github.com/rsy56640/xjbDB/issues/11 BUG: doUpdate cnt error, fixed in https://github.com/rsy56640/xjbDB/commit/1718dad576cb9669e9b764046e91b0579452b75f
+- []()
+- []()
+
+### 功能及优化
+
+- []()
+- []()
+- []()
+
+### branch presentation-opt 的文档
+
+- [设计文档](https://github.com/rsy56640/xjbDB/tree/presentation-opt/doc)
+- [参考资料](https://github.com/rsy56640/xjbDB/tree/presentation-opt/reference)
+
+
+-----
+
+## Branch "presentation"
+
 Team Project for Software Engineering course
 
 - [设计文档](https://github.com/rsy56640/xjbDB/tree/presentation/doc)
