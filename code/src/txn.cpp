@@ -52,12 +52,16 @@ namespace DB::txn
             page::delta_record_t* next = record->next_delta_;
             while (next != nullptr) {
                 last_commit_ts = next->commit_ts_;
+                if (last_commit_ts > begin_ts) {
+                    if (read_info.col_num_ == next->col_num_) {
+                        ok = false;
+                        break;
+                    }
+                }
                 next = next->next_delta_;
             }
-            if (last_commit_ts > begin_ts) {
-                ok = false;
+            if (!ok)
                 break;
-            }
         }
 
         if (!ok) {

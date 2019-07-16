@@ -3,7 +3,20 @@
 新开一个 branch 叫做 **mvcc-trial**。   
 **这个mvcc实现我是不打算能用的，主要为了搞懂一些细节。**
 
+<img src="doc/assets/mvcc.png" width="360"/>
 
+通过 index 找到 v，即一条 record，后面跟了一串 delta chain（old2new）
+
+- 对于读操作，检查 commit-col 中需要读的 col
+  - 如果没有被锁，就进入 chain，逐个 apply delta
+  - 如果被锁，则自旋等待
+- 对于写操作，记录 read/write set，进入 validation
+  - 检查 read set
+      - 沿着 delta chain 向下，如果有列冲突，并且 commit-ts 比 自己begin-ts 大，就认为冲突
+  - 锁住 write set 对应的列
+  - 获得 commit-ts
+  - 更新 delta chain
+  - 释放列
 
 
 -----
