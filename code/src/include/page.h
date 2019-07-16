@@ -230,10 +230,12 @@ namespace DB::page
      *
      */
     struct delta_record_t {
-        uint32_t col_num_;
-        value_t new_value_;
-        ts_t commit_ts_;
         delta_record_t* next_delta_ = nullptr;
+        uint32_t col_num_binary_;
+        ts_t commit_ts_;
+        value_t new_value_;
+        bool deleted_ = false;
+        void set_delete() { deleted_ = true; col_num_binary_ = ~0; }
     };
     struct tuple_t {
         char tuple_[MAX_TUPLE_SIZE] = { 0 }; // tuple content... maybe other pointer...
@@ -245,6 +247,7 @@ namespace DB::page
         std::atomic<uint32_t> commit_col_;
         ts_t commit_ts_;
         delta_record_t* next_delta_ = nullptr;
+        //std::atomic<uint32_t> ref_; // for deleted
 
         void spin_check_col(uint32_t col_num) { while (commit_col_.load()&(1 << col_num)); }
         void set_commit_col(uint32_t col_num) { commit_col_.store(commit_col_.load() | (1 << col_num)); }

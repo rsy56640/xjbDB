@@ -5,6 +5,7 @@
 #include "vm.h"
 #include <vector>
 #include <deque>
+#include <unordered_map>
 
 namespace DB::txn
 {
@@ -20,25 +21,35 @@ namespace DB::txn
     struct txn_t
     {
         txn_t(vm::VM* vm);
-        void commit();  // info vm
-        void abort();   // info vm
+        void commit_on_validation();  // info vm
+        void abort_on_validation();   // info vm
+
 
         vm::VM* vm_;
         const ts_t begin_ts_;
         std::vector<query::SQLValue> ops_;
 
-        struct read_info_t {
-            page::record_t* record_ptr_;
-            uint32_t col_num_;
-        };
+
         struct write_info_t {
             page::record_t* record_ptr_;
             uint32_t col_num_;
             std::deque<page::delta_record_t*> deltas_;
         };
-        std::deque<read_info_t> read_set;
         std::deque<write_info_t> write_set;
-    };
+
+
+        using col_set_t = uint32_t;
+        std::unordered_map<page::record_t*, col_set_t> read_set;
+        void add_read_col(page::record_t* record, uint32_t col_num_binary) {
+            read_set[record] |= col_num_binary;
+        }
+        bool check_read_conflict(page::record_t* record, uint32_t col_num_binary) {
+            auto it = read_set.find(record);
+            if (it == read_set.end()) return false;
+            return it->second & col_num_binary;
+        }
+
+    }; // end class `txn_t`
 
 
     void validation_routine(txn_t* txn);

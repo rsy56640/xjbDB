@@ -23,11 +23,11 @@ namespace DB::txn
 
     txn_t::txn_t(vm::VM* vm) :vm_(vm), begin_ts_(consume_ts()) {}
 
-    void txn_t::commit() {
+    void txn_t::commit_on_validation() {
 
     }
 
-    void txn_t::abort() {
+    void txn_t::abort_on_validation() {
 
     }
 
@@ -46,26 +46,25 @@ namespace DB::txn
         //const ts_t validation_ts = get_ts();
         bool ok = true;
 
-        for (txn_t::read_info_t read_info : txn->read_set) {
-            page::record_t* record = read_info.record_ptr_;
+        for (auto const[record, col_set] : txn->read_set) {
             ts_t last_commit_ts = record->commit_ts_;
-            page::delta_record_t* next = record->next_delta_;
-            while (next != nullptr) {
-                last_commit_ts = next->commit_ts_;
+            page::delta_record_t* delta = record->next_delta_;
+            while (delta != nullptr) {
+                last_commit_ts = delta->commit_ts_;
                 if (last_commit_ts > begin_ts) {
-                    if (read_info.col_num_ == next->col_num_) {
+                    if (txn->check_read_conflict(record, delta->col_num_binary_)) {
                         ok = false;
                         break;
                     }
                 }
-                next = next->next_delta_;
+                delta = delta->next_delta_;
             }
             if (!ok)
                 break;
         }
 
         if (!ok) {
-            txn->abort();
+            txn->abort_on_validation();
             return;
         }
 
@@ -95,7 +94,7 @@ namespace DB::txn
         for (auto& write_info : txn->write_set)
             write_info.record_ptr_->clear_commit_col();
 
-        txn->commit();
+        txn->commit_on_validation();
 
     } // end `void validation_routine(txn_t* txn)`
 
