@@ -1,5 +1,13 @@
 # xjbDB
 
+新开一个 branch 叫做 **mvcc-trial**。   
+**这个mvcc实现我是不打算能用的，主要为了搞懂一些细节。**
+
+
+
+
+-----
+
 新开一个 branch 叫做 **presentation-opt**，用于交付学校的暑期实验项目。
 
 基于 branch presentation 做了一些工作：

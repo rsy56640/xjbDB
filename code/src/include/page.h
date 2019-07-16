@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 #include "env.h"
+#include <variant>
 
 namespace DB::disk { class DiskManager; }
 namespace DB::tree { class BTree; }
@@ -223,6 +224,33 @@ namespace DB::page
     };
 
 
+    using ts_t = uint32_t;
+    using value_t = std::variant<int32_t, std::string>;
+    /* in brach "mvcc-trial",
+     *
+     */
+    struct delta_record_t {
+        uint32_t col_num_;
+        value_t new_value_;
+        ts_t commit_ts_;
+        delta_record_t* next_delta_ = nullptr;
+    };
+    struct tuple_t {
+        char tuple_[MAX_TUPLE_SIZE] = { 0 }; // tuple content... maybe other pointer...
+        void apply_delta(const delta_record_t* delta);
+    };
+    struct record_t {
+        tuple_t tuple_;
+
+        std::atomic<uint32_t> commit_col_;
+        ts_t commit_ts_;
+        delta_record_t* next_delta_ = nullptr;
+
+        void spin_check_col(uint32_t col_num) { while (commit_col_.load()&(1 << col_num)); }
+        void set_commit_col(uint32_t col_num) { commit_col_.store(commit_col_.load() | (1 << col_num)); }
+        void clear_commit_col() { commit_col_.store(0); }
+    };
+
 
     //
     // TableMetaPage
@@ -237,6 +265,7 @@ namespace DB::page
     struct ValueEntry {
         value_state value_state_ = value_state::OBSOLETE;
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
+        record_t* real_record_; // only for branch 'mvcc-trial'
     };
     struct range_t { uint32_t begin = 0, len = 0; };
     void update_vEntry(ValueEntry& dest, const ValueEntry& src);

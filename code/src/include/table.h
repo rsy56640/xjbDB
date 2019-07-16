@@ -16,7 +16,7 @@ namespace DB::vm { class VM; }
 namespace DB::table
 {
 
-    using value_t = std::variant<int32_t, std::string>;
+    using value_t = page::value_t;
 
     extern vm::VM* vm_; // define as nullptr in table.cpp
 
