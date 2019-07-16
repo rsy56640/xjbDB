@@ -7,7 +7,7 @@
 ### Bug fixed
 
 - [issue#11 BUG: doUpdate cnt error](https://github.com/rsy56640/xjbDB/issues/11) , fixed in [`1718dad`](https://github.com/rsy56640/xjbDB/commit/1718dad576cb9669e9b764046e91b0579452b75f)
-- []()
+- [issue#9 BUG: WAL, replay undo log on FREE page will cause overwrite error](https://github.com/rsy56640/xjbDB/issues/9), fixed in [`d7adeb9`](https://github.com/rsy56640/xjbDB/commit/d7adeb92441d8da8231b331d489200e2439d5c4e)
 - []()
 
 ### 功能及优化
