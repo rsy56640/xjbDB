@@ -6,7 +6,7 @@
 
 ### Bug fixed
 
-- issue https://github.com/rsy56640/xjbDB/issues/11 BUG: doUpdate cnt error, fixed in https://github.com/rsy56640/xjbDB/commit/1718dad576cb9669e9b764046e91b0579452b75f
+- [issue#11 BUG: doUpdate cnt error](https://github.com/rsy56640/xjbDB/issues/11) , fixed in [`1718dad`](https://github.com/rsy56640/xjbDB/commit/1718dad576cb9669e9b764046e91b0579452b75f)
 - []()
 - []()
 

@@ -345,7 +345,7 @@ namespace DB::disk
                 return;
             }
 
-            const page_id_t page_id = page::read_int(page_data + page::offset::PAGE_ID);
+            const page_id_t page_id = page::read_int(page_data + page::offset::FREE_PAGE_ID);
 
             db_io_.seekp(page_id * PAGE_SIZE, std::ios_base::beg);
             db_io_.write(page_data, PAGE_SIZE);

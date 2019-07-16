@@ -72,6 +72,9 @@ namespace DB::page
             PAGE_T = 0,
             PAGE_ID = 4,
 
+            // Free Page
+            FREE_PAGE_ID = 8,
+
             // DB meta
             CUR_PAGE_NO = 8,
             TABLE_NUM = 12,

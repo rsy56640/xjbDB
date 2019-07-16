@@ -734,7 +734,7 @@ namespace DB::page
             if (free_update_)
                 return;
             free_update_ = true;
-            write_int(data_ + offset::PAGE_ID, add_free_page()); // write next_free_page_id
+            write_int(data_ + offset::FREE_PAGE_ID, add_free_page()); // write next_free_page_id
             return;
         }
         write_int(data_ + offset::PAGE_ID, page_id_);
@@ -937,7 +937,7 @@ namespace DB::page
             if (free_update_)
                 return;
             free_update_ = true;
-            write_int(data_ + offset::PAGE_ID, add_free_page()); // write next_free_page_id
+            write_int(data_ + offset::FREE_PAGE_ID, add_free_page()); // write next_free_page_id
             return;
         }
         write_int(data_ + offset::PAGE_ID, page_id_);
@@ -1024,7 +1024,7 @@ namespace DB::page
             if (free_update_)
                 return;
             free_update_ = true;
-            write_int(data_ + offset::PAGE_ID, add_free_page()); // write next_free_page_id
+            write_int(data_ + offset::FREE_PAGE_ID, add_free_page()); // write next_free_page_id
             return;
         }
         write_int(data_ + offset::PAGE_ID, page_id_);
@@ -1106,7 +1106,7 @@ namespace DB::page
             if (free_update_)
                 return;
             free_update_ = true;
-            write_int(data_ + offset::PAGE_ID, add_free_page()); // write next_free_page_id
+            write_int(data_ + offset::FREE_PAGE_ID, add_free_page()); // write next_free_page_id
             return;
         }
         write_int(data_ + offset::PAGE_ID, page_id_);
@@ -1225,7 +1225,7 @@ namespace DB::page
                 if (free_update_)
                     return;
                 free_update_ = true;
-                write_int(data_ + offset::PAGE_ID, add_free_page()); // write next_free_page_id
+                write_int(data_ + offset::FREE_PAGE_ID, add_free_page()); // write next_free_page_id
                 return;
             }
             write_int(data_ + offset::PAGE_ID, page_id_);
