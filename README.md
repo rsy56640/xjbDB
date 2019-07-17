@@ -3,6 +3,9 @@
 新开一个 branch 叫做 **mvcc-trial**。   
 **这个mvcc实现我是不打算能用的，主要为了搞懂一些细节。**
 
+> 不能用的原因在于：sql引擎没有把谓词里面的pk和其他信息分开，所以没办法用索引。所以现在的 upadte txn 都是全表扫描，对于每一个 tuple 都检查谓词，然后尝试更新。   
+> 全表扫描会上大锁，就没有 concurrency 了
+
 <img src="doc/assets/mvcc.png" width="360"/>
 
 通过 index 找到 v，即一条 record，后面跟了一串 delta chain（old2new）
