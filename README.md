@@ -1,5 +1,16 @@
 # xjbDB
 
+## 毕设
+
+毕设做 OLAP，新开一个分支 query，有两个子分支，负责人分别是 lrk 和 rsy
+
+- query-codegen
+- query-execution
+
+
+
+-----
+
 新开一个 branch 叫做 **presentation-opt**，用于交付学校的暑期实验项目。
 
 基于 branch presentation 做了一些工作：
