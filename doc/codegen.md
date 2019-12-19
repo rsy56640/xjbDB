@@ -1,6 +1,6 @@
 # codegen 流程分析
 
-<img src="assets/pull-based-pipeline.png" width="600">
+<img src="assets/push-based-pipeline.png" width="600">
 
 关于 push-based 模型，考虑遍历整个 query tree
 
