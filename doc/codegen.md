@@ -25,6 +25,7 @@
 
 - 遇见正常任务
   - 评估 workload，考虑是否创建新的 exectuion operator（这个是并发维度的考虑，可以不需要）
+    
       - > 比如 scan table 节点要扫描1亿行，之后是一个 sigma，那么可以把 scan table 这个 小operator 视为一个 exectuion operator。于是之后可以让线程池同时执行 scan table 和之后的 sigma
   - 加入 exectuion operator
 - 遇到 pipeline breaker
@@ -203,4 +204,24 @@ for(task : tasks) {
           - 0
   - c++ code 中对接 storage engine handler？
 - 怎么调这个.so
+
+
+
+## todo
+
+switch AP/TP
+
+for AP 
+
+- keyword /parse
+- sql grammer syntax 
+  - where-clause split
+  - AND push
+  - join order unfixed
+- inter-temp table meta
+  - typeinfo
+- codegen
+  - HT init with ...
+  - for PK, limit by iterator
+  - for others, change into physical column, limit by pred func
 
