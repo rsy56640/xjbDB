@@ -1393,7 +1393,7 @@ namespace DB::vm
                 if (table->bt_->key_t() == page::key_t_t::INTEGER)
                     query_print("%d -> ", it.getK().key_int);
                 else
-                    query_print("%s -> ", it.getK().key_str);
+                    query_print("%s -> ", it.getK().key_str.c_str());
 
                 ValueEntry vEntry = it.getV();
                 for (output_t output : outputCol) {
