@@ -1,15 +1,15 @@
 #pragma once
-#include <iostream>
-#include <string>
-#include <vector>
-#include <variant>
-#include <optional>
-#include <unordered_map>
-#include <memory>
-#include "table.h"
-#include "ast.h"
+
+#include "query_base.h"
+#include "ast_tp.h"
+
+/*
+ * this file includes
+ *  specific definitions for tp
+ */
 
 namespace DB::query {
+
 
     //===========================================================
     //DDL
@@ -137,10 +137,10 @@ namespace DB::query {
     };
 
     //return type to vm, any exception that occurs will be catched and converted into ErrorMsg
-    using SQLValue = std::variant < CreateTableInfo, DropTableInfo, SelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg>;
+    using TPValue = std::variant < CreateTableInfo, DropTableInfo, SelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg>;
 
-    void print(const SQLValue &value);
+    void print(const TPValue &value);
 
-    SQLValue sql_parse(const std::string &sql);
+    TPValue sql_parse(const std::string &sql);
 
 }	//end namespace DB::query

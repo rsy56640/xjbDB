@@ -1,4 +1,4 @@
-#include "include/ast.h"
+#include "ast_tp.h"
 #include "include/vm.h"
 #include "include/debug_log.h"
 #include <iostream>

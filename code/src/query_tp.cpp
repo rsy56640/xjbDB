@@ -1,8 +1,8 @@
 #pragma once
 #include <iostream>
-#include "include/query.h"
+#include "query_tp.h"
 #include "include/lexer.h"
-#include "include/parse.h"
+#include "parse_tp.h"
 #include "include/debug_log.h"
 
 namespace DB::util
@@ -13,9 +13,9 @@ namespace DB::util
 
 namespace DB::query {
 
-	void print(const SQLValue &value)
+	void print(const TPValue &value)
 	{
-		std::cout << "=========Print SQLValue============================" << std::endl;
+		std::cout << "=========Print TPValue============================" << std::endl;
 		std::visit(DB::util::overloaded{
 			[](const CreateTableInfo& t) {},
 			[](const DropTableInfo& t) { t.print(); },
@@ -26,14 +26,14 @@ namespace DB::query {
 			[](const Show& t) { t.print(); },
 			[](const Exit& t) { t.print(); },
 			[](const ErrorMsg& t) { t.print(); },
-            [](auto&&) { debug::ERROR_LOG("`print(SQLValue)`\n"); },
+            [](auto&&) { debug::ERROR_LOG("`print(TPValue)`\n"); },
 			}, value);
-		std::cout << "=========End SQLValue============================" << std::endl;
+		std::cout << "=========End TPValue============================" << std::endl;
 	}
 
-	SQLValue sql_parse(const std::string &sql)
+	TPValue sql_parse(const std::string &sql)
 	{
-		SQLValue value;
+		TPValue value;
 		try
 		{
 			DB::lexer::Lexer lexer;
