@@ -6,7 +6,7 @@
 #include "thread_pool.h"
 #include "page.h"
 #include "table.h"
-#include "query.h"
+#include "query_tp.h"
 #include <future>
 #include <unordered_map>
 #include <unordered_set>
@@ -103,7 +103,7 @@ namespace DB::vm
             bool error = false;
             std::string msg;
         };
-        process_result_t query_process(const query::SQLValue&);
+        process_result_t query_process(const query::TPValue&);
 
         void doWAL(page::page_id_t prev_last_page_id, const std::string& sql);
 

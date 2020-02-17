@@ -1,8 +1,8 @@
 #include "include/vm.h"
 #include "include/debug_log.h"
 #include "include/table.h"
-#include "include/ast.h"
-#include "include/query.h"
+#include "ast_tp.h"
+#include "query_tp.h"
 #include <iostream>
 #include <variant>
 #include <functional>
@@ -188,7 +188,7 @@ namespace DB::vm
         {
             const std::string sql_statemt = conslole_reader_.get_sql();
 
-            query::SQLValue plan = query::sql_parse(sql_statemt);
+            query::TPValue plan = query::sql_parse(sql_statemt);
 
             const page::page_id_t prev_last_page_id =
                 storage_engine_.disk_manager_->get_cut_page_id();
@@ -248,7 +248,7 @@ namespace DB::vm
 
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
     template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
-    VM::process_result_t VM::query_process(const query::SQLValue& plan)
+    VM::process_result_t VM::query_process(const query::TPValue& plan)
     {
         VM::process_result_t result;
         std::visit(
