@@ -46,10 +46,10 @@ namespace DB
 	
 using token_type = lexer::Token;size_t (*get_type)(const token_type &) = lexer::getType;
 struct pass_info {
-TPValue sqlValue;
+TPValue tpValue;
 int len;	 		vector<string> colNames_;  		vector<table::value_t> defaults;  		vector<string> fkTables;
 };
-struct default_object_type{ };struct iter_object_type;using object_type = std::variant<ColumnInfo, CreateTableInfo, JoinOp*, InsertInfo, DropTableInfo, SelectInfo, std::vector<ColumnInfo>, string, UpdateInfo, DeleteInfo, col_t_t, comparison_t_t, Elements, Element, ProjectOp*, std::vector<OrderbyElement>, OrderbyElement, math_t_t, Column, BaseExpr*, AtomExpr*, int, logical_t_t, default_object_type, token_type, iter_object_type>;
+struct default_object_type{ };struct iter_object_type;using object_type = std::variant<ColumnInfo, CreateTableInfo, JoinOp*, InsertInfo, DropTableInfo, TPSelectInfo, std::vector<ColumnInfo>, string, UpdateInfo, DeleteInfo, col_t_t, comparison_t_t, Elements, Element, ProjectOp*, std::vector<OrderbyElement>, OrderbyElement, math_t_t, Column, BaseExpr*, AtomExpr*, int, logical_t_t, default_object_type, token_type, iter_object_type>;
 namespace utils { extern const std::string * const type_name_map; }
 using ll = long long;
 struct symbol_type;struct iter_object_type {std::vector<symbol_type> data;};
@@ -111,7 +111,7 @@ symbol_type __process_3(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&info](default_object_type&$$) {
-info.sqlValue = Show();
+info.tpValue = Show();
 };
 run(std::get<default_object_type>(left.object));
 __0_0(left, right, info);
@@ -121,7 +121,7 @@ symbol_type __process_4(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&info](default_object_type&$$) {
-info.sqlValue = Exit();
+info.tpValue = Exit();
 };
 run(std::get<default_object_type>(left.object));
 __0_0(left, right, info);
@@ -131,7 +131,7 @@ symbol_type __process_5(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-info.sqlValue = get<CreateTableInfo>(right[0].object);
+info.tpValue = get<CreateTableInfo>(right[0].object);
 };
 run();
 __0_0(left, right, info);
@@ -141,7 +141,7 @@ symbol_type __process_6(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-info.sqlValue = get<DropTableInfo>(right[0].object);
+info.tpValue = get<DropTableInfo>(right[0].object);
 };
 run();
 __0_0(left, right, info);
@@ -151,7 +151,7 @@ symbol_type __process_7(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-info.sqlValue = get<SelectInfo>(right[0].object);
+info.tpValue = get<TPSelectInfo>(right[0].object);
 };
 run();
 __0_0(left, right, info);
@@ -161,7 +161,7 @@ symbol_type __process_8(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-info.sqlValue = get<InsertInfo>(right[0].object);
+info.tpValue = get<InsertInfo>(right[0].object);
 };
 run();
 __0_0(left, right, info);
@@ -171,7 +171,7 @@ symbol_type __process_9(const ll left_type, std::vector<symbol_type> &right, pas
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-info.sqlValue = get<UpdateInfo>(right[0].object);
+info.tpValue = get<UpdateInfo>(right[0].object);
 };
 run();
 __0_0(left, right, info);
@@ -181,7 +181,7 @@ symbol_type __process_10(const ll left_type, std::vector<symbol_type> &right, pa
 using $Tp = default_object_type;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-info.sqlValue = get<DeleteInfo>(right[0].object);
+info.tpValue = get<DeleteInfo>(right[0].object);
 };
 run();
 __0_0(left, right, info);
@@ -480,10 +480,10 @@ __0_0(left, right, info);
 return left;
 }
 symbol_type __process_37(const ll left_type, std::vector<symbol_type> &right, pass_info &info) {
-using $Tp = SelectInfo;
+using $Tp = TPSelectInfo;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-auto& l = std::get<SelectInfo>(left.object);
+auto& l = std::get<TPSelectInfo>(left.object);
 JoinOp* joinOp = get<JoinOp*>(right[2].object);
 BaseOp* baseOp = joinOp;
 if(right.size() > 3)

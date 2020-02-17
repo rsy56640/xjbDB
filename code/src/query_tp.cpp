@@ -5,11 +5,6 @@
 #include "parse_tp.h"
 #include "include/debug_log.h"
 
-namespace DB::util
-{
-	template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-	template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
-}
 
 namespace DB::query {
 
@@ -17,21 +12,22 @@ namespace DB::query {
 	{
 		std::cout << "=========Print TPValue============================" << std::endl;
 		std::visit(DB::util::overloaded{
-			[](const CreateTableInfo& t) {},
+			[](const CreateTableInfo& t) { t.print(); },
 			[](const DropTableInfo& t) { t.print(); },
-			[](const SelectInfo& t) { t.print(); },
+			[](const TPSelectInfo& t) { t.print(); },
 			[](const UpdateInfo& t) { t.print(); },
 			[](const InsertInfo& t) { t.print(); },
 			[](const DeleteInfo& t) { t.print(); },
 			[](const Show& t) { t.print(); },
 			[](const Exit& t) { t.print(); },
 			[](const ErrorMsg& t) { t.print(); },
-            [](auto&&) { debug::ERROR_LOG("`print(TPValue)`\n"); },
+			[](const Switch& t) { t.print(); },
+			[](auto&&) { debug::ERROR_LOG("`print(TPValue)`\n"); },
 			}, value);
 		std::cout << "=========End TPValue============================" << std::endl;
 	}
 
-	TPValue sql_parse(const std::string &sql)
+	TPValue tp_parse(const std::string &sql)
 	{
 		TPValue value;
 		try
@@ -55,7 +51,7 @@ namespace DB::query {
 			}
 
 			auto res = analyze(lexer.getTokens());
-			value = res.sqlValue;
+			value = res.tpValue;
 
 
 			if (debug::PARSE_LOG)

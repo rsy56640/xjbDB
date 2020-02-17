@@ -1,7 +1,13 @@
 #pragma once
 
+#include "table.h"
 #include "query_base.h"
 #include "ast_tp.h"
+#include <vector>
+#include <variant>
+#include <optional>
+#include <unordered_map>
+#include <memory>
 
 /*
  * this file includes
@@ -41,7 +47,9 @@ namespace DB::query {
         std::string name;
         std::shared_ptr<ast::AtomExpr> valueExpr;
     };
+
     using Elements = std::vector<Element>;
+
     struct InsertInfo {
         std::string sourceTable;
         Elements elements;
@@ -91,7 +99,8 @@ namespace DB::query {
     };
 
     using OrderbyElement = std::pair<ast::BaseExpr*, bool>;	//	orderExpr, isASC
-    struct SelectInfo {
+
+    struct TPSelectInfo {
         std::shared_ptr<ast::BaseOp> opRoot;
         std::vector<OrderbyElement> orderbys;
         void print() const
@@ -102,8 +111,6 @@ namespace DB::query {
     };
 
 
-    //===========================================================
-    //specified for vm
     struct Show
     {
         void print() const
@@ -113,34 +120,12 @@ namespace DB::query {
         }
     };
 
-    struct Exit
-    {
-        void print() const
-        {
-            std::cout << "Exit" << std::endl;
 
-        }
-    };
-
-    struct ErrorMsg {
-        std::string _msg;
-
-        ErrorMsg(const std::string msg)
-        {
-            _msg = msg;
-        }
-
-        void print() const
-        {
-            std::cout << _msg << std::endl;
-        }
-    };
-
-    //return type to vm, any exception that occurs will be catched and converted into ErrorMsg
-    using TPValue = std::variant < CreateTableInfo, DropTableInfo, SelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg>;
+    //tp query return type to vm
+    using TPValue = std::variant<CreateTableInfo, DropTableInfo, TPSelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg, Switch>;
 
     void print(const TPValue &value);
 
-    TPValue sql_parse(const std::string &sql);
+    TPValue tp_parse(const std::string &sql);
 
 }	//end namespace DB::query
