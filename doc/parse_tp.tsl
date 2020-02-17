@@ -18,9 +18,9 @@ alias
 
 #include "page.h"
 #include "table.h"
-#include "ast.h"
+#include "ast_tp.h"
 #include "lexer.h"
-#include "query.h"
+#include "query_tp.h"
 #include "debug_log.h"
 
 using namespace DB;
@@ -83,7 +83,7 @@ namespace DB
 	token_type = lexer::Token;
 	get_type = lexer::getType;
 	pass_info_struct = {
-        SQLValue sqlValue;
+        TPValue tpValue;
 		int len;	//for data type
 		vector<string> colNames_; //for create definition
 		vector<table::value_t> defaults; //for constrain default
@@ -134,19 +134,19 @@ namespace DB
 	sqlStatement := 
 		ddlStatement
 		| dmlStatement
-		| "SHOW", { info.sqlValue = Show(); }
-		| "EXIT", { info.sqlValue = Exit(); }
+		| "SHOW", { info.tpValue = Show(); }
+		| "EXIT", { info.tpValue = Exit(); }
 		;
 
 
 	ddlStatement := 
 		createTable, =
 		{ 
-			info.sqlValue = get<CreateTableInfo>(right[0].object);
+			info.tpValue = get<CreateTableInfo>(right[0].object);
 		}
 		| dropTable, =
 		{
-			info.sqlValue = get<DropTableInfo>(right[0].object);
+			info.tpValue = get<DropTableInfo>(right[0].object);
 		}
 		;
 
@@ -154,19 +154,19 @@ namespace DB
 	dmlStatement := 
 		selectStatement, =
 		{ 
-			info.sqlValue = get<SelectInfo>(right[0].object);
+			info.tpValue = get<SelectInfo>(right[0].object);
 		}
 		| insertStatement, =
 		{ 
-			info.sqlValue = get<InsertInfo>(right[0].object);
+			info.tpValue = get<InsertInfo>(right[0].object);
 		}
 		| updateStatement, =
 		{ 
-			info.sqlValue = get<UpdateInfo>(right[0].object);
+			info.tpValue = get<UpdateInfo>(right[0].object);
 		}
 		| deleteStatement, =
 		{ 
-			info.sqlValue = get<DeleteInfo>(right[0].object);
+			info.tpValue = get<DeleteInfo>(right[0].object);
 		}
 		;
 

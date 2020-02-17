@@ -21,7 +21,7 @@ void test()
 	char buffer[256];
 	cin.getline(buffer, 256);
     std::string sql(buffer);
-    SQLValue plan = query::sql_parse(sql);
+    TPValue plan = query::sql_parse(sql);
 
     printf("--------------------- test end ---------------------\n");
 

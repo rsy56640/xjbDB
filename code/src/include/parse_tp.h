@@ -13,9 +13,9 @@ alias
 
 #include "page.h"
 #include "table.h"
-#include "ast.h"
+#include "ast_tp.h"
 #include "lexer.h"
-#include "query.h"
+#include "query_tp.h"
 #include "debug_log.h"
 
 using namespace DB;
@@ -46,7 +46,7 @@ namespace DB
 	
 using token_type = lexer::Token;size_t (*get_type)(const token_type &) = lexer::getType;
 struct pass_info {
-SQLValue sqlValue;
+TPValue sqlValue;
 int len;	 		vector<string> colNames_;  		vector<table::value_t> defaults;  		vector<string> fkTables;
 };
 struct default_object_type{ };struct iter_object_type;using object_type = std::variant<ColumnInfo, CreateTableInfo, JoinOp*, InsertInfo, DropTableInfo, SelectInfo, std::vector<ColumnInfo>, string, UpdateInfo, DeleteInfo, col_t_t, comparison_t_t, Elements, Element, ProjectOp*, std::vector<OrderbyElement>, OrderbyElement, math_t_t, Column, BaseExpr*, AtomExpr*, int, logical_t_t, default_object_type, token_type, iter_object_type>;
