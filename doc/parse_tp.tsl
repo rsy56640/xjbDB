@@ -71,6 +71,7 @@ namespace DB
 		TABLE, FROM, WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
 		DEFAULT, PRIMARY_KEY, REFERENCES, 
+		SWITCH, 
 
 		",", ".", ";",
 		"?", ":",
@@ -136,6 +137,7 @@ namespace DB
 		| dmlStatement
 		| "SHOW", { info.tpValue = Show(); }
 		| "EXIT", { info.tpValue = Exit(); }
+		| "SWITCH", { info.tpValue = Switch(); }
 		;
 
 

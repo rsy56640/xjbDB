@@ -101,7 +101,8 @@ namespace DB::lexer
 		CREATE, DROP, INSERT, DELETE, UPDATE, SELECT, SHOW,
 		TABLE, FROM, WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
-		DEFAULT, PRIMARY_KEY, REFERENCES, 
+		DEFAULT, PRIMARY_KEY, REFERENCES,
+		SWITCH,
 
 		/* other operator */
 		COMMA, PERIOD, SEMICOLON,                    // ",", ".", ";"
@@ -143,6 +144,7 @@ namespace DB::lexer
 		{ "TABLE", type::TABLE },{ "FROM", type::FROM },{ "WHERE", type::WHERE },{ "JOIN", type::JOIN },
 		{ "ORDERBY", type::ORDERBY },{ "ASC", type::ASC },{ "DESC", type::DESC },{ "SET", type::SET },
 		{ "DEFAULT", type::DEFAULT },{ "PK", type::PRIMARY_KEY },{ "REFERENCES", type::REFERENCES },
+        { "SWITCH", type::SWITCH },
 
 		/* other operator */
 		{ ",", type::COMMA }, { ".", type::PERIOD }, { ";", type::SEMICOLON },
