@@ -68,9 +68,10 @@ namespace DB
 		CHAR, VARCHAR, "$",
 		NOT_NULL, DISTINCT, VALUES,
 		CREATE, DROP, INSERT, DELETE, UPDATE, SELECT, SHOW,
-		TABLE, "FROM", WHERE, JOIN,
+		TABLE, FROM, WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
 		DEFAULT, PRIMARY_KEY, REFERENCES, 
+		SWITCH, 
 
 		",", ".", ";",
 		"?", ":",
@@ -93,7 +94,7 @@ namespace DB
 
 	using createTable = CreateTableInfo;
 	using dropTable = DropTableInfo;
-	using selectStatement = SelectInfo;
+	using selectStatement = TPSelectInfo;
 	using insertStatement = InsertInfo;
 	using updateStatement = UpdateInfo;
 	using deleteStatement = DeleteInfo;
@@ -136,6 +137,7 @@ namespace DB
 		| dmlStatement
 		| "SHOW", { info.tpValue = Show(); }
 		| "EXIT", { info.tpValue = Exit(); }
+		| "SWITCH", { info.tpValue = Switch(); }
 		;
 
 
@@ -154,7 +156,7 @@ namespace DB
 	dmlStatement := 
 		selectStatement, =
 		{ 
-			info.tpValue = get<SelectInfo>(right[0].object);
+			info.tpValue = get<TPSelectInfo>(right[0].object);
 		}
 		| insertStatement, =
 		{ 
@@ -381,7 +383,7 @@ namespace DB
 	selectStatement := 
 		"SELECT" selectElements fromClause ["WHERE" expression] [orderByClause], =
 		{
-			auto& l = std::get<SelectInfo>(left.object);
+			auto& l = std::get<TPSelectInfo>(left.object);
 			JoinOp* joinOp = get<JoinOp*>(right[2].object);
 			BaseOp* baseOp = joinOp;
 			if(right.size() > 3)
