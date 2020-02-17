@@ -122,7 +122,7 @@ namespace DB::vm
         // query process functions
         void doCreate(process_result_t&, const query::CreateTableInfo&);
         void doDrop(process_result_t&, const query::DropTableInfo&);
-        void doSelect(process_result_t&, const query::SelectInfo&);
+        void doSelect(process_result_t&, const query::TPSelectInfo&);
         void doUpdate(process_result_t&, const query::UpdateInfo&);
         void doInsert(process_result_t&, const query::InsertInfo&);
         void doDelete(process_result_t&, const query::DeleteInfo&);

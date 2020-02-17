@@ -188,7 +188,7 @@ namespace DB::vm
         {
             const std::string sql_statemt = conslole_reader_.get_sql();
 
-            query::TPValue plan = query::sql_parse(sql_statemt);
+            query::TPValue plan = query::tp_parse(sql_statemt);
 
             const page::page_id_t prev_last_page_id =
                 storage_engine_.disk_manager_->get_cut_page_id();
@@ -255,7 +255,7 @@ namespace DB::vm
             overloaded{
                 [&result, this](const query::CreateTableInfo& info) { doCreate(result,info); },
                 [&result, this](const query::DropTableInfo& info) { doDrop(result,info); },
-                [&result, this](const query::SelectInfo& info) { doSelect(result,info);  },
+                [&result, this](const query::TPSelectInfo& info) { doSelect(result, info);  },
                 [&result, this](const query::UpdateInfo& info) { doUpdate(result,info); },
                 [&result, this](const query::InsertInfo& info) { doInsert(result,info); },
                 [&result, this](const query::DeleteInfo& info) { doDelete(result,info); },
@@ -485,7 +485,7 @@ namespace DB::vm
         result.msg = "table \"" + info.tableName + "\" has been dropped";
     }
 
-    void VM::doSelect(process_result_t& result, const query::SelectInfo& info)
+    void VM::doSelect(process_result_t& result, const query::TPSelectInfo& info)
     {
         // now ignore `ORDER BY`
 
