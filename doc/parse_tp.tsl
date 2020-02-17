@@ -355,7 +355,7 @@ namespace DB
 		;
 
 	deleteStatement := 
-		"DELETE" "FROM" tableName ["WHERE" expression], =
+		"DELETE" FROM tableName ["WHERE" expression], =
 		{
 			auto& l = get<DeleteInfo>(left.object);
 			l.sourceTable = get<string>(right[2].object);
@@ -522,7 +522,7 @@ namespace DB
 		;
 
 	fromClause := 
-		"FROM" tableName [{"," tableName}*], =
+		FROM tableName [{"," tableName}*], =
 		{
 			auto& l = get<JoinOp*>(left.object);
 			l = new JoinOp();
@@ -539,7 +539,7 @@ namespace DB
 				l->_sources.push_back(make_shared<TableOp>(get<string>(_right[i].object)));
 			}
 		}
-		| "FROM" tableName "JOIN" tableName, =
+		| FROM tableName "JOIN" tableName, =
 		{
 			auto& l = get<JoinOp*>(left.object);
 			l = new JoinOp();
