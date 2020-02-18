@@ -1,0 +1,293 @@
+//#include "page.h"
+//#include "table.h"
+//#include "ast_tp.h"
+#include "lexer.h"
+#include "query_ap.h"
+#include "debug_log.h"
+
+//#include <iomanip>
+//#include <memory>
+#include <cassert>
+
+using namespace DB;
+using namespace DB::page;
+using namespace DB::table;
+using namespace DB::ast;
+using namespace DB::lexer;
+using namespace DB::query;
+
+using std::stack;
+using std::deque;
+using std::vector;
+using std::ostream;
+using std::cout;
+using std::endl;
+using std::get;
+using std::get_if;
+using std::string;
+using std::shared_ptr;
+using std::static_pointer_cast;
+using std::make_shared;
+
+namespace DB
+{
+	ostream &print_symbol(const long long s);
+	```tsl
+	terminate = 
+	{
+		"+", "-", "*", "/", "%",
+
+		AND, OR, 
+
+		"==", "!=", 
+		"<", ">", "<=", ">=", 
+
+		"=",
+
+		NUMBER_CONSTANT, ID, STR_LITERAL,
+
+		INT,
+
+		CHAR, VARCHAR, "$",
+		NOT_NULL, DISTINCT, VALUES,
+		CREATE, DROP, INSERT, DELETE, UPDATE, SELECT, SHOW,
+		TABLE, FROM, WHERE, JOIN,
+		ORDERBY, ASC, DESC, SET,
+		DEFAULT, PRIMARY_KEY, REFERENCES, 
+		SWITCH, 
+
+		",", ".", ";",
+		"?", ":",
+		"(", ")",
+		"[", "]",
+		"{", "}",
+
+		EXIT,
+	};
+	token_type = lexer::Token;
+	get_type = lexer::getType;
+	pass_info_struct = {
+        APValue apValue;
+		APSelectInfo apSelectInfo; // store tables & conditions
+	};
+	
+
+	using selectStatement = APSelectInfo;
+	using tableName = string;
+	using selectElements = ProjectOp*;
+	using fromClause = JoinOp*;
+	using columnName = std::pair<string, string>;
+	using expression = BaseExpr*;
+	using predicate = BaseExpr*;
+	using expressionAtom = AtomExpr*;
+	using expressionAtomOp = AtomExpr*;
+	using constantNum = int;
+	using positiveNum = int;
+	using comparisonOperator = comparison_t_t;
+	using mathOperator = math_t_t;
+
+	back = {
+		if(debug::PARSE_LOG)
+		{
+			cout << "REDUCE: ";
+			print_symbol(left.type) << ":= ";
+			for (auto &s: right)
+				print_symbol(s.type);
+			cout << endl << endl;
+		}
+    };
+
+	sqlStatement := 
+		selectStatement, =
+		{ 
+			info.tpValue = get<TPSelectInfo>(right[0].object);
+		}
+		| "SHOW", { info.apValue = Show(); }
+		| "EXIT", { info.apValue = Exit(); }
+		| "SWITCH", { info.apValue = Switch(); }
+		;
+	
+
+	selectStatement := 
+		"SELECT" selectElements fromClause ["WHERE" expression]
+		;
+
+
+	selectElements := 
+		"$"
+		//| expressionAtom [{"," expressionAtom}*], =
+		;
+	
+
+	fromClause := 
+		"FROM" tableName [{"," tableName}*], =
+		{
+			info.apValue.tables.push_back(get<string>(right[1].object));
+
+			if(right.size() <= 2)
+				return;
+			
+			auto _right = get<iter_object_type>(right[2].object).data;
+			size_t size = _right.size();
+			for(size_t i = 1; i < size; i += 2)
+			{
+				info.apValue.tables.push_back(get<string>(_right[i].object));
+			}
+		}
+		//| "FROM" tableName "JOIN" tableName, =
+		;
+
+
+	tableName := 
+		"ID", =
+		{
+			auto& l = get<string>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = get<identifier>(token._token);
+		}
+		;
+
+	columnName := 
+		"ID" "." "ID", =
+		{ 
+			auto& l = get<std::pair<string, string>>(left.object);
+			auto& token1 = get<Token>(right[0].object);
+			auto& token2 = get<Token>(right[2].object);
+			string _tableName = get<identifier>(token1._token);
+			string _columnName = get<identifier>(token2._token);
+			l = make_pair(_tableName, _columnName); 
+		}
+		;
+
+
+	left logicOp;
+
+	expression := 
+		expression "AND" expression, logicOp
+		| predicate, =
+		{ 
+			info.apValue.conditions.push_back(get<BaseExpr*>(right[0].object));
+		}
+		;
+
+	predicate := 
+		expressionAtom comparisonOperator expressionAtom, =
+		{
+			auto& l = get<BaseExpr*>(left.object);
+			comparison_t_t comparison_t = get<comparison_t_t>(right[1].object);
+			AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+			AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+			l = new ComparisonOpExpr(comparison_t, expr1, expr2);
+		}
+		| expressionAtom, =
+		{ 
+			auto& l = get<BaseExpr*>(left.object);
+			l = get<AtomExpr*>(right[0].object);
+		}
+		;
+
+	expressionAtom  := 
+		constantNum, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			l = new NumericExpr(get<int>(right[0].object));
+		}
+		| "STR_LITERAL", =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = new StrExpr(get<0>(get<string_literal_t>(token._token)));
+		}
+		| columnName, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& column = get<Column>(right[0].object);
+			l = new IdExpr(column.second, column.first);
+		}
+		| expressionAtomOp, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			l = get<AtomExpr*>(right[0].object);
+		}
+		;
+
+	left mathOp;
+	rank opRank;
+
+	expressionAtomOp := 
+		expressionAtom {"*"|"/"|"%"} expressionAtom, opRank 1 mathOp, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& token = get<Token>(right[1].object);
+			math_t_t math_t;
+			auto& t = get<type>(token._token);
+			if(t == type::MUL)
+				math_t = math_t_t::MUL;
+			else if(t == type::DIV)
+				math_t = math_t_t::DIV;
+			else if(t == type::MOD)
+				math_t = math_t_t::MOD;
+			AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+			AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+			l = new MathOpExpr(math_t, expr1, expr2);
+		}
+		| expressionAtom {"+"|"-"} expressionAtom, opRank 0 mathOp, =
+		{
+			auto& l = get<AtomExpr*>(left.object);
+			auto& token = get<Token>(right[1].object);
+			math_t_t math_t;
+			auto& t = get<type>(token._token);
+			if(t == type::ADD)
+				math_t = math_t_t::ADD;
+			else if(t == type::SUB)
+				math_t = math_t_t::SUB;
+			AtomExpr* expr1 = get<AtomExpr*>(right[0].object);
+			AtomExpr* expr2 = get<AtomExpr*>(right[2].object);
+			l = new MathOpExpr(math_t, expr1, expr2);
+		}
+		;
+
+	
+
+	constantNum := 
+		["-"] positiveNum, =
+		{
+			auto& l = get<int>(left.object);
+			if(right.size() > 1)
+			{
+				int val = get<int>(right[1].object);
+				l = -val;
+			}
+			else
+			{
+				l = get<int>(right[0].object);
+			}
+		}
+		;
+	
+	positiveNum := 
+		"NUMBER_CONSTANT", =
+		{ 
+			auto& l = get<int>(left.object);
+			auto& token = get<Token>(right[0].object);
+			l = get<0>(get<numeric_t>(token._token));
+		}
+		;
+				 
+	comparisonOperator := 
+		"==", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::EQ; }
+		| ">", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::GREATER; }
+		| "<", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::LESS; }
+		| "<=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::LEQ; }
+		| ">=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::GEQ; }
+		| "!=", ={ auto& l = get<comparison_t_t>(left.object); l = comparison_t_t::NEQ; }
+		;
+	
+	```
+	ostream &print_symbol(const long long s) {
+        if (s < 0)
+            return std::cout << utils::type_name_map[s] << " ";
+        else
+            return std::cout << std::quoted(utils::type_name_map[s]) << " ";
+    }
+}

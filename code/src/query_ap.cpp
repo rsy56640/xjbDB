@@ -5,7 +5,7 @@
 #include "query_ap.h"
 #include "include/lexer.h"
 #include "include/debug_log.h"
-//#include "parse_ap.h"
+#include "parse_ap.h"
 
 
 namespace DB::query{
@@ -46,8 +46,8 @@ namespace DB::query{
                 std::cout << "\n--Start Parse---------------------------------------\n" << std::endl;
             }
 
-            //auto res = analyze(lexer.getTokens());
-            //value = res.apValue;
+            auto res = analyze(lexer.getTokens());
+            value = res.apValue;
 
 
             if (debug::PARSE_LOG)
