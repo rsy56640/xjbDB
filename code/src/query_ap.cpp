@@ -46,7 +46,7 @@ namespace DB::query{
                 std::cout << "\n--Start Parse---------------------------------------\n" << std::endl;
             }
 
-            auto res = analyze(lexer.getTokens());
+            auto res = parse_ap::analyze(lexer.getTokens());
             value = res.apValue;
 
 

@@ -3,7 +3,6 @@
 #include "table.h"
 #include "sql_expr.h"
 #include <variant>
-#include <memory>
 
 /*
  * this file includes
