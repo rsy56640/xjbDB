@@ -3,73 +3,8 @@
 #include "include/debug_log.h"
 #include <iostream>
 
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
-
-namespace DB::table {
-    static std::unordered_map<std::string, table::TableInfo> tableBuffer;
-
-    table::TableInfo getTableInfo(const std::string& tableName)
-    {
-        if (tableBuffer.find(tableName) == tableBuffer.end())
-        {
-            if (auto table = table::vm_->getTableInfo(tableName))
-            {
-                tableBuffer[table->tableName_] = table.value();
-            }
-            else
-            {
-                throw std::string("no such table \"" + tableName + "\"");
-            }
-        }
-        return tableBuffer[tableName];
-    }
-
-    page::ColumnInfo getColumnInfo(const std::string& tableName, const std::string& columnName)
-    {
-
-        table::TableInfo table = getTableInfo(tableName);
-        auto& columns = table.columnInfos_;
-        auto& columnNames = table.colNames_;
-        for (size_t i = 0; i < columns.size(); ++i)
-        {
-            if (columnNames[i] == columnName)
-                return columns[i];
-        }
-        throw std::string("no such column \"" + columnName + "\" in \"" + tableName + "\"");
-    }
-}
 
 namespace DB::ast {
-
-    BaseExpr::~BaseExpr() { }
-
-    NonAtomExpr::~NonAtomExpr() { }
-
-    AtomExpr::~AtomExpr() { }
-
-    LogicalOpExpr::~LogicalOpExpr() { }
-
-    ComparisonOpExpr::~ComparisonOpExpr() { }
-
-    MathOpExpr::~MathOpExpr() { }
-
-    IdExpr::~IdExpr() { }
-
-	const std::string IdExpr::getFullColumnName() const
-	{
-		if (_tableName.empty())
-			return _columnName;
-		else
-			return _tableName + "." + _columnName;
-	}
-
-    NumericExpr::~NumericExpr() { }
-
-    StrExpr::~StrExpr() { }
-
-    //===========================================================
-    //DML
 
     BaseOp::~BaseOp() { }
 
@@ -162,7 +97,7 @@ namespace DB::ast {
         }
     }
 
-    void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
+    void tpOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
     {
 		if(root)
 			_outputVisit(root, os, 2);
@@ -225,14 +160,13 @@ namespace DB::ast {
         }
     }
 
-    void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
+    void tpOutputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
     {
 		if(root)
 			_outputVisit(root, os, 0);
     }
 
     //check visit
-    //using CheckValue = std::tuple< bool, base_t_t, RetValue>;	//<hasIdExpr, type, value>
     enum class check_t_t { INT, STRING, BOOL };
     const std::string check2str[] = { "INT", "STRING", "BOOL" };
 
@@ -344,7 +278,7 @@ namespace DB::ast {
         }
     }
 
-    void checkVisit(std::shared_ptr<const BaseExpr> root, const std::string tableName)
+    void tpCheckVisit(std::shared_ptr<const BaseExpr> root, string tableName)
     {
 #ifdef DEBUG
         if (!root)

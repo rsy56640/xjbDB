@@ -5,6 +5,7 @@
 #pragma once
 
 #include "query_base.h"
+#include "ast_ap.h"
 #include <variant>
 #include <vector>
 
@@ -19,16 +20,12 @@ using std::vector;
 
 namespace DB::query {
 
-    //reuse ast_tp -> ast_base?
-    // column op column, column op constant
-    struct SingleCondition{
-
-    };
-
     struct APSelectInfo {
-        //vector< std::pair<string, string> > columns; // <table, column>
+        //currently suppose select all
+        //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
+
         vector<string> tables;
-        vector<SingleCondition> conditions;
+        vector<ast::BaseExpr*> conditions;  //shared_ptr?
 
         void print() const
         {

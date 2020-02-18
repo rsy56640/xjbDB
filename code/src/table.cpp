@@ -150,7 +150,35 @@ namespace DB::table
     }
 
 
+    table::TableInfo getTableInfo(const std::string& tableName)
+    {
+        if (tableBuffer.find(tableName) == tableBuffer.end())
+        {
+            if (auto table = table::vm_->getTableInfo(tableName))
+            {
+                tableBuffer[table->tableName_] = table.value();
+            }
+            else
+            {
+                throw std::string("no such table \"" + tableName + "\"");
+            }
+        }
+        return tableBuffer[tableName];
+    }
 
+    page::ColumnInfo getColumnInfo(const std::string& tableName, const std::string& columnName)
+    {
+
+        table::TableInfo table = getTableInfo(tableName);
+        auto& columns = table.columnInfos_;
+        auto& columnNames = table.colNames_;
+        for (size_t i = 0; i < columns.size(); ++i)
+        {
+            if (columnNames[i] == columnName)
+                return columns[i];
+        }
+        throw std::string("no such column \"" + columnName + "\" in \"" + tableName + "\"");
+    }
 
 
 } // end namespace DB::table

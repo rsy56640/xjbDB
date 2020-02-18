@@ -128,6 +128,11 @@ namespace DB::table
 
 
 
+    static std::unordered_map<std::string, table::TableInfo> tableBuffer;
+
+    table::TableInfo getTableInfo(const std::string& tableName);
+
+    page::ColumnInfo getColumnInfo(const std::string& tableName, const std::string& columnName);
 
 
 
