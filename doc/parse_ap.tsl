@@ -1,12 +1,11 @@
 //#include "page.h"
-//#include "table.h"
-//#include "ast_tp.h"
+#include "table.h"
+//#include "ast_ap.h"
 #include "lexer.h"
 #include "query_ap.h"
 #include "debug_log.h"
 
 //#include <iomanip>
-//#include <memory>
 #include <cassert>
 
 using namespace DB;
@@ -29,7 +28,7 @@ using std::shared_ptr;
 using std::static_pointer_cast;
 using std::make_shared;
 
-namespace DB
+namespace DB::parse_ap
 {
 	ostream &print_symbol(const long long s);
 	```tsl
@@ -74,8 +73,6 @@ namespace DB
 
 	using selectStatement = APSelectInfo;
 	using tableName = string;
-	using selectElements = ProjectOp*;
-	using fromClause = JoinOp*;
 	using columnName = std::pair<string, string>;
 	using expression = BaseExpr*;
 	using predicate = BaseExpr*;
@@ -100,9 +97,8 @@ namespace DB
 	sqlStatement := 
 		selectStatement, =
 		{ 
-			info.tpValue = get<TPSelectInfo>(right[0].object);
+			info.apValue = get<APSelectInfo>(right[0].object);
 		}
-		| "SHOW", { info.apValue = Show(); }
 		| "EXIT", { info.apValue = Exit(); }
 		| "SWITCH", { info.apValue = Switch(); }
 		;
@@ -122,7 +118,7 @@ namespace DB
 	fromClause := 
 		"FROM" tableName [{"," tableName}*], =
 		{
-			info.apValue.tables.push_back(get<string>(right[1].object));
+			info.apSelectInfo.tables.push_back(get<string>(right[1].object));
 
 			if(right.size() <= 2)
 				return;
@@ -131,7 +127,7 @@ namespace DB
 			size_t size = _right.size();
 			for(size_t i = 1; i < size; i += 2)
 			{
-				info.apValue.tables.push_back(get<string>(_right[i].object));
+				info.apSelectInfo.tables.push_back(get<string>(_right[i].object));
 			}
 		}
 		//| "FROM" tableName "JOIN" tableName, =
@@ -166,7 +162,7 @@ namespace DB
 		expression "AND" expression, logicOp
 		| predicate, =
 		{ 
-			info.apValue.conditions.push_back(get<BaseExpr*>(right[0].object));
+			info.apSelectInfo.conditions.push_back(get<BaseExpr*>(right[0].object));
 		}
 		;
 
@@ -201,7 +197,7 @@ namespace DB
 		| columnName, =
 		{
 			auto& l = get<AtomExpr*>(left.object);
-			auto& column = get<Column>(right[0].object);
+			auto& column = get<std::pair<string, string>>(right[0].object);
 			l = new IdExpr(column.second, column.first);
 		}
 		| expressionAtomOp, =

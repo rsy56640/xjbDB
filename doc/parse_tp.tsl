@@ -46,7 +46,7 @@ using std::make_shared;
 
 using Column = std::pair<std::string, std::string>;
 
-namespace DB
+namespace DB::parse_tp
 {
 	ostream &print_symbol(const long long s);
 	```tsl
