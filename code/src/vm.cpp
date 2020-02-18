@@ -3,6 +3,8 @@
 #include "include/table.h"
 #include "ast_tp.h"
 #include "query_tp.h"
+#include "query_ap.h"
+#include <cstring>
 #include <iostream>
 #include <variant>
 #include <functional>
@@ -184,32 +186,63 @@ namespace DB::vm
     // run db task until user input "EXIT"
     void VM::start()
     {
+        bool tp = true;
         while (true)
         {
             const std::string sql_statemt = conslole_reader_.get_sql();
 
-            query::TPValue plan = query::tp_parse(sql_statemt);
+            if(tp)
+            {
+                query::TPValue plan = query::tp_parse(sql_statemt);
 
-            const page::page_id_t prev_last_page_id =
-                storage_engine_.disk_manager_->get_cut_page_id();
+                // switch to AP
+                if(std::get_if<query::Switch>(&plan) != nullptr) {
+                    printXJBDB("SWITCH to OLAP\n");
+                    tp = false;
+                    continue;
+                }
 
-            // handle ErrorMsg or EXIT
-            VM::process_result_t result = query_process(plan);
+                const page::page_id_t prev_last_page_id =
+                    storage_engine_.disk_manager_->get_cut_page_id();
 
-            if (!result.msg.empty())
-                printXJBDB("\n%s\n", result.msg.c_str());
-            if (result.exit)
-                return;
-            if (result.error)
-                continue;
+                // handle ErrorMsg or EXIT
+                VM::process_result_t result = txn_process(plan);
 
-            task_pool_.join();
+                if (!result.msg.empty())
+                    printXJBDB("\n%s\n", result.msg.c_str());
+                if (result.exit)
+                    return;
+                if (result.error)
+                    continue;
 
-            doWAL(prev_last_page_id, sql_statemt);
+                task_pool_.join();
 
-            flush();
+                doWAL(prev_last_page_id, sql_statemt);
 
-            detroy_log();
+                flush();
+
+                detroy_log();
+            } // end OLTP
+            else
+            {
+                query::APValue plan = query::ap_parse(sql_statemt);
+
+                // switch to TP
+                if(std::get_if<query::Switch>(&plan) != nullptr) {
+                    printXJBDB("SWITCH to OLTP\n");
+                    tp = true;
+                    continue;
+                }
+
+                VM::process_result_t result = query_process(plan);
+
+                if (!result.msg.empty())
+                    printXJBDB("\n%s\n", result.msg.c_str());
+                if (result.exit)
+                    return;
+                if (result.error)
+                    continue;
+            }
 
         }
     }
@@ -245,10 +278,9 @@ namespace DB::vm
         conslole_reader_.add_sql(std::move(sql));
     }
 
-
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
     template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
-    VM::process_result_t VM::query_process(const query::TPValue& plan)
+    VM::process_result_t VM::txn_process(const query::TPValue& plan)
     {
         VM::process_result_t result;
         std::visit(
@@ -261,7 +293,20 @@ namespace DB::vm
                 [&result, this](const query::DeleteInfo& info) { doDelete(result,info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result, this](query::Show) { showDB(); },
-                [&result](query::ErrorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log"; },
+                [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
+                [](auto&&) { debug::ERROR_LOG("`txn_process`\n"); },
+            }, plan);
+        return result;
+    }
+
+
+    VM::process_result_t VM::query_process(const query::APValue& plan) {
+        VM::process_result_t result;
+        std::visit(
+            overloaded{
+                [&result, this](const query::APSelectInfo& info) { doQuery(result, info); },
+                [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
+                [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
                 [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
         return result;
@@ -1175,9 +1220,10 @@ namespace DB::vm
     }
 
 
+    void VM::doQuery(VM::process_result_t& result, const query::APSelectInfo& plan) {
+        plan.print();
 
-
-
+    }
 
 
 

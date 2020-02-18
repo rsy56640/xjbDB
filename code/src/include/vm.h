@@ -7,6 +7,7 @@
 #include "page.h"
 #include "table.h"
 #include "query_tp.h"
+#include "query_ap.h"
 #include <future>
 #include <unordered_map>
 #include <unordered_set>
@@ -103,7 +104,8 @@ namespace DB::vm
             bool error = false;
             std::string msg;
         };
-        process_result_t query_process(const query::TPValue&);
+        process_result_t txn_process(const query::TPValue&);
+        process_result_t query_process(const query::APValue&);
 
         void doWAL(page::page_id_t prev_last_page_id, const std::string& sql);
 
@@ -119,7 +121,7 @@ namespace DB::vm
         void replay_log(disk::log_state_t);
 
 
-        // query process functions
+        // txn process functions
         void doCreate(process_result_t&, const query::CreateTableInfo&);
         void doDrop(process_result_t&, const query::DropTableInfo&);
         void doSelect(process_result_t&, const query::TPSelectInfo&);
@@ -127,7 +129,8 @@ namespace DB::vm
         void doInsert(process_result_t&, const query::InsertInfo&);
         void doDelete(process_result_t&, const query::DeleteInfo&);
 
-
+        // query process function
+        void doQuery(process_result_t&, const query::APSelectInfo&);
 
 
         // 4 kinds of op node

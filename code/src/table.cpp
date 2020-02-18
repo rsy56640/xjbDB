@@ -6,7 +6,7 @@
 namespace DB::table
 {
 
-    vm::VM* table::vm_ = nullptr;
+    vm::VM* vm_ = nullptr;
 
     TableInfo::TableInfo() {}
 

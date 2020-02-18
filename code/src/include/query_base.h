@@ -6,13 +6,12 @@
 
 #include <iostream>
 #include <string>
-
+#include <utility>
 
 /*
  * this file includes
  *  commom definitions for tp and ap
  */
-
 
 namespace DB::util
 {
@@ -36,10 +35,7 @@ namespace DB::query {
     struct ErrorMsg {
         std::string _msg;
 
-        ErrorMsg(const std::string msg)
-        {
-            _msg = msg;
-        }
+        ErrorMsg(std::string msg):_msg(std::move(msg)) {}
 
         void print() const
         {
