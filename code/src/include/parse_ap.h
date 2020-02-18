@@ -7,6 +7,7 @@
 
 //#include <iomanip>
 #include <cassert>
+#include <stack>
 
 using namespace DB;
 using namespace DB::page;

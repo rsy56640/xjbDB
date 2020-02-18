@@ -1,4 +1,3 @@
-#pragma once
 #include <iostream>
 #include "query_tp.h"
 #include "include/lexer.h"

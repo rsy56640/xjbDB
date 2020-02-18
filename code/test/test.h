@@ -6,6 +6,7 @@
 #include "../src/include/vm.h"
 #include "../src/include/BplusTree.h"
 #include "../src/include/page.h"
+#include <cstring>
 using namespace DB;
 
 static const char* s[] =
