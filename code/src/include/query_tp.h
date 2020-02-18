@@ -61,7 +61,7 @@ namespace DB::query {
             for (const Element &ele : elements)
             {
                 std::cout << "Column : " << ele.name << std::endl;
-                ast::outputVisit(ele.valueExpr, std::cout);
+                ast::tpOutputVisit(ele.valueExpr, std::cout);
             }
         }
     };
@@ -76,12 +76,12 @@ namespace DB::query {
             for (const Element &ele : elements)
             {
                 std::cout << "Column : " << ele.name << std::endl;
-                ast::outputVisit(ele.valueExpr, std::cout);
+                ast::tpOutputVisit(ele.valueExpr, std::cout);
             }
 			if (whereExpr)
 			{
 				std::cout << "Where Expression:" << std::endl;
-				ast::outputVisit(whereExpr, std::cout);
+                ast::tpOutputVisit(whereExpr, std::cout);
 			}
         }
     };
@@ -95,7 +95,7 @@ namespace DB::query {
 			if (whereExpr)
 			{
 				std::cout << "Where Expression:" << std::endl;
-				ast::outputVisit(whereExpr, std::cout);
+                ast::tpOutputVisit(whereExpr, std::cout);
 			}
         }
     };
@@ -108,7 +108,7 @@ namespace DB::query {
         void print() const
         {
             std::cout << "Select : " << std::endl;
-            ast::outputVisit(opRoot, std::cout);
+            ast::tpOutputVisit(opRoot, std::cout);
         }
     };
 

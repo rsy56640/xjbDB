@@ -65,9 +65,9 @@ namespace DB::ast {
     *output visit, output the ast to the given ostream
     *regardless of validity
     */
-    void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream &os);
+    void tpOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream &os);
 
-    void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os);
+    void tpOutputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os);
 
     /*
     *check visit, used in parsing phase
@@ -86,10 +86,10 @@ namespace DB::ast {
     */
 
     //check WHERE clause(expression)
-    void checkVisit(std::shared_ptr<const BaseExpr> root, const std::string tableName = std::string());
+    void tpCheckVisit(std::shared_ptr<const BaseExpr> root, string tableName = std::string());
 
     //check others(expressionAtom)
-    void checkVisit(std::shared_ptr<const AtomExpr> root, const std::string tableName = std::string());
+    void tpCheckVisit(std::shared_ptr<const AtomExpr> root, const std::string tableName = std::string());
 
 
     /*

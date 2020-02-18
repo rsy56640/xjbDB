@@ -97,7 +97,7 @@ namespace DB::ast {
         }
     }
 
-    void outputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
+    void tpOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os)
     {
 		if(root)
 			_outputVisit(root, os, 2);
@@ -160,7 +160,7 @@ namespace DB::ast {
         }
     }
 
-    void outputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
+    void tpOutputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os)
     {
 		if(root)
 			_outputVisit(root, os, 0);
@@ -278,7 +278,7 @@ namespace DB::ast {
         }
     }
 
-    void checkVisit(std::shared_ptr<const BaseExpr> root, const std::string tableName)
+    void tpCheckVisit(std::shared_ptr<const BaseExpr> root, string tableName)
     {
 #ifdef DEBUG
         if (!root)
