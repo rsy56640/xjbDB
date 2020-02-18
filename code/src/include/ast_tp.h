@@ -1,97 +1,17 @@
 #pragma once
-#include <string>
+
+#include "table.h"
+#include "sql_expr.h"
 #include <variant>
 #include <memory>
-#include "table.h"
 
+/*
+ * this file includes
+ *  node structs of tp ast
+ *  functions for tp ast
+ */
 
 namespace DB::ast {
-    enum class base_t_t { LOGICAL_OP, COMPARISON_OP, ID, NUMERIC, STR, MATH_OP };
-    //enum class atom_t_t {  };
-    enum class logical_t_t { AND, OR };
-    enum class comparison_t_t { EQ, NEQ, LESS, GREATER, LEQ, GEQ, };
-    enum class math_t_t { ADD, SUB, MUL, DIV, MOD, };
-    const std::string base2str[] = { "LOGICAL_OP", "COMPARISON_OP", "ID", "NUMERIC", "STR", "MATH_OP" };
-    const std::string logical2str[] = { "AND", "OR" };
-    const std::string comparison2str[] = { "==", "!=", "<", ">", "<=", ">=" };
-    const std::string math2str[] = { "+", "-", "*", "/", "%" };
-
-    using RetValue = std::variant<bool, int, std::string>;
-
-    struct BaseExpr {
-        BaseExpr(base_t_t base_t) :base_t_(base_t) {}
-        virtual ~BaseExpr() = 0;
-
-        const base_t_t  base_t_;
-    };
-
-    struct NonAtomExpr : public BaseExpr {
-        NonAtomExpr(base_t_t base_t) :BaseExpr(base_t) {}
-        virtual ~NonAtomExpr() = 0;
-    };
-
-    struct AtomExpr : public BaseExpr {
-        AtomExpr(base_t_t base_t) :BaseExpr(base_t) {}
-        virtual ~AtomExpr() = 0;
-    };
-
-    struct LogicalOpExpr : public NonAtomExpr {
-        LogicalOpExpr(logical_t_t logical_t, BaseExpr* left, BaseExpr* right) :
-            NonAtomExpr(base_t_t::LOGICAL_OP), logical_t_(logical_t), _left(left), _right(right) {}
-        virtual ~LogicalOpExpr();
-
-        const logical_t_t logical_t_;
-        std::shared_ptr<BaseExpr> _left;
-		std::shared_ptr<BaseExpr> _right;
-    };
-
-    struct ComparisonOpExpr : public NonAtomExpr {
-        //left,right must be AtomExpr*
-        ComparisonOpExpr(comparison_t_t comparison_t, AtomExpr* left, AtomExpr* right) :
-            NonAtomExpr(base_t_t::COMPARISON_OP), comparison_t_(comparison_t), _left(left), _right(right) {}
-        virtual ~ComparisonOpExpr();
-
-        const comparison_t_t comparison_t_;
-		std::shared_ptr<AtomExpr> _left;
-		std::shared_ptr<AtomExpr> _right;
-    };
-
-    struct MathOpExpr : public AtomExpr {
-        MathOpExpr(math_t_t math_t, AtomExpr* left, AtomExpr* right) :
-            AtomExpr(base_t_t::MATH_OP), math_t_(math_t), _left(left), _right(right) {}
-        virtual ~MathOpExpr();
-
-        const math_t_t math_t_;
-		std::shared_ptr<AtomExpr> _left;
-		std::shared_ptr<AtomExpr> _right;
-    };
-
-    struct IdExpr : public AtomExpr {
-        IdExpr(std::string columnName, std::string tableName = std::string()) :
-            AtomExpr(base_t_t::ID), _tableName(tableName), _columnName(columnName) {}
-        virtual ~IdExpr();
-
-		const std::string getFullColumnName() const;
-        std::string _tableName;
-        std::string _columnName;
-    };
-
-    struct NumericExpr : public AtomExpr {
-        NumericExpr(int value) :
-            AtomExpr(base_t_t::NUMERIC), _value(value) {}
-        virtual ~NumericExpr();
-
-        int _value;
-    };
-
-    struct StrExpr : public AtomExpr {
-        StrExpr(const std::string& value) :
-            AtomExpr(base_t_t::STR), _value(value) {}
-        virtual ~StrExpr();
-
-        std::string _value;
-    };
-
 
     enum class op_t_t { PROJECT, FILTER, JOIN, TABLE };
     struct BaseOp {
