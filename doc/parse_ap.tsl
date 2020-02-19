@@ -163,7 +163,8 @@ namespace DB::parse_ap
 		expression "AND" expression, logicOp
 		| predicate, =
 		{ 
-			info.apSelectInfo.conditions.push_back(get<BaseExpr*>(right[0].object));
+			auto exprPtr = get<BaseExpr*>(right[0].object);
+			info.apSelectInfo.conditions.push_back(make_shared<BaseExpr>(*exprPtr));
 		}
 		;
 

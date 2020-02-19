@@ -22,7 +22,7 @@
 namespace DB::tree { class BTree; }
 namespace DB::ast {
     struct BaseExpr;
-    struct TPBaseOp;
+    struct APBaseOp;
     struct TPProjectOp;
     struct TPFilterOp;
     struct TPJoinOp;

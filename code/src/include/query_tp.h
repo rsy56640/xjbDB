@@ -107,7 +107,7 @@ namespace DB::query {
         std::vector<OrderbyElement> orderbys;
         void print() const
         {
-            std::cout << "Select : " << std::endl;
+            std::cout << "TPSelectInfo : " << std::endl;
             ast::tpOutputVisit(opRoot, std::cout);
         }
     };

@@ -106,8 +106,8 @@ namespace DB::parse_tp
 	using insertElements = Elements;
 	using updateElements = Elements;
 	using updateElement = Element;
-	using selectElements = ProjectOp*;
-	using fromClause = JoinOp*;
+	using selectElements = TPProjectOp*;
+	using fromClause = TPJoinOp*;
 	using orderByClause = std::vector<OrderbyElement>;
 	using orderByExpression = OrderbyElement;
 	using columnName = Column;
@@ -377,18 +377,18 @@ namespace DB::parse_tp
 		"SELECT" selectElements fromClause ["WHERE" expression] [orderByClause], =
 		{
 			auto& l = std::get<TPSelectInfo>(left.object);
-			JoinOp* joinOp = get<JoinOp*>(right[2].object);
-			BaseOp* baseOp = joinOp;
+			TPJoinOp* joinOp = get<TPJoinOp*>(right[2].object);
+			TPBaseOp* baseOp = joinOp;
 			if(right.size() > 3)
 			{
 				auto whereExpr = get_if<BaseExpr*>(&right[4].object);
 				if(!whereExpr) goto brk;
-				FilterOp* filterOp = new FilterOp(*whereExpr);
+				TPFilterOp* filterOp = new TPFilterOp(*whereExpr);
 				filterOp->_source.reset(joinOp);
 				baseOp = filterOp;
 			}
 		brk:
-			ProjectOp* projectOp = get<ProjectOp*>(right[1].object);
+			TPProjectOp* projectOp = get<TPProjectOp*>(right[1].object);
 			if(projectOp)
 			{
 				projectOp->_source.reset(baseOp);
@@ -456,13 +456,13 @@ namespace DB::parse_tp
 	selectElements := 
 		"$", = 
 		{
-			auto& l = get<ProjectOp*>(left.object);
+			auto& l = get<TPProjectOp*>(left.object);
 			l = nullptr;
 		}
 		| expressionAtom [{"," expressionAtom}*], =
 		{
-			auto& l = get<ProjectOp*>(left.object);
-			l = new ProjectOp();
+			auto& l = get<TPProjectOp*>(left.object);
+			l = new TPProjectOp();
 
 			vector<shared_ptr<AtomExpr>> exprs;
 			exprs.push_back(shared_ptr<AtomExpr>(get<AtomExpr*>(right[0].object)));
@@ -517,10 +517,10 @@ namespace DB::parse_tp
 	fromClause := 
 		"FROM" tableName [{"," tableName}*], =
 		{
-			auto& l = get<JoinOp*>(left.object);
-			l = new JoinOp();
+			auto& l = get<TPJoinOp*>(left.object);
+			l = new TPJoinOp();
 			l->isJoin = false;
-			l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
+			l->_sources.push_back(make_shared<TPTableOp>(get<string>(right[1].object)));
 
 			if(right.size() <= 2)
 				return;
@@ -529,16 +529,16 @@ namespace DB::parse_tp
 			size_t size = _right.size();
 			for(size_t i = 1; i < size; i += 2)
 			{
-				l->_sources.push_back(make_shared<TableOp>(get<string>(_right[i].object)));
+				l->_sources.push_back(make_shared<TPTableOp>(get<string>(_right[i].object)));
 			}
 		}
 		| "FROM" tableName "JOIN" tableName, =
 		{
-			auto& l = get<JoinOp*>(left.object);
-			l = new JoinOp();
+			auto& l = get<TPJoinOp*>(left.object);
+			l = new TPJoinOp();
 			l->isJoin = true;
-			l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
-			l->_sources.push_back(make_shared<TableOp>(get<string>(right[3].object)));
+			l->_sources.push_back(make_shared<TPTableOp>(get<string>(right[1].object)));
+			l->_sources.push_back(make_shared<TPTableOp>(get<string>(right[3].object)));
 		}
 		;
 

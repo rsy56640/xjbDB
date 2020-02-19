@@ -13,6 +13,7 @@
 namespace DB::ast {
 
     enum class tp_op_t_t { PROJECT, FILTER, JOIN, TABLE };
+
     struct TPBaseOp {
         TPBaseOp(tp_op_t_t op_t) : op_t_(op_t) {}
         virtual ~TPBaseOp() = 0;
