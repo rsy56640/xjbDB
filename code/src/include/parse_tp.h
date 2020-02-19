@@ -55,7 +55,7 @@ struct pass_info {
 TPValue tpValue;
 int len;	 		vector<string> colNames_;  		vector<table::value_t> defaults;  		vector<string> fkTables;
 };
-struct default_object_type{ };struct iter_object_type;using object_type = std::variant<math_t_t, AtomExpr*, OrderbyElement, JoinOp*, int, Element, logical_t_t, comparison_t_t, BaseExpr*, DropTableInfo, col_t_t, ProjectOp*, std::vector<ColumnInfo>, string, ColumnInfo, DeleteInfo, std::vector<OrderbyElement>, Elements, UpdateInfo, InsertInfo, Column, TPSelectInfo, CreateTableInfo, default_object_type, token_type, iter_object_type>;
+struct default_object_type{ };struct iter_object_type;using object_type = std::variant<math_t_t, AtomExpr*, OrderbyElement, TPJoinOp*, int, Element, logical_t_t, comparison_t_t, BaseExpr*, DropTableInfo, col_t_t, TPProjectOp*, std::vector<ColumnInfo>, string, ColumnInfo, DeleteInfo, std::vector<OrderbyElement>, Elements, UpdateInfo, InsertInfo, Column, TPSelectInfo, CreateTableInfo, default_object_type, token_type, iter_object_type>;
 namespace utils { extern const std::string * const type_name_map; }
 using ll = long long;
 struct symbol_type;struct iter_object_type {std::vector<symbol_type> data;};
@@ -488,18 +488,18 @@ using $Tp = TPSelectInfo;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
 auto& l = std::get<TPSelectInfo>(left.object);
-JoinOp* joinOp = get<JoinOp*>(right[2].object);
-BaseOp* baseOp = joinOp;
+TPJoinOp* joinOp = get<TPJoinOp*>(right[2].object);
+TPBaseOp* baseOp = joinOp;
 if(right.size() > 3)
 {
 auto whereExpr = get_if<BaseExpr*>(&right[4].object);
 if(!whereExpr) goto brk;
-FilterOp* filterOp = new FilterOp(*whereExpr);
+TPFilterOp* filterOp = new TPFilterOp(*whereExpr);
 filterOp->_source.reset(joinOp);
 baseOp = filterOp;
 }
 brk:
-ProjectOp* projectOp = get<ProjectOp*>(right[1].object);
+TPProjectOp* projectOp = get<TPProjectOp*>(right[1].object);
 if(projectOp)
 {
 projectOp->_source.reset(baseOp);
@@ -592,10 +592,10 @@ __0_0(left, right, info);
 return left;
 }
 symbol_type __process_50(const ll left_type, std::vector<symbol_type> &right, pass_info &info) {
-using $Tp = ProjectOp*;
+using $Tp = TPProjectOp*;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-auto& l = get<ProjectOp*>(left.object);
+auto& l = get<TPProjectOp*>(left.object);
 l = nullptr;
 };
 run();
@@ -603,11 +603,11 @@ __0_0(left, right, info);
 return left;
 }
 symbol_type __process_51(const ll left_type, std::vector<symbol_type> &right, pass_info &info) {
-using $Tp = ProjectOp*;
+using $Tp = TPProjectOp*;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-auto& l = get<ProjectOp*>(left.object);
-l = new ProjectOp();
+auto& l = get<TPProjectOp*>(left.object);
+l = new TPProjectOp();
 
 vector<shared_ptr<AtomExpr>> exprs;
 exprs.push_back(shared_ptr<AtomExpr>(get<AtomExpr*>(right[0].object)));
@@ -688,13 +688,13 @@ __0_0(left, right, info);
 return left;
 }
 symbol_type __process_62(const ll left_type, std::vector<symbol_type> &right, pass_info &info) {
-using $Tp = JoinOp*;
+using $Tp = TPJoinOp*;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-auto& l = get<JoinOp*>(left.object);
-l = new JoinOp();
+auto& l = get<TPJoinOp*>(left.object);
+l = new TPJoinOp();
 l->isJoin = false;
-l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
+l->_sources.push_back(make_shared<TPTableOp>(get<string>(right[1].object)));
 
 if(right.size() <= 2)
 return;
@@ -703,7 +703,7 @@ auto _right = get<iter_object_type>(right[2].object).data;
 size_t size = _right.size();
 for(size_t i = 1; i < size; i += 2)
 {
-l->_sources.push_back(make_shared<TableOp>(get<string>(_right[i].object)));
+l->_sources.push_back(make_shared<TPTableOp>(get<string>(_right[i].object)));
 }
 };
 run();
@@ -721,14 +721,14 @@ __0_0(left, right, info);
 return left;
 }
 symbol_type __process_66(const ll left_type, std::vector<symbol_type> &right, pass_info &info) {
-using $Tp = JoinOp*;
+using $Tp = TPJoinOp*;
 symbol_type left{ left_type, $Tp{} };
 auto run = [&left, &right, &info]() {
-auto& l = get<JoinOp*>(left.object);
-l = new JoinOp();
+auto& l = get<TPJoinOp*>(left.object);
+l = new TPJoinOp();
 l->isJoin = true;
-l->_sources.push_back(make_shared<TableOp>(get<string>(right[1].object)));
-l->_sources.push_back(make_shared<TableOp>(get<string>(right[3].object)));
+l->_sources.push_back(make_shared<TPTableOp>(get<string>(right[1].object)));
+l->_sources.push_back(make_shared<TPTableOp>(get<string>(right[3].object)));
 };
 run();
 __0_0(left, right, info);

@@ -6,6 +6,7 @@
 
 #include <string>
 #include <memory>
+#include <iostream>
 
 using std::string;
 
@@ -106,4 +107,14 @@ namespace DB::ast{
 
         string _value;
     };
+
+
+    int numericOp(int op1, int op2, math_t_t math_t);
+
+    bool comparisonOp(int op1, int op2, comparison_t_t comparison_t);
+
+    void _exprOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os, size_t indent);
+
+    void exprOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream &os);
+
 }

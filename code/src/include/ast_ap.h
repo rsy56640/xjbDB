@@ -14,6 +14,8 @@
 
 namespace DB::ast{
 
+
+
     /*
      * functions
      *  root type must be comparison
@@ -23,6 +25,12 @@ namespace DB::ast{
      */
     // column_int / column_str / int / str
     // void apCheckVisit
+
+
+    /*
+     * generate ast for compile
+     */
+    //void generateAst
 
 
 }
