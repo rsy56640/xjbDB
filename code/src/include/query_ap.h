@@ -11,6 +11,7 @@
 
 using std::string;
 using std::vector;
+using std::shared_ptr;
 
 
 /*
@@ -20,16 +21,28 @@ using std::vector;
 
 namespace DB::query {
 
+
     struct APSelectInfo {
+
+        vector<string> tables;
+        vector<shared_ptr<ast::BaseExpr>> conditions;  //shared_ptr?
+
         //currently suppose select all
         //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
 
-        vector<string> tables;
-        vector<ast::BaseExpr*> conditions;  //shared_ptr?
-
         void print() const
         {
-
+            std::cout << "APSelectInfo : " << std::endl;
+            std::cout << "tables : ";
+            for(auto &table : tables)
+            {
+                std::cout << table << " ";
+            }
+            std::cout << std::endl << "conditions : " << std::endl;
+            for(const auto& condition : conditions)
+            {
+                ast::exprOutputVisit(condition, std::cout);
+            }
         }
     };
 

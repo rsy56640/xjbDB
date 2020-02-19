@@ -61,7 +61,7 @@ namespace DB::query {
             for (const Element &ele : elements)
             {
                 std::cout << "Column : " << ele.name << std::endl;
-                ast::tpOutputVisit(ele.valueExpr, std::cout);
+                ast::exprOutputVisit(ele.valueExpr, std::cout);
             }
         }
     };
@@ -76,12 +76,12 @@ namespace DB::query {
             for (const Element &ele : elements)
             {
                 std::cout << "Column : " << ele.name << std::endl;
-                ast::tpOutputVisit(ele.valueExpr, std::cout);
+                ast::exprOutputVisit(ele.valueExpr, std::cout);
             }
 			if (whereExpr)
 			{
 				std::cout << "Where Expression:" << std::endl;
-                ast::tpOutputVisit(whereExpr, std::cout);
+                ast::exprOutputVisit(whereExpr, std::cout);
 			}
         }
     };
@@ -95,7 +95,7 @@ namespace DB::query {
 			if (whereExpr)
 			{
 				std::cout << "Where Expression:" << std::endl;
-                ast::tpOutputVisit(whereExpr, std::cout);
+                ast::exprOutputVisit(whereExpr, std::cout);
 			}
         }
     };
@@ -103,11 +103,11 @@ namespace DB::query {
     using OrderbyElement = std::pair<ast::BaseExpr*, bool>;	//	orderExpr, isASC
 
     struct TPSelectInfo {
-        std::shared_ptr<ast::BaseOp> opRoot;
+        std::shared_ptr<ast::TPBaseOp> opRoot;
         std::vector<OrderbyElement> orderbys;
         void print() const
         {
-            std::cout << "Select : " << std::endl;
+            std::cout << "TPSelectInfo : " << std::endl;
             ast::tpOutputVisit(opRoot, std::cout);
         }
     };

@@ -1,0 +1,14 @@
+CREATE TABLE Student(sid INT PK, name VARCHAR(20));
+CREATE TABLE Score(sid INT PK, score INT);
+
+INSERT Student(sid, name) VALUES(1, "aaa");
+INSERT Student(sid, name) VALUES(2, "bbb");
+INSERT Student(sid, name) VALUES(3, "ccc");
+
+INSERT Score(sid, score) VALUES(1, 99);
+INSERT Score(sid, score) VALUES(2, 88);
+INSERT Score(sid, score) VALUES(3, 77);
+
+SWITCH;
+
+SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 80;

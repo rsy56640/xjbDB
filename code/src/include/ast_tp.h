@@ -12,46 +12,47 @@
 
 namespace DB::ast {
 
-    enum class op_t_t { PROJECT, FILTER, JOIN, TABLE };
-    struct BaseOp {
-        BaseOp(op_t_t op_t) :op_t_(op_t) {}
-        virtual ~BaseOp() = 0;
+    enum class tp_op_t_t { PROJECT, FILTER, JOIN, TABLE };
+
+    struct TPBaseOp {
+        TPBaseOp(tp_op_t_t op_t) : op_t_(op_t) {}
+        virtual ~TPBaseOp() = 0;
         virtual table::VirtualTable getOutput() = 0;
 
-        op_t_t op_t_;
+        tp_op_t_t op_t_;
     };
 
-    struct ProjectOp : public BaseOp {
-        ProjectOp() :BaseOp(op_t_t::PROJECT) {}
-        virtual ~ProjectOp() { }
+    struct TPProjectOp : public TPBaseOp {
+        TPProjectOp() : TPBaseOp(tp_op_t_t::PROJECT) {}
+        virtual ~TPProjectOp() { }
         virtual table::VirtualTable getOutput();
 
         std::vector<std::string> _names;	//the name of the accordingly element, not sure if useful
         std::vector<std::shared_ptr<ast::AtomExpr>> _elements;	//if empty, $ are used, all columns are needed
-        std::shared_ptr<BaseOp> _source;
+        std::shared_ptr<TPBaseOp> _source;
     };
 
-    struct FilterOp : public BaseOp {
-        FilterOp(ast::BaseExpr* whereExpr) :BaseOp(op_t_t::FILTER), _whereExpr(whereExpr) {}
-        virtual ~FilterOp() { }
+    struct TPFilterOp : public TPBaseOp {
+        TPFilterOp(ast::BaseExpr* whereExpr) : TPBaseOp(tp_op_t_t::FILTER), _whereExpr(whereExpr) {}
+        virtual ~TPFilterOp() { }
         virtual table::VirtualTable getOutput();
 
         std::shared_ptr<ast::BaseExpr> _whereExpr;
-		std::shared_ptr<BaseOp> _source;
+		std::shared_ptr<TPBaseOp> _source;
     };
 
-    struct JoinOp : public BaseOp {
-        JoinOp() :BaseOp(op_t_t::JOIN) {}
-        virtual ~JoinOp() {}
+    struct TPJoinOp : public TPBaseOp {
+        TPJoinOp() : TPBaseOp(tp_op_t_t::JOIN) {}
+        virtual ~TPJoinOp() {}
         virtual table::VirtualTable getOutput();
 
-        std::vector<std::shared_ptr<BaseOp>> _sources;	//currently suppose all sources are TableOp
+        std::vector<std::shared_ptr<TPBaseOp>> _sources;	//currently suppose all sources are TPTableOp
         bool isJoin;	//even it's true, not sure if the tables can be joined
     };
 
-    struct TableOp : public BaseOp {
-        TableOp(const std::string tableName) : BaseOp(op_t_t::TABLE), _tableName(tableName) {}
-        virtual ~TableOp() {}
+    struct TPTableOp : public TPBaseOp {
+        TPTableOp(const std::string tableName) : TPBaseOp(tp_op_t_t::TABLE), _tableName(tableName) {}
+        virtual ~TPTableOp() {}
         virtual table::VirtualTable getOutput();
 
         std::string _tableName;
@@ -60,13 +61,8 @@ namespace DB::ast {
     //===========================================================
     //visit functions
 
-    /*
-    *output visit, output the ast to the given ostream
-    *regardless of validity
-    */
-    void tpOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream &os);
 
-    void tpOutputVisit(std::shared_ptr<const BaseOp> root, std::ostream &os);
+    void tpOutputVisit(std::shared_ptr<const TPBaseOp> root, std::ostream &os);
 
     /*
     *check visit, used in parsing phase
@@ -78,10 +74,6 @@ namespace DB::ast {
     *		string TableA.name and number 123 don't matched either
     *
     *for any dismatching, throw DB_Exception
-    *if passing, it is guaranteed other visit function will never encounter unexcepted cases
-    *
-    *the visited expr won't be modified at present,
-    *may be modified for optimization in the future
     */
 
     //check WHERE clause(expression)
@@ -95,8 +87,6 @@ namespace DB::ast {
     *vm visit, for vm
     *guarantee no except
     */
-    inline int numericOp(int op1, int op2, math_t_t math_t);
-    inline bool comparisonOp(int op1, int op2, comparison_t_t comparison_t);
 
     //for WHERE clause(expression), used for filtering values of a row
     bool vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row);

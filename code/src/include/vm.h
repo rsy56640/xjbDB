@@ -22,11 +22,11 @@
 namespace DB::tree { class BTree; }
 namespace DB::ast {
     struct BaseExpr;
-    struct BaseOp;
-    struct ProjectOp;
-    struct FilterOp;
-    struct JoinOp;
-    struct TableOp;
+    struct APBaseOp;
+    struct TPProjectOp;
+    struct TPFilterOp;
+    struct TPJoinOp;
+    struct TPTableOp;
 }
 
 namespace DB::vm
@@ -139,11 +139,11 @@ namespace DB::vm
         // - projection
         // - sigma
     public:
-        //friend struct TableOp;
+        //friend struct TPTableOp;
         VirtualTable scanTable(const std::string& tableName);
         void doScanTable(VirtualTable ret, const std::string tableName);
 
-        //friend struct JoinOp;
+        //friend struct TPJoinOp;
         // if JOIN ON PK, ignore the second pk name
         // uint32_t table2_col_start    denotes (t1.col, t1.col, t2.col, t2.col)
         // uint32_t vEntry_offset       denotes the t2 rows' offset after t1 rows
@@ -151,11 +151,11 @@ namespace DB::vm
         void doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk,
             uint32_t table2_col_start, uint32_t vEntry_offset);
 
-        //friend struct ProjectOp;
+        //friend struct TPProjectOp;
         VirtualTable projection(VirtualTable t, const std::vector<std::string>& colNames);
         void doProjection(VirtualTable ret, VirtualTable t, const std::vector<page::range_t> origin);
 
-        //friend struct FilterOp;
+        //friend struct TPFilterOp;
         VirtualTable sigma(VirtualTable t, std::shared_ptr<ast::BaseExpr>);
         void doSigma(VirtualTable ret, VirtualTable t, std::shared_ptr<ast::BaseExpr>);
 
