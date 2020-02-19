@@ -315,14 +315,7 @@ namespace DB::parse_tp
 
 	// Data Manipulation Language
 	insertStatement := 
-		"INSERT" tableName insertElements, =
-		{
-			//match ID and value in insertElement
-			auto& l = get<InsertInfo>(left.object);
-			l.elements = get<Elements>(right[2].object);
-			l.sourceTable = get<string>(right[1].object);
-		}
-		| "INSERT" tableName "(" "ID" [{"," "ID"}*] ")" insertElements, =
+		"INSERT" tableName "(" "ID" [{"," "ID"}*] ")" insertElements, =
 		{
 			//match ID and value in insertElement
 			auto& l = get<InsertInfo>(left.object);
