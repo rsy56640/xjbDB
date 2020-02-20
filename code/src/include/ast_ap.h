@@ -73,7 +73,7 @@ namespace DB::ast{
      * used before actually generation
      * throw exception if check fails
      */
-    void apCheckVisit(vector<shared_ptr<const BaseExpr>> &conditions);
+    void apCheckVisit(vector<shared_ptr<BaseExpr>> &conditions);
 
 
     using Column = std::pair<string, string>;

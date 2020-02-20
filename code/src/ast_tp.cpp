@@ -110,7 +110,7 @@ namespace DB::ast {
     enum class check_t_t { INT, STRING, BOOL };
     const std::string check2str[] = { "INT", "STRING", "BOOL" };
 
-    check_t_t _tpCheckVisitAtom(std::shared_ptr<const AtomExpr> root, const std::string& tableName)
+    check_t_t _tpCheckVisitAtom(std::shared_ptr<const BaseExpr> root, const std::string& tableName)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)
@@ -231,7 +231,7 @@ namespace DB::ast {
 
     //vm visit
 
-    table::value_t _vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row);
+    table::value_t _vmVisitAtom(std::shared_ptr<const BaseExpr> root, table::row_view row);
 
     bool _vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row)
     {
@@ -296,7 +296,7 @@ namespace DB::ast {
         return _vmVisit(root, row);
     }
 
-    table::value_t _vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row)
+    table::value_t _vmVisitAtom(std::shared_ptr<const BaseExpr> root, table::row_view row)
     {
         base_t_t base_t = root->base_t_;
         switch (base_t)

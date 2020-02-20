@@ -49,9 +49,14 @@ namespace DB::query{
             auto res = parse_ap::analyze(lexer.getTokens());
             value = res.apValue;
 
-
             if (debug::PARSE_LOG)
                 std::cout << "\n--End Parse---------------------------------------\n" << std::endl;
+
+            //for APSelectInfo, check & optimize before return
+            if (auto ptr = get_if<APSelectInfo>(&value))
+            {
+                apCheckVisit(ptr->conditions);
+            }
         }
         catch (const DB::DB_Base_Exception& e)
         {

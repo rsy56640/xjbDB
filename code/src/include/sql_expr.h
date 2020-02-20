@@ -9,6 +9,7 @@
 #include <iostream>
 
 using std::string;
+using std::shared_ptr;
 
 /*
  * this file includes
@@ -50,8 +51,8 @@ namespace DB::ast{
         virtual ~LogicalOpExpr(){};
 
         const logical_t_t logical_t_;
-        std::shared_ptr<BaseExpr> _left;
-        std::shared_ptr<BaseExpr> _right;
+        shared_ptr<BaseExpr> _left;
+        shared_ptr<BaseExpr> _right;
     };
 
     struct ComparisonOpExpr : public NonAtomExpr {
@@ -61,8 +62,8 @@ namespace DB::ast{
         virtual ~ComparisonOpExpr(){};
 
         const comparison_t_t comparison_t_;
-        std::shared_ptr<AtomExpr> _left;
-        std::shared_ptr<AtomExpr> _right;
+        shared_ptr<BaseExpr> _left;
+        shared_ptr<BaseExpr> _right;
     };
 
     struct MathOpExpr : public AtomExpr {
@@ -71,8 +72,8 @@ namespace DB::ast{
         virtual ~MathOpExpr(){};
 
         const math_t_t math_t_;
-        std::shared_ptr<AtomExpr> _left;
-        std::shared_ptr<AtomExpr> _right;
+        shared_ptr<BaseExpr> _left;
+        shared_ptr<BaseExpr> _right;
     };
 
     struct IdExpr : public AtomExpr {
@@ -113,8 +114,8 @@ namespace DB::ast{
 
     bool comparisonOp(int op1, int op2, comparison_t_t comparison_t);
 
-    void _exprOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream& os, size_t indent);
+    void _exprOutputVisit(shared_ptr<const BaseExpr> root, std::ostream& os, size_t indent);
 
-    void exprOutputVisit(std::shared_ptr<const BaseExpr> root, std::ostream &os);
+    void exprOutputVisit(shared_ptr<const BaseExpr> root, std::ostream &os);
 
 }

@@ -164,7 +164,7 @@ namespace DB::parse_ap
 		| predicate, =
 		{ 
 			auto exprPtr = get<BaseExpr*>(right[0].object);
-			info.apSelectInfo.conditions.push_back(make_shared<BaseExpr>(*exprPtr));
+			info.apSelectInfo.conditions.push_back(shared_ptr<BaseExpr>{exprPtr});
 		}
 		;
 

@@ -25,7 +25,7 @@ namespace DB::query {
     struct APSelectInfo {
 
         vector<string> tables;
-        vector<shared_ptr<ast::BaseExpr>> conditions;  //shared_ptr?
+        vector<shared_ptr<ast::BaseExpr>> conditions;
 
         //currently suppose select all
         //vector< std::pair<string, string> > columns; // selected pairs of<table, column>

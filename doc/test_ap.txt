@@ -12,3 +12,6 @@ INSERT Score(sid, score) VALUES(3, 77);
 SWITCH;
 
 SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 80;
+
+//test constant optimizer
+SELECT $ FROM Student WHERE Student.sid > 1 + 2 * 1;
