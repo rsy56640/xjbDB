@@ -8,6 +8,14 @@
 
 namespace DB::ast{
 
+    // op node
+    APBaseOp::~APBaseOp() {}
+
+    APTableOp::APTableOp(const string tableName) : APBaseOp(ap_op_t_t::TABLE)
+    {
+        // throw exception if not exist
+    }
+
     //expression type
     enum class ap_check_t {INT, STR, BOOL};
 
@@ -103,6 +111,89 @@ namespace DB::ast{
         {
             apCheckSingle(condition);
         }
+    }
+
+
+    shared_ptr<APEmitOp> generateAst(const vector<string> &tables, const vector<shared_ptr<BaseExpr>> &conditions, vector<Column> columns)
+    {
+        vector<int> singleConditions;   // only one table included
+        vector<int> joinConditions;   // currently consider only T1.v == T2.v
+        vector<int> complexConditions;   // other conditions
+
+        int hashTableIndex = 0;
+        map<string, APBaseOp*> tableDict;  // table name -> Op containing the table
+        map<int, set<string>> condDict; // condition index -> tables involved
+
+        for(const auto &table : tables)
+        {
+            tableDict[table] = new APTableOp(table);
+        }
+
+        for(int i = 0; i < conditions.size(); ++i)
+        {
+            auto tableSet = conditions[i]->getTables();
+            condDict[i] = tableSet;
+            if(tableSet.size() == 1)
+                singleConditions.push_back(i);
+            else if(tableSet.size() == 2 && conditions[i]->isJoin())
+                joinConditions.push_back(i);
+            else
+                complexConditions.push_back(i);
+        }
+
+        for(int condIndex : singleConditions)
+        {
+            if (condDict[condIndex].size() != 1)
+                throw string("wrong condition table set");
+
+            //package specific table into FilterOP
+            const string &table = *condDict[condIndex].begin();
+            APBaseOp *filterOp = new APFilterOp(tableDict[table], conditions[condIndex]);
+            tableDict[table]->setParentOp(filterOp);
+
+            //replace dict
+            tableDict[table] = filterOp;
+        }
+
+        for(auto condIndex : joinConditions)
+        {
+            if (condDict[condIndex].size() != 2)
+                throw string("wrong condition table set");
+
+            //package tables into JoinOP
+            auto it = condDict[condIndex].begin();
+            const string &table1 = *it, &table2 = *++it;
+            APBaseOp *joinOp = new APJoinOp(tableDict[table1], tableDict[table2], conditions[condIndex], hashTableIndex++);
+            tableDict[table1]->setParentOp(joinOp);
+            tableDict[table2]->setParentOp(joinOp);
+
+            //replace dict
+            tableDict[table1] = joinOp;
+            tableDict[table2] = joinOp;
+        }
+
+        for(auto condition : complexConditions)
+        {
+            // currently don't complex condition
+
+            //package specific table into Filter
+
+            //replace dict
+        }
+
+        // currently don't handle projection
+
+        APBaseOp *merge = tableDict.begin()->second;
+        for(const auto &kv : tableDict)
+        {
+            if(kv.second != merge)
+                throw string("generate ast error, exist unjoined tables");
+        }
+
+        //package into EmitOP
+        shared_ptr<APEmitOp> emit{new APEmitOp(merge, hashTableIndex)};
+        merge->setParentOp(emit.get());
+        return emit;
     }
 
 }

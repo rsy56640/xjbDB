@@ -56,6 +56,7 @@ namespace DB::query{
             if (auto ptr = get_if<APSelectInfo>(&value))
             {
                 apCheckVisit(ptr->conditions);
+                auto emit = generateAst(ptr->tables, ptr->conditions);
             }
         }
         catch (const DB::DB_Base_Exception& e)

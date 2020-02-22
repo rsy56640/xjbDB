@@ -7,9 +7,8 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <set>
 
-using std::string;
-using std::shared_ptr;
 
 /*
  * this file includes
@@ -17,6 +16,11 @@ using std::shared_ptr;
  */
 
 namespace DB::ast{
+
+    using std::string;
+    using std::shared_ptr;
+    using std::set;
+
     enum class base_t_t { LOGICAL_OP, COMPARISON_OP, ID, NUMERIC, STR, MATH_OP };
     enum class logical_t_t { AND, OR };
     enum class comparison_t_t { EQ, NEQ, LESS, GREATER, LEQ, GEQ, };
@@ -31,6 +35,9 @@ namespace DB::ast{
     struct BaseExpr {
         BaseExpr(base_t_t base_t) :base_t_(base_t) {}
         virtual ~BaseExpr() {};
+
+        virtual set<string> getTables() { return {}; };
+        virtual bool isJoin() { return false; };
 
         const base_t_t  base_t_;
     };
@@ -61,6 +68,16 @@ namespace DB::ast{
                 NonAtomExpr(base_t_t::COMPARISON_OP), comparison_t_(comparison_t), _left(left), _right(right) {}
         virtual ~ComparisonOpExpr(){};
 
+        virtual set<string> getTables()
+        {
+            auto t1 = _left->getTables();
+            auto t2 = _right->getTables();
+            t1.insert(t2.begin(), t2.end());
+            return t1;
+        }
+
+        virtual bool isJoin() { return comparison_t_ == comparison_t_t::EQ; };
+
         const comparison_t_t comparison_t_;
         shared_ptr<BaseExpr> _left;
         shared_ptr<BaseExpr> _right;
@@ -71,6 +88,14 @@ namespace DB::ast{
                 AtomExpr(base_t_t::MATH_OP), math_t_(math_t), _left(left), _right(right) {}
         virtual ~MathOpExpr(){};
 
+        virtual set<string> getTables()
+        {
+            auto t1 = _left->getTables();
+            auto t2 = _right->getTables();
+            t1.insert(t2.begin(), t2.end());
+            return t1;
+        }
+
         const math_t_t math_t_;
         shared_ptr<BaseExpr> _left;
         shared_ptr<BaseExpr> _right;
@@ -80,6 +105,8 @@ namespace DB::ast{
         IdExpr(string columnName, string tableName = string()) :
                 AtomExpr(base_t_t::ID), _tableName(tableName), _columnName(columnName) {}
         virtual ~IdExpr(){};
+
+        virtual set<string> getTables(){ return {_tableName}; };
 
         const string getFullColumnName() const
         {
