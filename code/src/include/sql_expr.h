@@ -76,7 +76,12 @@ namespace DB::ast{
             return t1;
         }
 
-        virtual bool isJoin() { return comparison_t_ == comparison_t_t::EQ; };
+        virtual bool isJoin()
+        {
+            bool isLeftID = _left->base_t_ == base_t_t::ID;
+            bool isRightID = _right->base_t_ == base_t_t::ID;
+            return comparison_t_ == comparison_t_t::EQ && isLeftID && isRightID;
+        };
 
         const comparison_t_t comparison_t_;
         shared_ptr<BaseExpr> _left;
