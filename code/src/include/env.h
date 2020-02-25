@@ -1,8 +1,4 @@
-#ifndef _ENV_H
-#define _ENV_H
-
-namespace DB
-{
+#pragma once
 
 #ifdef _xjbDB_MSVC_
 	using int8_t = __int8;
@@ -20,9 +16,7 @@ namespace DB
 #endif // _xjbDB_MSVC_
 
 #ifdef _xjbDB_GCC_
-
-
-
+#include <stdint.h>
 #endif // _xjbDB_GCC_
 
 #ifdef _xjbDB_Clang_
@@ -30,10 +24,3 @@ namespace DB
 
 
 #endif // _xjbDB_Clang_
-
-
-
-
-} // end namespace DB
-
-#endif // !_ENV_H

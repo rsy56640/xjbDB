@@ -5,13 +5,15 @@
 #pragma once
 
 #include "sql_expr.h"
+#include "page.h"
+#include "table.h"
 #include <memory>
 #include <vector>
-#include <map>
+#include <unordered_map>
 
 using std::vector;
 using std::shared_ptr;
-using std::map;
+using std::unordered_map;
 using std::pair;
 
 /*
@@ -20,12 +22,37 @@ using std::pair;
  *  functions for ap ast
  */
 
+namespace std {
+    template<>
+    struct hash<pair<string, string>> {
+        using result_type = std::size_t;
+        using argument_type = pair<string, string>;
+        result_type operator()(const argument_type& attr) const {
+            result_type h1 = std::hash<std::string>{}(attr.first);
+            result_type h2 = std::hash<std::string>{}(attr.second);
+            return h1 ^ (h2 << 1);
+        }
+    };
+}
+
 namespace DB::ast{
 
     //op nodes of ap
     enum class ap_op_t_t { EMIT, PROJECT, FILTER, JOIN, TABLE };
 
-    using APMap = map<pair<string, string>, int>; // need reset
+    class APMap {
+    public:
+        using col_name_t = pair<string, string>;
+        // init from source table
+        APMap(const table::TableInfo& table);
+        // init from join
+        APMap(const APMap& left, const APMap& right);
+        page::range_t get(const col_name_t&);
+        uint32_t len() const;
+    private:
+        unordered_map<col_name_t, page::range_t> attr_map;
+        uint32_t tuple_len;
+    };
 
     struct APBaseOp {
         APBaseOp(ap_op_t_t op_t, APBaseOp *parentOp = nullptr)
@@ -96,7 +123,7 @@ namespace DB::ast{
     };
 
     struct APTableOp : public APBaseOp {
-        APTableOp(string tableName, int tableIndex);
+        APTableOp(const table::TableInfo& table, int tableIndex);
         virtual ~APTableOp() {}
 
         virtual void produce();
