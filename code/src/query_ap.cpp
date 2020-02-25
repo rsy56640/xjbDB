@@ -57,6 +57,7 @@ namespace DB::query{
             {
                 apCheckVisit(ptr->conditions);
                 auto emit = generateAst(ptr->tables, ptr->conditions);
+                auto code = generateCode(emit);
             }
         }
         catch (const DB::DB_Base_Exception& e)

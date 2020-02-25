@@ -32,6 +32,9 @@ namespace DB::ast{
             : op_t_(op_t), _parentOp(parentOp) {}
         virtual ~APBaseOp() = 0;
 
+        virtual bool isJoin() { return false; };
+
+        // used to traversal
         virtual void produce() {};
         // source are used to check left/right child, map is constructed from bottom to top
         virtual void consume(APBaseOp *source, APMap &map) {};
@@ -43,43 +46,63 @@ namespace DB::ast{
     };
 
     struct APEmitOp : public  APBaseOp {
-        APEmitOp(APBaseOp *op, int hashTableCount)
-            : APBaseOp(ap_op_t_t::EMIT), _op(op), _hashTableCount(hashTableCount) {}
+        APEmitOp(APBaseOp *table, int hashTableCount, int tableCount)
+            : APBaseOp(ap_op_t_t::EMIT), _table(table), _hashTableCount(hashTableCount), _tableCount(tableCount) {}
         virtual ~APEmitOp() {}
 
+        virtual void produce();
+        virtual void consume(APBaseOp *source, APMap &map);
+
         int _hashTableCount;
-        APBaseOp *_op;
+        int _tableCount;
+        APBaseOp *_table;
     };
 
     struct APProjectOp : public APBaseOp {
         APProjectOp() : APBaseOp(ap_op_t_t::PROJECT) {}
         virtual ~APProjectOp() { }
 
+        virtual void produce(){/*TODO*/};
+        virtual void consume(APBaseOp *source, APMap &map){/*TODO*/};
     };
 
     struct APFilterOp : public APBaseOp {
-        APFilterOp(APBaseOp *tableOp, shared_ptr<BaseExpr> condition)
-            : APBaseOp(ap_op_t_t::FILTER), _condition(condition) {}
+        APFilterOp(APBaseOp *table, shared_ptr<BaseExpr> condition)
+            : APBaseOp(ap_op_t_t::FILTER), _table(table), _condition(condition) {}
         virtual ~APFilterOp() { }
 
+        virtual void produce();
+        virtual void consume(APBaseOp *source, APMap &map);
+
+        APBaseOp *_table;
         shared_ptr<BaseExpr> _condition;
     };
 
     struct APJoinOp : public APBaseOp {
-        APJoinOp(APBaseOp *table1, APBaseOp *table2, shared_ptr<BaseExpr> condition, int hashTableIndex)
-            : APBaseOp(ap_op_t_t::JOIN), _table1(table1), _table2(table2),
-            _condition(condition), _hashTableIndex(hashTableIndex) {}
+        APJoinOp(APBaseOp *tableLeft, APBaseOp *tableRight, shared_ptr<BaseExpr> condition, int hashTableIndex)
+            : APBaseOp(ap_op_t_t::JOIN), _tableLeft(tableLeft), _tableRight(tableRight),
+              _condition(condition), _hashTableIndex(hashTableIndex) {}
         virtual ~APJoinOp() {}
 
+        virtual bool isJoin() { return true; };
+
+        virtual void produce();
+        virtual void consume(APBaseOp *source, APMap &map);
+
         int _hashTableIndex;
-        APBaseOp *_table1;
-        APBaseOp *_table2;
+        APBaseOp *_tableLeft;
+        APBaseOp *_tableRight;
         shared_ptr<BaseExpr> _condition;
     };
 
     struct APTableOp : public APBaseOp {
-        APTableOp(const string tableName);
+        APTableOp(string tableName, int tableIndex);
         virtual ~APTableOp() {}
+
+        virtual void produce();
+
+        int _tableIndex;
+        APMap _map;
     };
 
 
@@ -107,5 +130,9 @@ namespace DB::ast{
      */
     shared_ptr<APEmitOp> generateAst(const vector<string> &tables, const vector<shared_ptr<BaseExpr>> &conditions, vector<Column> columns = {});
 
-
+    /*
+     * functions
+     *  generate code from ast
+     */
+    string generateCode(shared_ptr<APEmitOp> emit);
 }
