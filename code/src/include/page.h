@@ -238,7 +238,10 @@ namespace DB::page
         value_state value_state_ = value_state::OBSOLETE;
         char content_[MAX_TUPLE_SIZE] = { 0 };        // 66B
     };
-    struct range_t { uint32_t begin = 0, len = 0; };
+    struct range_t { 
+        uint32_t begin = 0, len = 0;
+        uint32_t end() const { return begin + len; }
+    };
     void update_vEntry(ValueEntry& dest, const ValueEntry& src);
     void update_vEntry(ValueEntry& dest, range_t dest_range, const ValueEntry& src, range_t src_range);
     void update_vEntry(ValueEntry&, range_t range, int32_t);
@@ -275,6 +278,7 @@ namespace DB::page
         uint32_t vEntry_offset_ = 0;            // denotes the offset at ValueEntry
                                                 // do not flush to disk
 
+        range_t get_range() const { return { vEntry_offset_, str_len_ }; }
         bool isPK() const noexcept { return constraint_t_ & constraint_t_t::PK; }
         bool isFK() const noexcept { return constraint_t_ & constraint_t_t::FK; }
         bool isNOT_NULL() const noexcept { return constraint_t_ & constraint_t_t::NOT_NULL; }

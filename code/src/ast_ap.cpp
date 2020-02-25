@@ -5,15 +5,47 @@
 #include "ast_ap.h"
 #include "table.h"
 #include "page.h"
+#include <string>
+#include <map>
+#include <unordered_map>
 
 #define START_BASE_LINE 2
 
 namespace DB::ast{
 
     using std::to_string;
+    using std::string;
+    using std::map;
+    using std::unordered_map;
 
     int g_iTableCount, g_iHashCount, g_iIndent;
     vector<string> g_vCode = {};
+
+    // init from source table
+    APMap::APMap(const table::TableInfo& table)
+        :attr_map(), tuple_len(table.columnInfos_.back().get_range().end())
+    {
+        const std::string tableName = table.tableName_;
+        const uint32_t attr_size = table.colNames_.size();
+        for(int i = 0; i < attr_size; i++) {
+            attr_map[{ tableName, table.colNames_[i] }] =
+                table.columnInfos_[i].get_range();
+        }
+    }
+
+    // init from join
+    APMap::APMap(const APMap& left, const APMap& right)
+        :attr_map(), tuple_len(left.len() + right.len())
+    {
+        // TODO:
+    }
+
+    uint32_t APMap::len() const { return tuple_len; }
+
+    page::range_t APMap::get(const col_name_t& attr) {
+        return attr_map[attr];
+    }
+
 
     // op node
     APBaseOp::~APBaseOp() {}
@@ -127,8 +159,8 @@ namespace DB::ast{
         }
     }
 
-    APTableOp::APTableOp(string tableName, int tableIndex)
-        : APBaseOp(ap_op_t_t::TABLE), _tableIndex(tableIndex)
+    APTableOp::APTableOp(const table::TableInfo& table, int tableIndex)
+        : APBaseOp(ap_op_t_t::TABLE), _tableIndex(tableIndex), _map(table)
     {
         // throw exception if not exist
 

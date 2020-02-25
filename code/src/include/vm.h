@@ -8,6 +8,7 @@
 #include "table.h"
 #include "query_tp.h"
 #include "query_ap.h"
+#include "ap_exec.h"
 #include <future>
 #include <unordered_map>
 #include <unordered_set>
@@ -162,6 +163,11 @@ namespace DB::vm
 
         void init_pk_view();
 
+        // for mode switch
+        void AP_INIT();
+        void AP_RESET();
+        uint32_t get_ap_table_index(const std::string&) const;
+
     private:
 
         StorageEngine storage_engine_;
@@ -185,6 +191,11 @@ namespace DB::vm
             std::unordered_map<int32_t, uint32_t>> table_pk_ref_INT;
         std::unordered_map<page::page_id_t,
             std::unordered_map<std::string, uint32_t>> table_pk_ref_VARCHAR;
+
+
+        // for AP
+        std::shared_ptr<ap::ap_table_array_t> ap_table_array_;
+        std::vector<std::string> table_names_;
 
 
     public: // for test

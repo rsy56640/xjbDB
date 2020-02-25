@@ -199,6 +199,7 @@ namespace DB::vm
                 if(std::get_if<query::Switch>(&plan) != nullptr) {
                     printXJBDB("SWITCH to OLAP\n");
                     tp = false;
+                    AP_INIT();
                     continue;
                 }
 
@@ -231,6 +232,7 @@ namespace DB::vm
                 if(std::get_if<query::Switch>(&plan) != nullptr) {
                     printXJBDB("SWITCH to OLTP\n");
                     tp = true;
+                    AP_RESET();
                     continue;
                 }
 
@@ -1226,7 +1228,6 @@ namespace DB::vm
     }
 
 
-
     void VM::init_pk_view() {
         struct FKInfo {
             page::key_t_t key_t;
@@ -1325,6 +1326,24 @@ namespace DB::vm
         } // end iterate all table
 
     } // end function `void VM::init_pk_view();`
+
+
+    void VM::AP_INIT() {
+        
+    }
+
+    void VM::AP_RESET() {
+        ap_table_array_.reset();
+        table_names_.clear();
+    }
+
+    uint32_t VM::get_ap_table_index(const std::string& table_name) const {
+        for(int i = 0; i < table_names_.size(); i++) {
+            if(table_names_[i] == table_name) {
+                return i;
+            }
+        }
+    }
 
 
     VM::~VM()
