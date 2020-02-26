@@ -62,13 +62,12 @@ namespace DB::ast{
         /*
          * EmitOp query         BASE
          * VMEmitOp emit;       BASE
-         * const ap_table_t*    _tableCount
+         * const ap_table_t&    _tableCount
          * range_t              _hashTableCount * 2
          * hash_table_t         _hashTableCount
-         * probe_buf_t          _hashTableCount
          */
-        g_vCode.resize(START_BASE_LINE + _tableCount + 4 * _hashTableCount);
-        g_vCode[0] = "EmitOp query(connst table_container_t& tables) {";
+        g_vCode.resize(START_BASE_LINE + _tableCount + 3 * _hashTableCount);
+        g_vCode[0] = "VMEmitOp query(const ap_table_array_t& tables) {";
         g_vCode[1] = "VMEmitOp emit;";
 
         _table->produce();
@@ -76,7 +75,16 @@ namespace DB::ast{
 
     void APEmitOp::consume(APBaseOp *source, APMap &map)
     {
-        g_vCode.push_back("return emit; }");
+        g_vCode.push_back("emit.emit(block);");
+
+        while(g_iIndent > 0)
+        {
+            g_vCode.push_back("}");
+            g_iIndent--;
+        }
+
+        g_vCode.push_back("return emit;");
+        g_vCode.push_back("} // end codegen function");
     }
 
 
@@ -87,16 +95,50 @@ namespace DB::ast{
 
     string generateCondStr(shared_ptr<BaseExpr> condition, APMap &map)
     {
-        // TODO: generate condition string with map
+        // generate condition string with map
 
-        return "";
+        base_t_t base_t = condition->base_t_;
+        switch (base_t)
+        {
+            case base_t_t::COMPARISON_OP:
+            {
+                std::shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(condition);
+                string strLeft = generateCondStr(comparisonPtr->_left, map);
+                string strRight = generateCondStr(comparisonPtr->_right, map);
+                return comparison2func[int(comparisonPtr->comparison_t_)] + "(" + strLeft + "," + strRight + ")";
+            }
+            case base_t_t::MATH_OP:
+            {
+                std::shared_ptr<const MathOpExpr> mathPtr = std::static_pointer_cast<const MathOpExpr>(condition);
+                string strLeft = generateCondStr(mathPtr->_left, map);
+                string strRight = generateCondStr(mathPtr->_right, map);
+                return math2func[int(mathPtr->math_t_)] + "(" + strLeft + "," + strRight + ")";
+            }
+            case base_t_t::ID:
+            {
+                std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(condition);
+
+                return " GET_VAlUE_FROM_MAP "; // TODO: replace with map
+            }
+            case base_t_t::NUMERIC:
+            {
+                std::shared_ptr<const NumericExpr> numericPtr = std::static_pointer_cast<const NumericExpr>(condition);
+                return to_string(numericPtr->_value);
+            }
+            case base_t_t::STR:
+            {
+                std::shared_ptr<const StrExpr> strPtr = std::static_pointer_cast<const StrExpr>(condition);
+                return strPtr->_value;
+            }
+        }
+
+        // unexpect to reach here
+        throw string("unexpected bast_t in generateCondStr");
     }
 
     void APFilterOp::consume(APBaseOp *source, APMap &map)
     {
-        g_iIndent++;
-
-        g_vCode.push_back("if(" + generateCondStr(_condition, map) + "){");
+        g_vCode.push_back(generateCondStr(_condition, map) + ";");
 
         // map doesn't need change
         _parentOp->consume(this, map);
@@ -110,9 +152,6 @@ namespace DB::ast{
         g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex] =
                 "hash_table_t ht" + strIndex +
                 "(rngLeft" + strIndex + ",rngRight" + strIndex + ");";
-
-        g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex + 1] =
-                "probe_buf_t buf" + strIndex + ";";
 
         _tableLeft->produce();
         _tableRight->produce();
@@ -129,7 +168,7 @@ namespace DB::ast{
                     "range_t rngLeft" + strIndex +
                     "{" + "xxx" + "};"; //TODO: xxx -> (join condition + map) -> rng
 
-            g_vCode.push_back("ht" + strIndex + ".insert(t);");
+            g_vCode.push_back("ht" + strIndex + ".insert(block);");
 
             while(g_iIndent > 0)
             {
@@ -141,13 +180,17 @@ namespace DB::ast{
         }
         else if(source == _tableRight)
         {
+            g_iIndent++;
+
             // reserved lines for right child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2 + 1] =
                     "range_t rngRight" + strIndex +
                     "{" + "xxx" + "};"; //TODO: xxx -> (join condition + map) -> rng
 
-            // TODO: main content
-            g_vCode.push_back("RIGHT_JOIN_CODE");
+            // main content
+            g_vCode.push_back("join_result_buf_t join_result" + strIndex + " = ht" + strIndex + ".probe(block);");
+            g_vCode.push_back("for(ap_block_iter_t it = join_result" + strIndex + ".get_block_iter(); !it.is_end();) {");
+            g_vCode.push_back("block_tuple_t block = it.consume_block();");
 
             // TODO: change map after join
 
@@ -162,8 +205,6 @@ namespace DB::ast{
     APTableOp::APTableOp(const table::TableInfo& table, int tableIndex)
         : APBaseOp(ap_op_t_t::TABLE), _tableIndex(tableIndex), _map(table)
     {
-        // throw exception if not exist
-
         // TODO: store the map of the table into _map
     }
 
@@ -175,11 +216,13 @@ namespace DB::ast{
 
         // reserved lines for table declaration
         g_vCode[START_BASE_LINE + _tableIndex] =
-                "const ap_table_t* T" + strIndex +
-                "tables.at(" + "xxx" + ");"; //TODO: xxx -> map of physical address
+                "const ap_table_t& T" + strIndex +
+                " = tables.at(" + "xxx" + ");"; //TODO: xxx -> map of physical address
 
-        g_vCode.push_back("for(ap_row_iter_t t = T" + strIndex + "->get_single_iter();" +
-                " !t" + strIndex + ".is_end(); t" + strIndex + ".next()) {");
+        g_vCode.push_back("for(ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
+                " !it" + strIndex + ".is_end();) {");
+
+        g_vCode.push_back("block_tuple_t block = it.consume_block();");
 
         _parentOp->consume(this, _map);
     }
@@ -301,6 +344,8 @@ namespace DB::ast{
 
         for(const auto &table : tables)
         {
+            // use table name get TableInfo, throw exception if not exist
+
             tableDict[table] = new APTableOp(table, tableIndex++);
         }
 
