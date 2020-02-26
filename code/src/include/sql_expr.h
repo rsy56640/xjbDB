@@ -32,7 +32,6 @@ namespace DB::ast{
     const string comparison2str[] = { "==", "!=", "<", ">", "<=", ">=" };
     const string comparison2func[] = { "equal", "not_equal", "less", "greater", "less_equal", "greater_equal" };
     const string math2str[] = { "+", "-", "*", "/", "%" };
-    const string math2func[] = { "add", "minus", "mutiple", "divide", "mod"};
 
     struct BaseExpr {
         BaseExpr(base_t_t base_t) :base_t_(base_t) {}
