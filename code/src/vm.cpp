@@ -1329,7 +1329,20 @@ namespace DB::vm
 
 
     void VM::AP_INIT() {
-        
+        ap_table_array_ = std::make_shared<ap::ap_table_array_t>();
+        // prepare "table name" and "table data"
+        for(auto& [name, table_meta] : table_meta_) {
+            table_names_.push_back(name);
+
+            ap::ap_table_t table_in_memory;
+            tree::BTit it = table_meta->bt_->range_query_from_begin();
+            tree::BTit end = table_meta->bt_->range_query_from_end();
+            while(it != end) {
+                table_in_memory.rows_.push_back(ap::ap_row_t{ it.getV() });
+                ++it;
+            }
+            ap_table_array_->tables_.push_back(std::move(table_in_memory));
+        }
     }
 
     void VM::AP_RESET() {

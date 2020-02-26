@@ -3,17 +3,45 @@
 #include <vector>
 #include <string_view>
 #include "ap_prefetch.h"
+#include "ap_simd.h"
 #include "page.h"
 
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
+namespace DB::vm { class VM; }
 namespace DB::ap {
 
-    constexpr uint32_t VECTOR_SIZE = 8;
+    /*
+     * ************************* data flow representation *************************
+     * 
+     * ap_table_t:
+     *      array of tuples, iterated by block.
+     * 
+     * block_tuple_t:
+     *      array of tuples with fixed size, is the input for each APNode.
+     * 
+     * join_result_buf_t:
+     *      array of tuples, iterated by block, is the output of join probe.
+     * 
+     * ************************* *************************
+     * 
+     * ap_block_iter_t:
+     *      
+     * 
+     * block_tuple_iter_t:
+     *      for NON-SIMD use.
+     * 
+     * VECTOR_INT:
+     *      for SIMD use.
+     * 
+     * 
+     * 
+     */
 
-    class ap_row_t {
-    public:
+    struct ap_row_t {
         int32_t getINT(page::range_t range) const { return page::get_range_INT(row, range); }
         std::string_view getVARCHAR(page::range_t range) const { return std::string_view{ row.content_ + range.begin, range.len }; }
-    private:
         page::ValueEntry row;
     };
 
@@ -23,12 +51,11 @@ namespace DB::ap {
     class block_tuple_t;
     class block_tuple_iter_t {
     public:
-        block_tuple_iter_t(block_tuple_t* block_tuple)
-            : block_tuple_(block_tuple), idx_(0) {}
-        bool is_end() const { return idx_ == VECTOR_SIZE; };
-        bool valid() const { return block_tuple_->select_[idx_]; };
-        ap_row_t getTuple() const { return block_tuple_->rows_[idx_]; };
-        void next() { idx_++; }
+        block_tuple_iter_t(block_tuple_t* block_tuple);
+        bool is_end() const;
+        bool valid() const;
+        ap_row_t getTuple() const;
+        void next();
     private:
         block_tuple_t* block_tuple_;
         uint32_t idx_;
@@ -40,19 +67,47 @@ namespace DB::ap {
         block_tuple_t* block_;
         int32_t vec_[VECTOR_SIZE];
         VECTOR_INT(block_tuple_t* block, page::range_t range);
-        // SIMD compare, SIMD and
-        void compare_equal(int32_t value);
-        void compare_less_than(int32_t value);
-        void compare_less_than_or_equal_to(int32_t value);
-        void compare_greater_than(int32_t value);
-        void compare_greater_than_or_equal_to(int32_t value);
     };
+    // SIMD arithmatic
+    VECTOR_INT operator+(VECTOR_INT, int32_t);
+    VECTOR_INT operator+(int32_t, VECTOR_INT);
+    VECTOR_INT operator+(VECTOR_INT, VECTOR_INT);
+    VECTOR_INT operator-(VECTOR_INT, int32_t);
+    VECTOR_INT operator-(int32_t, VECTOR_INT);
+    VECTOR_INT operator-(VECTOR_INT, VECTOR_INT);
+    VECTOR_INT operator*(VECTOR_INT, int32_t);
+    VECTOR_INT operator*(int32_t, VECTOR_INT);
+    VECTOR_INT operator*(VECTOR_INT, VECTOR_INT);
+    VECTOR_INT operator/(VECTOR_INT, int32_t);
+    VECTOR_INT operator/(int32_t, VECTOR_INT);
+    VECTOR_INT operator/(VECTOR_INT, VECTOR_INT);
+    VECTOR_INT operator%(VECTOR_INT, int32_t);
+    VECTOR_INT operator%(int32_t, VECTOR_INT);
+    VECTOR_INT operator%(VECTOR_INT, VECTOR_INT);
+    // SIMD compare, SIMD and
+    void compare_equal(VECTOR_INT, int32_t);
+    void compare_equal(int32_t, VECTOR_INT);
+    void compare_equal(VECTOR_INT, VECTOR_INT);
+    void compare_less_than(VECTOR_INT, int32_t);
+    void compare_less_than(int32_t, VECTOR_INT);
+    void compare_less_than(VECTOR_INT, VECTOR_INT);
+    void compare_less_than_or_equal_to(VECTOR_INT, int32_t);
+    void compare_less_than_or_equal_to(int32_t, VECTOR_INT);
+    void compare_less_than_or_equal_to(VECTOR_INT, VECTOR_INT);
+    void compare_greater_than(VECTOR_INT, int32_t);
+    void compare_greater_than(int32_t, VECTOR_INT);
+    void compare_greater_than(VECTOR_INT, VECTOR_INT);
+    void compare_greater_than_or_equal_to(VECTOR_INT, int32_t);
+    void compare_greater_than_or_equal_to(int32_t, VECTOR_INT);
+    void compare_greater_than_or_equal_to(VECTOR_INT, VECTOR_INT);
     /*
      * APNode input
      */
     class block_tuple_t {
         friend class block_tuple_iter_t;
+        friend class ap_block_iter_t;
         friend class VECTOR_INT;
+        friend class VMEmitOp;
     public:
         // for row-wise iteration
         block_tuple_iter_t first() { return block_tuple_iter_t{this}; }
@@ -60,7 +115,7 @@ namespace DB::ap {
         VECTOR_INT getINT(page::range_t range) { return VECTOR_INT{ this, range }; }
     private:
         ap_row_t rows_[VECTOR_SIZE];
-        bool select_[VECTOR_SIZE];
+        bool select_[VECTOR_SIZE] = { false };
     };
 
     /*
@@ -70,16 +125,20 @@ namespace DB::ap {
     class ap_table_t;
     class join_result_buf_t;
     class ap_block_iter_t {
+        using ap_row_iter_t = std::deque<ap_row_t>::const_iterator;
     public:
         ap_block_iter_t(const ap_table_t* table);
         ap_block_iter_t(const join_result_buf_t* table);
         bool is_end() const;
         block_tuple_t consume_block();
     private:
-
+        ap_row_iter_t it_;
+        ap_row_iter_t end_;
     };
 
     class ap_table_t {
+        friend class vm::VM;
+        friend class ap_block_iter_t;
     public:
         uint32_t size() const { return rows_.size(); }
         ap_block_iter_t get_block_iter() const { return ap_block_iter_t{this}; }
@@ -88,9 +147,11 @@ namespace DB::ap {
     };
 
     class ap_table_array_t {
-        std::deque<ap_table_t> tables_;
+        friend class vm::VM;
     public:
         const ap_table_t& at(uint32_t index) const { return tables_[index]; }
+    private:
+        std::deque<ap_table_t> tables_;
     };
 
 
@@ -98,11 +159,12 @@ namespace DB::ap {
     public:
         void emit(const block_tuple_t&);
     private:
-
+        std::deque<ap_row_t> rows_;
     };
 
 
     class join_result_buf_t {
+        friend class ap_block_iter_t;
     public:
         ap_block_iter_t get_block_iter() const { return ap_block_iter_t{this}; }
     private:
@@ -128,64 +190,64 @@ namespace DB::ap {
 //////////////////////  example of codegen  //////////////////////
 //////////////////////////////////////////////////////////////////
 
-block_tuple_t projection(const block_tuple_t&);
+    static
+    block_tuple_t example_projection(const block_tuple_t&);
 
-VMEmitOp query(const ap_table_array_t& tables) {
-    const ap_table_t& T1 = tables.at(1);
-    const ap_table_t& T2 = tables.at(2);
-    const ap_table_t& T3 = tables.at(3);
-    page::range_t rng1{ 0, 4 };
-    page::range_t rng2{ 4, 4};
-    page::range_t rng3{ 4, 4 };
-    page::range_t rng_j2{ 0, 4 };
-    hash_table_t ht1(rng1, rng_j2);
-    hash_table_t ht2(rng2, rng3);
-    VMEmitOp emit;
-
-
-    for(ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {
-        block_tuple_t block = it.consume_block();
-
-        block.getINT({ 4, 4 }).compare_greater_than(42);
-
-        ht1.insert(block);
-    }
-    ht1.build();
+    static
+    VMEmitOp example_query(const ap_table_array_t& tables) {
+        const ap_table_t& T1 = tables.at(1);
+        const ap_table_t& T2 = tables.at(2);
+        const ap_table_t& T3 = tables.at(3);
+        page::range_t rng1{ 0, 4 };
+        page::range_t rng2{ 4, 4};
+        page::range_t rng3{ 4, 4 };
+        page::range_t rng_j2{ 0, 4 };
+        hash_table_t ht1(rng1, rng_j2);
+        hash_table_t ht2(rng2, rng3);
+        VMEmitOp emit;
 
 
-    for(ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {
-        block_tuple_t block = it.consume_block();
-
-        block.getINT({ 4, 4 }).compare_less_than(233);
-        
-        ht2.insert(block);
-    }
-    ht2.build();
-
-
-    for(ap_block_iter_t it = T3.get_block_iter(); !it.is_end();) {
-        block_tuple_t block = it.consume_block();
-
-        join_result_buf_t join_result2 = ht2.probe(block);
-        for(ap_block_iter_t it = join_result2.get_block_iter(); !it.is_end();) {
+        for(ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {
             block_tuple_t block = it.consume_block();
 
-            join_result_buf_t join_result1 = ht1.probe(block);
+            compare_greater_than(block.getINT({ 4, 4 }), 42);
+
+            ht1.insert(block);
+        }
+        ht1.build();
+
+
+        for(ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {
+            block_tuple_t block = it.consume_block();
+
+            compare_less_than(block.getINT({ 4, 4 }), 233);
+            
+            ht2.insert(block);
+        }
+        ht2.build();
+
+
+        for(ap_block_iter_t it = T3.get_block_iter(); !it.is_end();) {
+            block_tuple_t block = it.consume_block();
+
+            join_result_buf_t join_result2 = ht2.probe(block);
             for(ap_block_iter_t it = join_result2.get_block_iter(); !it.is_end();) {
                 block_tuple_t block = it.consume_block();
 
-                block = projection(block);
+                join_result_buf_t join_result1 = ht1.probe(block);
+                for(ap_block_iter_t it = join_result2.get_block_iter(); !it.is_end();) {
+                    block_tuple_t block = it.consume_block();
 
-                emit.emit(block);
+                    block = example_projection(block);
+
+                    emit.emit(block);
+                }
             }
         }
-    }
 
-    return emit;
+        return emit;
 
-} // end codegen function
-
-
+    } // end example_codegen function
 
 
 } // end namespace DB::ap

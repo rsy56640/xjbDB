@@ -203,10 +203,7 @@ namespace DB::ast{
     }
 
     APTableOp::APTableOp(const table::TableInfo& table, int tableIndex)
-        : APBaseOp(ap_op_t_t::TABLE), _tableIndex(tableIndex), _map(table)
-    {
-        // TODO: store the map of the table into _map
-    }
+        :APBaseOp(ap_op_t_t::TABLE), _tableIndex(tableIndex), _map(table) {}
 
     void APTableOp::produce()
     {
@@ -342,11 +339,11 @@ namespace DB::ast{
         map<string, APBaseOp*> tableDict;  // table name -> Op containing the table
         map<int, set<string>> condDict; // condition index -> tables involved
 
-        for(const auto &table : tables)
+        for(const auto &table_name : tables)
         {
-            // TODO: use table name get TableInfo, throw exception if not exist
-
-            tableDict[table] = new APTableOp(table, tableIndex++);
+            // table_name -> TableInfo, throw exception if not exist
+            table::TableInfo tableinfo = table::getTableInfo(table_name);
+            tableDict[table_name] = new APTableOp(tableinfo, tableIndex++);
         }
 
         for(int i = 0; i < conditions.size(); ++i)
