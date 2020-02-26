@@ -112,7 +112,7 @@ namespace DB::ast{
                 std::shared_ptr<const MathOpExpr> mathPtr = std::static_pointer_cast<const MathOpExpr>(condition);
                 string strLeft = generateCondStr(mathPtr->_left, map);
                 string strRight = generateCondStr(mathPtr->_right, map);
-                return math2func[int(mathPtr->math_t_)] + "(" + strLeft + "," + strRight + ")";
+                return strLeft + math2str[int(mathPtr->math_t_)] + strRight;
             }
             case base_t_t::ID:
             {
@@ -344,7 +344,7 @@ namespace DB::ast{
 
         for(const auto &table : tables)
         {
-            // use table name get TableInfo, throw exception if not exist
+            // TODO: use table name get TableInfo, throw exception if not exist
 
             tableDict[table] = new APTableOp(table, tableIndex++);
         }
