@@ -63,50 +63,6 @@ namespace DB::ap {
     };
 
 
-    class block_tuple_t;
-    struct VECTOR_INT {
-        int32_t vec_[VECTOR_SIZE];
-        VECTOR_INT(block_tuple_t* block, page::range_t range);
-    };
-    struct VECTOR_BOOL {
-        bool select_[VECTOR_SIZE] = { false };
-    };
-    // SIMD arithmatic
-    VECTOR_BOOL operator&(VECTOR_BOOL, VECTOR_BOOL);
-    VECTOR_BOOL& operator&=(VECTOR_BOOL, VECTOR_BOOL);
-    VECTOR_BOOL operator|(VECTOR_BOOL, VECTOR_BOOL);
-    VECTOR_BOOL& operator|=(VECTOR_BOOL, VECTOR_BOOL);
-    VECTOR_INT operator+(VECTOR_INT, int32_t);
-    VECTOR_INT operator+(int32_t, VECTOR_INT);
-    VECTOR_INT operator+(VECTOR_INT, VECTOR_INT);
-    VECTOR_INT operator-(VECTOR_INT, int32_t);
-    VECTOR_INT operator-(int32_t, VECTOR_INT);
-    VECTOR_INT operator-(VECTOR_INT, VECTOR_INT);
-    VECTOR_INT operator*(VECTOR_INT, int32_t);
-    VECTOR_INT operator*(int32_t, VECTOR_INT);
-    VECTOR_INT operator*(VECTOR_INT, VECTOR_INT);
-    VECTOR_INT operator/(VECTOR_INT, int32_t);
-    VECTOR_INT operator/(int32_t, VECTOR_INT);
-    VECTOR_INT operator/(VECTOR_INT, VECTOR_INT);
-    VECTOR_INT operator%(VECTOR_INT, int32_t);
-    VECTOR_INT operator%(int32_t, VECTOR_INT);
-    VECTOR_INT operator%(VECTOR_INT, VECTOR_INT);
-    // SIMD compare
-    VECTOR_BOOL operator==(VECTOR_INT, int32_t);
-    VECTOR_BOOL operator==(int32_t, VECTOR_INT);
-    VECTOR_BOOL operator==(VECTOR_INT, VECTOR_INT);
-    VECTOR_BOOL operator<(VECTOR_INT, int32_t);
-    VECTOR_BOOL operator<(int32_t, VECTOR_INT);
-    VECTOR_BOOL operator<(VECTOR_INT, VECTOR_INT);
-    VECTOR_BOOL operator<=(VECTOR_INT, int32_t);
-    VECTOR_BOOL operator<=(int32_t, VECTOR_INT);
-    VECTOR_BOOL operator<=(VECTOR_INT, VECTOR_INT);
-    VECTOR_BOOL operator>(VECTOR_INT, int32_t);
-    VECTOR_BOOL operator>(int32_t, VECTOR_INT);
-    VECTOR_BOOL operator>(VECTOR_INT, VECTOR_INT);
-    VECTOR_BOOL operator>=(VECTOR_INT, int32_t);
-    VECTOR_BOOL operator>=(int32_t, VECTOR_INT);
-    VECTOR_BOOL operator>=(VECTOR_INT, VECTOR_INT);
     /*
      * APNode input
      */
@@ -119,11 +75,11 @@ namespace DB::ap {
         // for row-wise iteration
         block_tuple_iter_t first() { return block_tuple_iter_t{this}; }
         // for vector-wise SIMD execution
-        VECTOR_INT getINT(page::range_t range) { return VECTOR_INT{ this, range }; }
+        VECTOR_INT getINT(page::range_t range);
         void selectivity_and(VECTOR_BOOL mask) { select_ &= mask; }
     private:
         ap_row_t rows_[VECTOR_SIZE];
-        VECTOR_BOOL select_;
+        VECTOR_BOOL select_ = FALSE_VEC;
     };
 
     /*
@@ -199,7 +155,7 @@ namespace DB::ap {
 //////////////////////////////////////////////////////////////////
 
     static
-    block_tuple_t example_projection(const block_tuple_t&);
+    block_tuple_t example_projection(const block_tuple_t& block) { return block; }
 
     static
     VMEmitOp example_query(const ap_table_array_t& tables) {

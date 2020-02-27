@@ -5,11 +5,11 @@ namespace DB::ap {
     inline
     void xjbDB_prefetch_on_array(
         char* addr,
-        int block_index,
-        int block_size)
+        int index,
+        int scale)
     {
         _mm_prefetch(addr + 
-                     (block_index + 1 + CACHELINE_SIZE/block_size) * block_size,
+                     (index + 1 + CACHELINE_SIZE/scale) * scale,
                      _MM_HINT_T0);
     }
 }// end namespace DB::ap
