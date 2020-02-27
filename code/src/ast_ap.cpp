@@ -5,6 +5,7 @@
 #include "ast_ap.h"
 #include "table.h"
 #include "page.h"
+#include "vm.h"
 #include <string>
 #include <map>
 #include <unordered_map>
@@ -21,6 +22,16 @@ namespace DB::ast{
     int g_iTableCount, g_iHashCount, g_iIndent;
     vector<string> g_vCode = {};
 
+    static inline
+    std::string range2str(page::range_t range) {
+        std::string str = "{ ";
+        str += std::to_string(range.begin);
+        str += ", ";
+        str += std::to_string(range.len);
+        str += " }";
+        return str;
+    }
+
     // init from source table
     APMap::APMap(const table::TableInfo& table)
         :attr_map(), tuple_len(table.columnInfos_.back().get_range().end())
@@ -33,11 +44,12 @@ namespace DB::ast{
         }
     }
 
-    // init from join
-    APMap::APMap(const APMap& left, const APMap& right)
-        :attr_map(), tuple_len(left.len() + right.len())
-    {
-        // TODO:
+    void APMap::join(const APMap& right) {
+        const uint32_t offset = tuple_len;
+        tuple_len += right.len();
+        for(auto const& [col_name, range]: right.attr_map) {
+            attr_map[col_name] = page::range_t{ range.begin + offset, range.len };
+        }
     }
 
     uint32_t APMap::len() const { return tuple_len; }
@@ -118,7 +130,9 @@ namespace DB::ast{
             {
                 std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(condition);
 
-                return " GET_VAlUE_FROM_MAP "; // TODO: replace with map
+                page::range_t range = map.get({ idPtr->_tableName, idPtr->_columnName });
+                std::string id_name = " block.getINT(" + range2str(range) + ") ";
+                return id_name;
             }
             case base_t_t::NUMERIC:
             {
@@ -163,10 +177,11 @@ namespace DB::ast{
 
         if(source == _tableLeft)
         {
+            page::range_t left_range = map.get(_left_attr);
             // reserved lines for left child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2] =
                     "range_t rngLeft" + strIndex +
-                    "{" + "xxx" + "};"; //TODO: xxx -> (join condition + map) -> rng
+                    range2str(left_range) + ";";
 
             g_vCode.push_back("ht" + strIndex + ".insert(block);");
 
@@ -182,19 +197,19 @@ namespace DB::ast{
         {
             g_iIndent++;
 
+            page::range_t right_range = map.get(_right_attr);
             // reserved lines for right child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2 + 1] =
                     "range_t rngRight" + strIndex +
-                    "{" + "xxx" + "};"; //TODO: xxx -> (join condition + map) -> rng
+                    range2str(right_range) + ";";
 
             // main content
             g_vCode.push_back("join_result_buf_t join_result" + strIndex + " = ht" + strIndex + ".probe(block);");
             g_vCode.push_back("for(ap_block_iter_t it = join_result" + strIndex + ".get_block_iter(); !it.is_end();) {");
             g_vCode.push_back("block_tuple_t block = it.consume_block();");
 
-            // TODO: change map after join
-
-            _parentOp->consume(this, map);
+            _left_map.join(map);
+            _parentOp->consume(this, _left_map);
         }
         else
         {
@@ -214,7 +229,7 @@ namespace DB::ast{
         // reserved lines for table declaration
         g_vCode[START_BASE_LINE + _tableIndex] =
                 "const ap_table_t& T" + strIndex +
-                " = tables.at(" + "xxx" + ");"; //TODO: xxx -> map of physical address
+                " = tables.at(" + std::to_string(table::vm_->get_ap_table_index()) + ");";
 
         g_vCode.push_back("for(ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
                 " !it" + strIndex + ".is_end();) {");
@@ -223,8 +238,6 @@ namespace DB::ast{
 
         _parentOp->consume(this, _map);
     }
-
-
 
 
 

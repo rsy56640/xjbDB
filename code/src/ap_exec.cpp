@@ -5,29 +5,32 @@ namespace DB::ap {
     block_tuple_iter_t::block_tuple_iter_t(block_tuple_t* block_tuple)
         : block_tuple_(block_tuple), idx_(0) {}
     bool block_tuple_iter_t::is_end() const { return idx_ == VECTOR_SIZE; }
-    bool block_tuple_iter_t::valid() const { return block_tuple_->select_[idx_]; }
+    bool block_tuple_iter_t::valid() const { return block_tuple_->select_.select_[idx_]; }
     ap_row_t block_tuple_iter_t::getTuple() const { return block_tuple_->rows_[idx_]; }
     void block_tuple_iter_t::next() { idx_++; }
 
 
     VECTOR_INT::VECTOR_INT(block_tuple_t* block, page::range_t range)
-        : block_(block)
     {
         // OPTIMIZATION: maybe we could use SIMD-gather
         for(int32_t i = 0; i < VECTOR_SIZE / 2; i++) {
-            xjbDB_prefetch_on_array((char*)(block_->rows_),
+            xjbDB_prefetch_on_array((char*)(block->rows_),
                                     i,
                                     sizeof(ap_row_t));
-            xjbDB_prefetch_on_array((char*)(block_->rows_),
+            xjbDB_prefetch_on_array((char*)(block->rows_),
                                     i+VECTOR_SIZE/2,
                                     sizeof(ap_row_t));
-            vec_[i] = block_->rows_[i].getINT(range);
-            vec_[i + VECTOR_SIZE / 2] = block_->rows_[i + VECTOR_SIZE / 2].getINT(range);
+            vec_[i] = block->rows_[i].getINT(range);
+            vec_[i + VECTOR_SIZE / 2] = block->rows_[i + VECTOR_SIZE / 2].getINT(range);
         }
     }
 
 
     // SIMD arithmatic
+    VECTOR_BOOL operator&(VECTOR_BOOL, VECTOR_BOOL);
+    VECTOR_BOOL& operator&=(VECTOR_BOOL, VECTOR_BOOL);
+    VECTOR_BOOL operator|(VECTOR_BOOL, VECTOR_BOOL);
+    VECTOR_BOOL& operator|=(VECTOR_BOOL, VECTOR_BOOL);
     VECTOR_INT operator+(VECTOR_INT, int32_t);
     VECTOR_INT operator+(int32_t, VECTOR_INT);
     VECTOR_INT operator+(VECTOR_INT, VECTOR_INT);
@@ -45,22 +48,23 @@ namespace DB::ap {
     VECTOR_INT operator%(VECTOR_INT, VECTOR_INT);
 
 
-    // SIMD compare, SIMD and
-    void compare_equal(VECTOR_INT, int32_t);
-    void compare_equal(int32_t, VECTOR_INT);
-    void compare_equal(VECTOR_INT, VECTOR_INT);
-    void compare_less_than(VECTOR_INT, int32_t);
-    void compare_less_than(int32_t, VECTOR_INT);
-    void compare_less_than(VECTOR_INT, VECTOR_INT);
-    void compare_less_than_or_equal_to(VECTOR_INT, int32_t);
-    void compare_less_than_or_equal_to(int32_t, VECTOR_INT);
-    void compare_less_than_or_equal_to(VECTOR_INT, VECTOR_INT);
-    void compare_greater_than(VECTOR_INT, int32_t);
-    void compare_greater_than(int32_t, VECTOR_INT);
-    void compare_greater_than(VECTOR_INT, VECTOR_INT);
-    void compare_greater_than_or_equal_to(VECTOR_INT, int32_t);
-    void compare_greater_than_or_equal_to(int32_t, VECTOR_INT);
-    void compare_greater_than_or_equal_to(VECTOR_INT, VECTOR_INT);
+    // SIMD compare
+    VECTOR_BOOL operator==(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator==(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator==(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator<(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator<(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator<(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator<=(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator<=(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator<=(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator>(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator>(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator>(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator>=(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator>=(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator>=(VECTOR_INT, VECTOR_INT);
+
 
 
     ap_block_iter_t::ap_block_iter_t(const ap_table_t* table)
@@ -73,7 +77,7 @@ namespace DB::ap {
         for(uint32_t i = 0; i < VECTOR_SIZE; i++, ++it_) {
             if(likely(it_ != end_)) {
                 block.rows_[i] = *it_;
-                block.select_[i] = true;
+                block.select_.select_[i] = true;
             }
             else {
                 break;

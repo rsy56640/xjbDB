@@ -135,10 +135,6 @@ namespace DB::table
     page::ColumnInfo getColumnInfo(const std::string& tableName, const std::string& columnName);
 
 
-
-
-
-
 } // end namespace DB::table
 
 #endif // !_TABLE_H
