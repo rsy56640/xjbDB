@@ -40,13 +40,13 @@ namespace DB::ast{
     //op nodes of ap
     enum class ap_op_t_t { EMIT, PROJECT, FILTER, JOIN, TABLE };
 
+    using col_name_t = pair<string, string>;
+
     class APMap {
     public:
-        using col_name_t = pair<string, string>;
         // init from source table
         APMap(const table::TableInfo& table);
-        // init from join
-        APMap(const APMap& left, const APMap& right);
+        void join(const APMap& right);
         page::range_t get(const col_name_t&);
         uint32_t len() const;
     private:
@@ -119,7 +119,10 @@ namespace DB::ast{
         int _hashTableIndex;
         APBaseOp *_tableLeft;
         APBaseOp *_tableRight;
-        shared_ptr<BaseExpr> _condition;
+        //shared_ptr<BaseExpr> _condition;
+        col_name_t _left_attr;
+        col_name_t _right_attr;
+        APMap _left_map;
     };
 
     struct APTableOp : public APBaseOp {

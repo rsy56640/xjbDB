@@ -27,7 +27,7 @@ namespace DB::ap {
      * ************************* *************************
      * 
      * ap_block_iter_t:
-     *      
+     *      get block from table or join-result
      * 
      * block_tuple_iter_t:
      *      for NON-SIMD use.
@@ -35,7 +35,8 @@ namespace DB::ap {
      * VECTOR_INT:
      *      for SIMD use.
      * 
-     * 
+     * VECTOR_BOOL:
+     *      for SIMD use.
      * 
      */
 
@@ -64,11 +65,17 @@ namespace DB::ap {
 
     class block_tuple_t;
     struct VECTOR_INT {
-        block_tuple_t* block_;
         int32_t vec_[VECTOR_SIZE];
         VECTOR_INT(block_tuple_t* block, page::range_t range);
     };
+    struct VECTOR_BOOL {
+        bool select_[VECTOR_SIZE] = { false };
+    };
     // SIMD arithmatic
+    VECTOR_BOOL operator&(VECTOR_BOOL, VECTOR_BOOL);
+    VECTOR_BOOL& operator&=(VECTOR_BOOL, VECTOR_BOOL);
+    VECTOR_BOOL operator|(VECTOR_BOOL, VECTOR_BOOL);
+    VECTOR_BOOL& operator|=(VECTOR_BOOL, VECTOR_BOOL);
     VECTOR_INT operator+(VECTOR_INT, int32_t);
     VECTOR_INT operator+(int32_t, VECTOR_INT);
     VECTOR_INT operator+(VECTOR_INT, VECTOR_INT);
@@ -84,22 +91,22 @@ namespace DB::ap {
     VECTOR_INT operator%(VECTOR_INT, int32_t);
     VECTOR_INT operator%(int32_t, VECTOR_INT);
     VECTOR_INT operator%(VECTOR_INT, VECTOR_INT);
-    // SIMD compare, SIMD and
-    void compare_equal(VECTOR_INT, int32_t);
-    void compare_equal(int32_t, VECTOR_INT);
-    void compare_equal(VECTOR_INT, VECTOR_INT);
-    void compare_less_than(VECTOR_INT, int32_t);
-    void compare_less_than(int32_t, VECTOR_INT);
-    void compare_less_than(VECTOR_INT, VECTOR_INT);
-    void compare_less_than_or_equal_to(VECTOR_INT, int32_t);
-    void compare_less_than_or_equal_to(int32_t, VECTOR_INT);
-    void compare_less_than_or_equal_to(VECTOR_INT, VECTOR_INT);
-    void compare_greater_than(VECTOR_INT, int32_t);
-    void compare_greater_than(int32_t, VECTOR_INT);
-    void compare_greater_than(VECTOR_INT, VECTOR_INT);
-    void compare_greater_than_or_equal_to(VECTOR_INT, int32_t);
-    void compare_greater_than_or_equal_to(int32_t, VECTOR_INT);
-    void compare_greater_than_or_equal_to(VECTOR_INT, VECTOR_INT);
+    // SIMD compare
+    VECTOR_BOOL operator==(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator==(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator==(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator<(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator<(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator<(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator<=(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator<=(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator<=(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator>(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator>(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator>(VECTOR_INT, VECTOR_INT);
+    VECTOR_BOOL operator>=(VECTOR_INT, int32_t);
+    VECTOR_BOOL operator>=(int32_t, VECTOR_INT);
+    VECTOR_BOOL operator>=(VECTOR_INT, VECTOR_INT);
     /*
      * APNode input
      */
@@ -113,9 +120,10 @@ namespace DB::ap {
         block_tuple_iter_t first() { return block_tuple_iter_t{this}; }
         // for vector-wise SIMD execution
         VECTOR_INT getINT(page::range_t range) { return VECTOR_INT{ this, range }; }
+        void selectivity_and(VECTOR_BOOL mask) { select_ &= mask; }
     private:
         ap_row_t rows_[VECTOR_SIZE];
-        bool select_[VECTOR_SIZE] = { false };
+        VECTOR_BOOL select_;
     };
 
     /*
@@ -210,7 +218,7 @@ namespace DB::ap {
         for(ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {
             block_tuple_t block = it.consume_block();
 
-            compare_greater_than(block.getINT({ 4, 4 }), 42);
+            block.selectivity_and(block.getINT({ 4, 4 }) > 42);
 
             ht1.insert(block);
         }
@@ -220,7 +228,7 @@ namespace DB::ap {
         for(ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {
             block_tuple_t block = it.consume_block();
 
-            compare_less_than(block.getINT({ 4, 4 }), 233);
+            block.selectivity_and(block.getINT({ 4, 4 }) < 233);
             
             ht2.insert(block);
         }
