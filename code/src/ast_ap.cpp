@@ -117,7 +117,7 @@ namespace DB::ast{
                 std::shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(condition);
                 string strLeft = generateCondStr(comparisonPtr->_left, map);
                 string strRight = generateCondStr(comparisonPtr->_right, map);
-                return comparison2func[int(comparisonPtr->comparison_t_)] + "(" + strLeft + "," + strRight + ")";
+                return strLeft + comparison2func[int(comparisonPtr->comparison_t_)] + strRight;
             }
             case base_t_t::MATH_OP:
             {
@@ -152,7 +152,7 @@ namespace DB::ast{
 
     void APFilterOp::consume(APBaseOp *source, APMap &map)
     {
-        g_vCode.push_back(generateCondStr(_condition, map) + ";");
+        g_vCode.push_back("block.selectivity_and(" + generateCondStr(_condition, map) + ");");
 
         // map doesn't need change
         _parentOp->consume(this, map);
@@ -177,7 +177,9 @@ namespace DB::ast{
 
         if(source == _tableLeft)
         {
-            page::range_t left_range = map.get(_left_attr);
+            _leftMap = map;
+
+            page::range_t left_range = map.get(_leftAttr);
             // reserved lines for left child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2] =
                     "range_t rngLeft" + strIndex +
@@ -197,7 +199,7 @@ namespace DB::ast{
         {
             g_iIndent++;
 
-            page::range_t right_range = map.get(_right_attr);
+            page::range_t right_range = map.get(_rightAttr);
             // reserved lines for right child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2 + 1] =
                     "range_t rngRight" + strIndex +
@@ -208,8 +210,8 @@ namespace DB::ast{
             g_vCode.push_back("for(ap_block_iter_t it = join_result" + strIndex + ".get_block_iter(); !it.is_end();) {");
             g_vCode.push_back("block_tuple_t block = it.consume_block();");
 
-            _left_map.join(map);
-            _parentOp->consume(this, _left_map);
+            _leftMap.join(map);
+            _parentOp->consume(this, _leftMap);
         }
         else
         {
@@ -217,8 +219,8 @@ namespace DB::ast{
         }
     }
 
-    APTableOp::APTableOp(const table::TableInfo& table, int tableIndex)
-        :APBaseOp(ap_op_t_t::TABLE), _tableIndex(tableIndex), _map(table) {}
+    APTableOp::APTableOp(const table::TableInfo& table, string tableName, int tableIndex)
+        :APBaseOp(ap_op_t_t::TABLE), _tableName(tableName), _tableIndex(tableIndex), _map(table) {}
 
     void APTableOp::produce()
     {
@@ -229,7 +231,7 @@ namespace DB::ast{
         // reserved lines for table declaration
         g_vCode[START_BASE_LINE + _tableIndex] =
                 "const ap_table_t& T" + strIndex +
-                " = tables.at(" + std::to_string(table::vm_->get_ap_table_index()) + ");";
+                " = tables.at(" + std::to_string(table::vm_->get_ap_table_index(_tableName)) + ");";
 
         g_vCode.push_back("for(ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
                 " !it" + strIndex + ".is_end();) {");
@@ -352,11 +354,11 @@ namespace DB::ast{
         map<string, APBaseOp*> tableDict;  // table name -> Op containing the table
         map<int, set<string>> condDict; // condition index -> tables involved
 
-        for(const auto &table_name : tables)
+        for(const auto &tableName : tables)
         {
-            // table_name -> TableInfo, throw exception if not exist
-            table::TableInfo tableinfo = table::getTableInfo(table_name);
-            tableDict[table_name] = new APTableOp(tableinfo, tableIndex++);
+            // tableName -> TableInfo, throw exception if not exist
+            table::TableInfo tableinfo = table::getTableInfo(tableName);
+            tableDict[tableName] = new APTableOp(tableinfo, tableName, tableIndex++);
         }
 
         for(int i = 0; i < conditions.size(); ++i)
@@ -398,7 +400,13 @@ namespace DB::ast{
             {
                 std::swap(tableLeft, tableRight);
             }
-            APBaseOp *joinOp = new APJoinOp(tableDict[tableLeft], tableDict[tableRight], conditions[condIndex], hashTableIndex++);
+            auto joinCond = conditions[condIndex];
+            shared_ptr<const ComparisonOpExpr> comparisonPtr = static_pointer_cast<const ComparisonOpExpr>(joinCond);
+            shared_ptr<const IdExpr> leftPtr = static_pointer_cast<const IdExpr>(comparisonPtr->_left);
+            shared_ptr<const IdExpr> rightPtr = static_pointer_cast<const IdExpr>(comparisonPtr->_right);
+            col_name_t leftCol = std::make_pair(leftPtr->_tableName, leftPtr->_columnName);
+            col_name_t rightCol = std::make_pair(rightPtr->_tableName, rightPtr->_columnName);
+            APBaseOp *joinOp = new APJoinOp(tableDict[tableLeft], tableDict[tableRight], leftCol, rightCol, hashTableIndex++);
             tableDict[tableLeft]->setParentOp(joinOp);
             tableDict[tableRight]->setParentOp(joinOp);
 
