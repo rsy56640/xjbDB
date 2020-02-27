@@ -117,7 +117,7 @@ namespace DB::ast{
                 std::shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(condition);
                 string strLeft = generateCondStr(comparisonPtr->_left, map);
                 string strRight = generateCondStr(comparisonPtr->_right, map);
-                return strLeft + comparison2func[int(comparisonPtr->comparison_t_)] + strRight;
+                return strLeft + comparison2str[int(comparisonPtr->comparison_t_)] + strRight;
             }
             case base_t_t::MATH_OP:
             {
@@ -401,9 +401,9 @@ namespace DB::ast{
                 std::swap(tableLeft, tableRight);
             }
             auto joinCond = conditions[condIndex];
-            shared_ptr<const ComparisonOpExpr> comparisonPtr = static_pointer_cast<const ComparisonOpExpr>(joinCond);
-            shared_ptr<const IdExpr> leftPtr = static_pointer_cast<const IdExpr>(comparisonPtr->_left);
-            shared_ptr<const IdExpr> rightPtr = static_pointer_cast<const IdExpr>(comparisonPtr->_right);
+            shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(joinCond);
+            shared_ptr<const IdExpr> leftPtr = std::static_pointer_cast<const IdExpr>(comparisonPtr->_left);
+            shared_ptr<const IdExpr> rightPtr = std::static_pointer_cast<const IdExpr>(comparisonPtr->_right);
             col_name_t leftCol = std::make_pair(leftPtr->_tableName, leftPtr->_columnName);
             col_name_t rightCol = std::make_pair(rightPtr->_tableName, rightPtr->_columnName);
             APBaseOp *joinOp = new APJoinOp(tableDict[tableLeft], tableDict[tableRight], leftCol, rightCol, hashTableIndex++);
