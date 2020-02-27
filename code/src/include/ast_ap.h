@@ -45,6 +45,7 @@ namespace DB::ast{
     class APMap {
     public:
         // init from source table
+        APMap(){}
         APMap(const table::TableInfo& table);
         void join(const APMap& right);
         page::range_t get(const col_name_t&);
@@ -106,9 +107,9 @@ namespace DB::ast{
     };
 
     struct APJoinOp : public APBaseOp {
-        APJoinOp(APBaseOp *tableLeft, APBaseOp *tableRight, shared_ptr<BaseExpr> condition, int hashTableIndex)
+        APJoinOp(APBaseOp *tableLeft, APBaseOp *tableRight, col_name_t leftAttr, col_name_t rightAttr, int hashTableIndex)
             : APBaseOp(ap_op_t_t::JOIN), _tableLeft(tableLeft), _tableRight(tableRight),
-              _condition(condition), _hashTableIndex(hashTableIndex) {}
+              _leftAttr(leftAttr), _rightAttr(rightAttr), _hashTableIndex(hashTableIndex) {}
         virtual ~APJoinOp() {}
 
         virtual bool isJoin() { return true; };
@@ -119,18 +120,18 @@ namespace DB::ast{
         int _hashTableIndex;
         APBaseOp *_tableLeft;
         APBaseOp *_tableRight;
-        //shared_ptr<BaseExpr> _condition;
-        col_name_t _left_attr;
-        col_name_t _right_attr;
-        APMap _left_map;
+        col_name_t _leftAttr;
+        col_name_t _rightAttr;
+        APMap _leftMap;
     };
 
     struct APTableOp : public APBaseOp {
-        APTableOp(const table::TableInfo& table, int tableIndex);
+        APTableOp(const table::TableInfo& table, string tableName, int tableIndex);
         virtual ~APTableOp() {}
 
         virtual void produce();
 
+        string _tableName;
         int _tableIndex;
         APMap _map;
     };

@@ -30,7 +30,6 @@ namespace DB::ast{
     const string base2str[] = { "LOGICAL_OP", "COMPARISON_OP", "ID", "NUMERIC", "STR", "MATH_OP" };
     const string logical2str[] = { "AND", "OR" };
     const string comparison2str[] = { "==", "!=", "<", ">", "<=", ">=" };
-    const string comparison2func[] = { "equal", "not_equal", "less", "greater", "less_equal", "greater_equal" };
     const string math2str[] = { "+", "-", "*", "/", "%" };
 
     struct BaseExpr {
