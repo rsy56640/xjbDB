@@ -1,5 +1,6 @@
 CREATE TABLE Student(sid INT PK, name VARCHAR(20));
 CREATE TABLE Score(sid INT PK, score INT);
+CREATE TABLE Record(sid INT PK, record INT);
 
 INSERT Student(sid, name) VALUES(1, "aaa");
 INSERT Student(sid, name) VALUES(2, "bbb");
@@ -15,3 +16,6 @@ SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 
 
 //test constant optimizer
 SELECT $ FROM Student WHERE Student.sid > 1 + 2 * 1;
+
+//test code gen
+SELECT $ FROM Student, Score, Record WHERE Student.sid == Score.sid AND Student.sid == Record.sid AND Score.score <= 80;
