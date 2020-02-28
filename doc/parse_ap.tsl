@@ -213,7 +213,7 @@ namespace DB::parse_ap
 	rank opRank;
 
 	expressionAtomOp := 
-		expressionAtom {"*"|"/"|"%"} expressionAtom, opRank 1 mathOp, =
+		expressionAtom "*" expressionAtom, opRank 1 mathOp, =
 		{
 			auto& l = get<AtomExpr*>(left.object);
 			auto& token = get<Token>(right[1].object);
