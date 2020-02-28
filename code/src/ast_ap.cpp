@@ -393,26 +393,30 @@ namespace DB::ast{
                 throw string("wrong condition table set");
 
             //package tables into JoinOP
-            auto it = condDict[condIndex].begin();
-            string tableLeft = *it, tableRight = *++it;
-            // is only one is JoinOp, swap it to the right child
-            if(tableDict[tableLeft]->isJoin())
-            {
-                std::swap(tableLeft, tableRight);
-            }
             auto joinCond = conditions[condIndex];
             shared_ptr<const ComparisonOpExpr> comparisonPtr = std::static_pointer_cast<const ComparisonOpExpr>(joinCond);
             shared_ptr<const IdExpr> leftPtr = std::static_pointer_cast<const IdExpr>(comparisonPtr->_left);
             shared_ptr<const IdExpr> rightPtr = std::static_pointer_cast<const IdExpr>(comparisonPtr->_right);
-            col_name_t leftCol = std::make_pair(leftPtr->_tableName, leftPtr->_columnName);
-            col_name_t rightCol = std::make_pair(rightPtr->_tableName, rightPtr->_columnName);
+
+            // is only one is JoinOp, swap it to the right child
+            if(tableDict[leftPtr->_tableName]->isJoin())
+                leftPtr.swap(rightPtr);
+
+            string tableLeft = leftPtr->_tableName, tableRight = rightPtr->_tableName;
+            col_name_t leftCol = std::make_pair(tableLeft, leftPtr->_columnName);
+            col_name_t rightCol = std::make_pair(tableRight, rightPtr->_columnName);
             APBaseOp *joinOp = new APJoinOp(tableDict[tableLeft], tableDict[tableRight], leftCol, rightCol, hashTableIndex++);
             tableDict[tableLeft]->setParentOp(joinOp);
             tableDict[tableRight]->setParentOp(joinOp);
 
             //replace dict
-            tableDict[tableLeft] = joinOp;
-            tableDict[tableRight] = joinOp;
+            APBaseOp *oldLeft = tableDict[tableLeft];
+            APBaseOp *oldRight = tableDict[tableRight];
+            for(auto &kv : tableDict)
+            {
+                if(kv.second == oldLeft || kv.second == oldRight)
+                    kv.second = joinOp;
+            }
         }
 
         for(auto condition : complexConditions)
