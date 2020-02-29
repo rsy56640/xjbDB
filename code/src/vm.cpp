@@ -4,6 +4,7 @@
 #include "ast_tp.h"
 #include "query_tp.h"
 #include "query_ap.h"
+#include "ap_exec.h"
 #include <cstring>
 #include <iostream>
 #include <variant>
@@ -302,11 +303,11 @@ namespace DB::vm
     }
 
 
-    VM::process_result_t VM::query_process(const query::APValue& plan) {
+    VM::process_result_t VM::query_process(query::APValue& plan) {
         VM::process_result_t result;
         std::visit(
             overloaded{
-                [&result, this](const query::APSelectInfo& info) { doQuery(result, info); },
+                [&result, this](query::APSelectInfo& info) { doQuery(result, info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
                 [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
@@ -1222,9 +1223,11 @@ namespace DB::vm
     }
 
 
-    void VM::doQuery(VM::process_result_t& result, const query::APSelectInfo& plan) {
+    void VM::doQuery(VM::process_result_t& result, query::APSelectInfo& plan) {
         plan.print();
-
+        plan.generateCode();
+        plan.compile();
+        ap::VMEmitOp emit = plan.query();
     }
 
 

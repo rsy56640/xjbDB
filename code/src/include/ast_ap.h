@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 using std::vector;
 using std::shared_ptr;
@@ -33,9 +34,19 @@ namespace std {
             return h1 ^ (h2 << 1);
         }
     };
+    template<>
+    struct hash<DB::page::range_t> {
+        using result_type = std::size_t;
+        using argument_type = DB::page::range_t;
+        result_type operator()(DB::page::range_t range) const {
+            result_type h1 = std::hash<uint32_t>{}(range.begin);
+            result_type h2 = std::hash<uint32_t>{}(range.len);
+            return h1 ^ (h2 << 1);
+        }
+    };
 }
 
-namespace DB::ast{
+namespace DB::ast {
 
     //op nodes of ap
     enum class ap_op_t_t { EMIT, PROJECT, FILTER, JOIN, TABLE };
@@ -45,14 +56,16 @@ namespace DB::ast{
     class APMap {
     public:
         // init from source table
-        APMap(){}
+        APMap() {}
         APMap(const table::TableInfo& table);
         void join(const APMap& right);
         page::range_t get(const col_name_t&);
         uint32_t len() const;
+        bool check_unique(page::range_t) const;
     private:
-        unordered_map<col_name_t, page::range_t> attr_map;
+        unordered_map<col_name_t, page::range_t> attr_map{};
         uint32_t tuple_len;
+        std::unordered_set<page::range_t> unique_ranges_{};
     };
 
     struct APBaseOp {

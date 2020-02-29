@@ -106,7 +106,7 @@ namespace DB::vm
             std::string msg;
         };
         process_result_t txn_process(const query::TPValue&);
-        process_result_t query_process(const query::APValue&);
+        process_result_t query_process(query::APValue&);
 
         void doWAL(page::page_id_t prev_last_page_id, const std::string& sql);
 
@@ -131,7 +131,7 @@ namespace DB::vm
         void doDelete(process_result_t&, const query::DeleteInfo&);
 
         // query process function
-        void doQuery(process_result_t&, const query::APSelectInfo&);
+        void doQuery(process_result_t&, query::APSelectInfo&);
 
 
         // 4 kinds of op node
