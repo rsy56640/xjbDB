@@ -52,13 +52,13 @@ namespace DB::ap {
     class block_tuple_t;
     class block_tuple_iter_t {
     public:
-        block_tuple_iter_t(block_tuple_t* block_tuple);
+        block_tuple_iter_t(const block_tuple_t* block_tuple);
         bool is_end() const;
         bool valid() const;
         ap_row_t getTuple() const;
         void next();
     private:
-        block_tuple_t* block_tuple_;
+        const block_tuple_t* block_tuple_;
         uint32_t idx_;
     };
 
@@ -73,9 +73,9 @@ namespace DB::ap {
         friend class VMEmitOp;
     public:
         // for row-wise iteration
-        block_tuple_iter_t first() { return block_tuple_iter_t{this}; }
+        block_tuple_iter_t first() const { return block_tuple_iter_t{this}; }
         // for vector-wise SIMD execution
-        VECTOR_INT getINT(page::range_t range);
+        VECTOR_INT getINT(page::range_t range) const;
         void selectivity_and(VECTOR_BOOL mask) { select_ &= mask; }
     private:
         ap_row_t rows_[VECTOR_SIZE];
@@ -129,6 +129,7 @@ namespace DB::ap {
 
     class join_result_buf_t {
         friend class ap_block_iter_t;
+        friend class hash_table_t;
     public:
         ap_block_iter_t get_block_iter() const { return ap_block_iter_t{this}; }
     private:
@@ -138,15 +139,47 @@ namespace DB::ap {
 
     class hash_table_t {
     public:
-        hash_table_t(page::range_t left, page::range_t right)
-            :left_(left), right_(right) {}
+        static constexpr uint32_t BUCKET_AMOUNT = 1 << 8;
+    public:
+        hash_table_t(page::range_t left, page::range_t right, uint32_t left_len, uint32_t right_len, bool left_unique)
+            :left_(left), right_(right),
+             left_len_(left_len), right_len_(right_len), left_unique_(left_unique),
+             key2rowid_(), row_buf_()
+             { bucket_size_ = new int32_t[BUCKET_AMOUNT]; }
+        ~hash_table_t();
+        hash_table_t(const hash_table_t&) = delete;
+        hash_table_t& operator=(const hash_table_t&) = delete;
+        hash_table_t(hash_table_t&&) = delete;
+        hash_table_t& operator=(hash_table_t&&) = delete;
+
         void insert(const block_tuple_t&);
         void build();
-        join_result_buf_t probe(const block_tuple_t&);
+        join_result_buf_t probe(const block_tuple_t&) const;
+
     private:
-        page::range_t left_, right_;
-        std::vector<int32_t> key_col_;
-        std::vector<ap_row_t> row_col_;
+        const page::range_t left_, right_;
+        const uint32_t left_len_, right_len_;
+        const bool left_unique_;
+        int32_t* bucket_size_;
+
+        // since SIMD compare has no mask,
+        // key_col_[0] must be an existing key.
+        int32_t lucky_key_;
+
+        // permute and rank
+        int32_t* key_col_; // size = N + 1
+
+        // record bucket head in `key_col_`
+        int32_t* bucket_head_; // size = BUCKET_AMOUNT
+
+        // record bucket chain
+        int32_t* next_; // size = N + 1
+
+        // record which row is mapped to the ey
+        std::vector<uint32_t> key2rowid_; // size = N + 1
+
+        // materialized row buffer
+        std::deque<ap_row_t> row_buf_; // size = N
     };
 
 
@@ -166,8 +199,8 @@ namespace DB::ap {
         page::range_t rng2{ 4, 4};
         page::range_t rng3{ 4, 4 };
         page::range_t rng_j2{ 0, 4 };
-        hash_table_t ht1(rng1, rng_j2);
-        hash_table_t ht2(rng2, rng3);
+        hash_table_t ht1(rng1, rng_j2, 8, 8, true);
+        hash_table_t ht2(rng2, rng3, 8, 16, false);
         VMEmitOp emit;
 
 
@@ -185,7 +218,7 @@ namespace DB::ap {
             block_tuple_t block = it.consume_block();
 
             block.selectivity_and(block.getINT({ 4, 4 }) < 233);
-            
+
             ht2.insert(block);
         }
         ht2.build();

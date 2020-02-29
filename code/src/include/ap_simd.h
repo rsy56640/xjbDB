@@ -1,7 +1,6 @@
 #pragma once
 #include <immintrin.h>
 #include "env.h"
-#include "ap_exec.h"
 
 namespace DB::ap {
 
@@ -12,8 +11,13 @@ namespace DB::ap {
         int& operator[](uint32_t index) { return (reinterpret_cast<int32_t*>(&vec_))[index]; }
         int operator[](uint32_t index) const { return (const_cast<int32_t*>(reinterpret_cast<const int32_t*>(&vec_)))[index]; }
     };
-    static VECTOR_INT ZERO_VEC = { _mm256_set_epi32(0, 0, 0, 0, 0, 0, 0, 0) };
-    static VECTOR_INT ONE_VEC = { _mm256_set_epi32(1, 1, 1, 1, 1, 1, 1, 1) };
+    inline VECTOR_INT get_vec(int32_t value) {
+        return { _mm256_set_epi32(value, value, value, value, value, value, value, value) };
+    }
+    static VECTOR_INT ZERO_VEC = { get_vec(0x0) };
+    static VECTOR_INT ONE_VEC = { get_vec(0x1) };
+    static VECTOR_INT MAX_VEC = { get_vec(0x7FFFFFFF) };
+    static VECTOR_INT MIN_VEC = { get_vec(0xFFFFFFFF) };
 
 
     struct VECTOR_BOOL {
@@ -27,12 +31,14 @@ namespace DB::ap {
     static VECTOR_BOOL FALSE_VEC = { 0x0 };
 
 
-    inline VECTOR_INT get_vec(int32_t value) {
-        return { _mm256_set_epi32(value, value, value, value, value, value, value, value) };
-    }
+    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpeq_epi32(vec1.vec_, vec2.vec_) }; }
+    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec, int32_t value) { return simd_compare_eq(vec, get_vec(value)); }
+    inline VECTOR_INT simd_compare_eq(int32_t value, VECTOR_INT vec) { return simd_compare_eq(get_vec(value), vec); }
 
 
     // SIMD arithmetic
+    inline VECTOR_INT srl(VECTOR_INT vec) { return { _mm256_srli_epi32 (vec.vec_, 1) }; }
+
     inline VECTOR_INT operator+(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_add_epi32(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_INT operator+(VECTOR_INT vec, int32_t value) { return vec + get_vec(value); }
     inline VECTOR_INT operator+(int32_t value, VECTOR_INT vec) { return get_vec(value) + vec; }
@@ -44,6 +50,27 @@ namespace DB::ap {
     inline VECTOR_INT operator*(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_mul_epi32(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_INT operator*(VECTOR_INT vec, int32_t value) { return vec * get_vec(value); }
     inline VECTOR_INT operator*(int32_t value, VECTOR_INT vec) { return get_vec(value) * vec; }
+
+
+    // SIMD logical operation
+    inline VECTOR_INT operator&(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_and_si256(vec1.vec_, vec2.vec_) }; }
+    inline VECTOR_INT operator&(VECTOR_INT vec, int32_t value) { return vec & get_vec(value); }
+    inline VECTOR_INT operator&(int32_t value, VECTOR_INT vec) { return get_vec(value) & vec; }
+
+    inline VECTOR_INT operator|(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_or_si256(vec1.vec_, vec2.vec_) }; }
+    inline VECTOR_INT operator|(VECTOR_INT vec, int32_t value) { return vec | get_vec(value); }
+    inline VECTOR_INT operator|(int32_t value, VECTOR_INT vec) { return get_vec(value) | vec; }
+
+    inline VECTOR_INT operator~(VECTOR_INT vec1) { return { _mm256_andnot_si256(vec1.vec_, MIN_VEC.vec_) }; }
+    inline VECTOR_INT simd_not1and2(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_andnot_si256(vec1.vec_, vec2.vec_) }; }
+
+    inline VECTOR_INT simd_int2bool(VECTOR_INT vec) {
+        VECTOR_INT OVERFLOW = simd_compare_eq(vec, MIN_VEC);
+        for(int32_t i = 0; i < 32; i++) { // in fact, 31 round is enough
+            vec = srl(vec + 1);
+        }
+        return vec + OVERFLOW;
+    }
 
 
     // SIMD compare
@@ -70,6 +97,28 @@ namespace DB::ap {
     inline VECTOR_BOOL operator>=(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpge_epi32_mask(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_BOOL operator>=(VECTOR_INT vec, int32_t value) { return vec >= get_vec(value); }
     inline VECTOR_BOOL operator>=(int32_t value, VECTOR_INT vec) { return get_vec(value) >= vec; }
+
+
+    inline bool simd_all_eq(VECTOR_BOOL mask1, VECTOR_BOOL mask2) { return mask1.mask_ == mask2.mask_; }
+    inline bool simd_all_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return simd_all_eq(vec1 == vec2, TRUE_VEC); }
+    inline bool simd_all_eq(VECTOR_INT vec, int value) { return simd_all_eq(vec, get_vec(value)); }
+
+
+    // SIMD gather/scatter
+    inline VECTOR_INT zero_one_mask_2_vector_mask(VECTOR_INT mask) { return { mask * MIN_VEC }; }
+    inline VECTOR_INT gatheri32(const int32_t* base, VECTOR_INT index) {
+        return { _mm256_i32gather_epi32(base, index.vec_, sizeof(int32_t)) };
+    }
+    inline VECTOR_INT mask_gatheri32(VECTOR_INT src, const int32_t* base, VECTOR_INT index, VECTOR_INT mask) {
+        return { _mm256_mask_i32gather_epi32(src.vec_, base, index.vec_, mask.vec_, sizeof(int32_t)) };
+    }
+
+#ifdef AVX512
+    inline void scatter(int32_t* base, VECTOR_INT index, VECTOR_INT vec, int32_t scale) {
+        _mm256_i32scatter_epi32(base, index.vec_, vec.vec_, scale);
+    }
+#endif
+
 
 
 } // end namespace DB::ap

@@ -5,7 +5,9 @@
 #pragma once
 
 #include "query_base.h"
+#include "table.h"
 #include "ast_ap.h"
+#include "ap_exec.h"
 #include <variant>
 #include <vector>
 
@@ -22,14 +24,8 @@ using std::shared_ptr;
 namespace DB::query {
 
 
-    struct APSelectInfo {
-
-        vector<string> tables;
-        vector<shared_ptr<ast::BaseExpr>> conditions;
-
-        //currently suppose select all
-        //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
-
+    class APSelectInfo {
+    public:
         void print() const
         {
             std::cout << "APSelectInfo : " << std::endl;
@@ -44,6 +40,19 @@ namespace DB::query {
                 ast::exprOutputVisit(condition, std::cout);
             }
         }
+
+        void compile();
+
+        ap::VMEmitOp query(const ap::ap_table_array_t& tables) const;
+
+        table::schema_t get_schema() const;
+
+    private:
+        vector<string> tables;
+        vector<shared_ptr<ast::BaseExpr>> conditions;
+
+        //currently suppose select all
+        //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
     };
 
     using APValue = std::variant<APSelectInfo, Exit, ErrorMsg, Switch>;
