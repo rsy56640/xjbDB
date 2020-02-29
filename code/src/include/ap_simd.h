@@ -68,11 +68,11 @@ namespace DB::ap {
     inline VECTOR_INT simd_not1and2(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_andnot_si256(vec1.vec_, vec2.vec_) }; }
 
     inline VECTOR_INT simd_int2bool(VECTOR_INT vec) {
-        VECTOR_INT OVERFLOW = simd_compare_eq(vec, MIN_VEC);
+        VECTOR_INT VEC_OVERFLOW = simd_compare_eq(vec, MIN_VEC);
         for(int32_t i = 0; i < 32; i++) { // in fact, 31 round is enough
             vec = srl(vec + 1);
         }
-        return vec + OVERFLOW;
+        return vec + VEC_OVERFLOW;
     }
 
 

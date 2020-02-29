@@ -49,12 +49,9 @@ namespace DB::query {
 
         table::schema_t get_schema() const;
 
-    private:
         vector<string> tables;
         vector<shared_ptr<ast::BaseExpr>> conditions;
 
-        shared_ptr<ast::APEmitOp> emit;
-        
         //currently suppose select all
         //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
     };

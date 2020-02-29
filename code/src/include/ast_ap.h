@@ -136,6 +136,7 @@ namespace DB::ast {
         col_name_t _leftAttr;
         col_name_t _rightAttr;
         APMap _leftMap;
+        bool isUnique;
     };
 
     struct APTableOp : public APBaseOp {
@@ -178,5 +179,5 @@ namespace DB::ast {
      * functions
      *  generate code from ast
      */
-    string generateCode(shared_ptr<APEmitOp> emit);
+    vector<string> generateCode(shared_ptr<APEmitOp> emit);
 }
