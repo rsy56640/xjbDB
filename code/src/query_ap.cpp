@@ -6,9 +6,38 @@
 #include "include/lexer.h"
 #include "include/debug_log.h"
 #include "parse_ap.h"
-
+#include <fstream>
 
 namespace DB::query{
+
+    void APSelectInfo::generateCode()
+    {
+        auto emit = generateAst(tables, conditions);
+        auto code = ast::generateCode(emit);
+
+        std::ofstream outfile;
+        outfile.open("../../src/codegen/query.cpp");
+        if(!outfile)
+            return;
+        for(const auto &line : code)
+            outfile << line << endl;
+        outfile.close();
+    }
+
+    void APSelectInfo::compile()
+    {
+
+    }
+
+    ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
+    {
+        return ap::VMEmitOp();
+    }
+
+    table::schema_t APSelectInfo::get_schema() const
+    {
+        return schema_t();
+    }
 
     void print(const APValue &value)
     {
@@ -56,8 +85,7 @@ namespace DB::query{
             if (auto ptr = get_if<APSelectInfo>(&value))
             {
                 apCheckVisit(ptr->conditions);
-                auto emit = generateAst(ptr->tables, ptr->conditions);
-                auto code = generateCode(emit);
+                ptr->generateCode();
             }
         }
         catch (const DB::DB_Base_Exception& e)

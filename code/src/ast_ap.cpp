@@ -10,7 +10,7 @@
 #include <map>
 #include <unordered_map>
 
-#define START_BASE_LINE 2
+#define START_BASE_LINE 7
 
 namespace DB::ast{
 
@@ -74,15 +74,20 @@ namespace DB::ast{
 
         // fixed code + reserved lines
         /*
-         * EmitOp query         BASE
+         * ……                   BASE
          * VMEmitOp emit;       BASE
          * const ap_table_t&    _tableCount
          * range_t              _hashTableCount * 2
          * hash_table_t         _hashTableCount
          */
         g_vCode.resize(START_BASE_LINE + _tableCount + 3 * _hashTableCount);
-        g_vCode[0] = "VMEmitOp query(const ap_table_array_t& tables) {";
-        g_vCode[1] = "VMEmitOp emit;";
+        g_vCode[0] = "// this file is generated ";
+        g_vCode[1] = "#include \"ap_exec.h\"";
+        g_vCode[2] = "namespace DB::ap {";
+        g_vCode[3] = "static block_tuple_t projection(const block_tuple_t& block) { return block; }";
+        g_vCode[4] = "extern";
+        g_vCode[5] = "VMEmitOp query(const ap_table_array_t& tables) {";
+        g_vCode[6] = "VMEmitOp emit;";
 
         _table->produce();
     }
@@ -167,7 +172,7 @@ namespace DB::ast{
         // reserved lines for hash table declaration
         g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex] =
                 "hash_table_t ht" + strIndex +
-                "(rngLeft" + strIndex + ",rngRight" + strIndex + ");";
+                "(rngLeft" + strIndex + ",rngRight" + strIndex + ",";
 
         _tableLeft->produce();
         _tableRight->produce();
@@ -177,11 +182,16 @@ namespace DB::ast{
     {
         string strIndex = to_string(_hashTableIndex);
 
+        g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex]
+                += to_string(map.len()) + ",";
+
         if(source == _tableLeft)
         {
             _leftMap = map;
 
             page::range_t left_range = map.get(_leftAttr);
+            isUnique = map.check_unique(left_range);
+
             // reserved lines for left child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2] =
                     "range_t rngLeft" + strIndex +
@@ -200,6 +210,9 @@ namespace DB::ast{
         else if(source == _tableRight)
         {
             g_iIndent++;
+
+            g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex]
+                    += isUnique?"true);":"false);";
 
             page::range_t right_range = map.get(_rightAttr);
             // reserved lines for right child rng declaration
@@ -448,17 +461,10 @@ namespace DB::ast{
 
 
 
-    string generateCode(shared_ptr<APEmitOp> emit)
+    vector<string> generateCode(shared_ptr<APEmitOp> emit)
     {
         emit->produce();
 
-        // join the g_vCode strings
-        string code;
-        for(const auto &line : g_vCode)
-        {
-            code += line;
-        }
-
-        return code;
+        return g_vCode;
     }
 }
