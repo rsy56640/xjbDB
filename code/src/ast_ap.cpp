@@ -9,6 +9,7 @@
 #include <string>
 #include <map>
 #include <unordered_map>
+#include <utility>
 
 #define START_BASE_LINE 7
 
@@ -42,14 +43,41 @@ namespace DB::ast{
             attr_map[{ tableName, table.colNames_[i] }] =
                 table.columnInfos_[i].get_range();
         }
+        if(table.hasPK()) {
+            unique_ranges_.insert(table.columnInfos_[table.pk_col_].get_range());
+        }
     }
 
-    void APMap::join(const APMap& right) {
+    void APMap::join(const APMap& right, page::range_t left_range, page::range_t right_range) {
         const uint32_t offset = tuple_len;
         tuple_len += right.len();
         for(auto const& [col_name, range]: right.attr_map) {
             attr_map[col_name] = page::range_t{ range.begin + offset, range.len };
         }
+
+        APMap& left = *this;
+        std::unordered_set<page::range_t> unique_ranges{};
+        const bool left_join_key_unique = left.check_unique(left_range);
+        const bool right_join_key_unique = right.check_unique(right_range);
+        if(!left_join_key_unique && !right_join_key_unique) { // NULL
+            unique_ranges.clear();
+        }
+        else if(!left_join_key_unique && right_join_key_unique) { // left unique ranges
+            unique_ranges = std::move(left.unique_ranges_);
+        }
+        else if(left_join_key_unique && !right_join_key_unique) { // right unique ranges
+            for(page::range_t range : right.unique_ranges_) {
+                unique_ranges.insert({ range.begin + offset, range.len });
+            }
+        }
+        else { // all unique ranges
+            unique_ranges = std::move(left.unique_ranges_);
+            for(page::range_t range : right.unique_ranges_) {
+                unique_ranges.insert({ range.begin + offset, range.len });
+            }
+        }
+
+        this->unique_ranges_ = std::move(unique_ranges);
     }
 
     uint32_t APMap::len() const { return tuple_len; }
@@ -189,13 +217,13 @@ namespace DB::ast{
         {
             _leftMap = map;
 
-            page::range_t left_range = map.get(_leftAttr);
-            isUnique = map.check_unique(left_range);
+            _leftRange = map.get(_leftAttr);
+            isUnique = map.check_unique(_leftRange);
 
             // reserved lines for left child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2] =
                     "range_t rngLeft" + strIndex +
-                    range2str(left_range) + ";";
+                    range2str(_leftRange) + ";";
 
             g_vCode.push_back("ht" + strIndex + ".insert(block);");
 
@@ -225,7 +253,7 @@ namespace DB::ast{
             g_vCode.push_back("for(ap_block_iter_t it = join_result" + strIndex + ".get_block_iter(); !it.is_end();) {");
             g_vCode.push_back("block_tuple_t block = it.consume_block();");
 
-            _leftMap.join(map);
+            _leftMap.join(map, _leftRange, right_range);
             _parentOp->consume(this, _leftMap);
         }
         else
