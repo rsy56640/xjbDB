@@ -151,9 +151,9 @@ namespace DB::ap {
 
 
     static
-    ap_row_t splice(const ap_row_t& left, const ap_row_t& right, uint32_t left_len, uint32_t right_len) {
-
-
+    ap_row_t splice(const ap_row_t& left, const ap_row_t& right,
+                    uint32_t left_len, uint32_t right_len) {
+        return { page::splice_vEntry(left.row, right.row, left_len, right_len) };
     }
 
 
@@ -162,11 +162,14 @@ namespace DB::ap {
         const VECTOR_INT probe_keys = block.getINT(right_);
         // pos: probe[i] might be equal to build[pos[i]]
         VECTOR_INT pos = gatheri32(bucket_head_, hash2bucket(probe_keys));
-        // maybe_match (0-1 mask vector): maybe_match[i] == true => probe[i] should be checked
-        VECTOR_INT maybe_match = simd_int2bool(pos);
+        // maybe_match (0-1 mask vector):
+        //      maybe_match[i] == 1(0) <=> probe[i] should(not) be checked
+        VECTOR_INT maybe_match = simd_int2bool(pos) & block.select_;
+
+        VECTOR_INT build_keys = get_vec(lucky_key_);
 
         for(;;) {
-            VECTOR_INT build_keys =
+            build_keys =
                 mask_gatheri32(build_keys, key_col_, pos, zero_one_mask_2_vector_mask(maybe_match));
 
             // Do not need to worry about NULL-key in empty bucket,
@@ -174,23 +177,29 @@ namespace DB::ap {
             VECTOR_INT check = simd_compare_eq(build_keys, probe_keys);
 
             // materialize join result
-            // TODO:
-
-            
+            for(uint32_t i = 0; i < VECTOR_SIZE; i++) {
+                // build_keys[pos[i]] == probe_keys[i]
+                if(check[i]) {
+                    const uint32_t rowid = key2rowid_[pos[i]];
+                    result.rows_.push_back(splice(row_buf_[rowid], block.rows_[i], left_len_, right_len_));
+                }
+            }
 
             if(left_unique_) {
                 maybe_match = maybe_match - check;
             }
 
-            VECTOR_INT next_round = mask_gatheri32(ZERO_VEC, next_, pos, zero_one_mask_2_vector_mask(maybe_match));
-            next_round = next_round & maybe_match;
+            // checkout whether pos can go next
+            VECTOR_INT maybe_match =
+                mask_gatheri32(maybe_match, next_, pos, zero_one_mask_2_vector_mask(maybe_match));
 
-            VECTOR_BOOL flag = (next_round == ZERO_VEC);
-            if(simd_all_eq(flag, TRUE_VEC)) {
+            // no need to process, return
+            if(simd_all_eq(maybe_match, ZERO_VEC)) {
                 break;
             }
 
-            pos = pos + next_round;
+            // check next round
+            pos = pos + maybe_match;
         }
 
         return result;

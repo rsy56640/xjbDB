@@ -1227,7 +1227,7 @@ namespace DB::vm
         plan.print();
         plan.generateCode();
         plan.compile();
-        ap::VMEmitOp emit = plan.query();
+        ap::VMEmitOp emit = plan.query(*ap_table_array_);
     }
 
 

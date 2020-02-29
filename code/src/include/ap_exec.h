@@ -71,15 +71,16 @@ namespace DB::ap {
         friend class ap_block_iter_t;
         friend class VECTOR_INT;
         friend class VMEmitOp;
+        friend class hash_table_t;
     public:
         // for row-wise iteration
         block_tuple_iter_t first() const { return block_tuple_iter_t{this}; }
         // for vector-wise SIMD execution
         VECTOR_INT getINT(page::range_t range) const;
-        void selectivity_and(VECTOR_BOOL mask) { select_ &= mask; }
+        void selectivity_and(VECTOR_INT mask) { select_ = select_ & mask; }
     private:
         ap_row_t rows_[VECTOR_SIZE];
-        VECTOR_BOOL select_ = FALSE_VEC;
+        VECTOR_INT select_ = ZERO_VEC;
     };
 
     /*

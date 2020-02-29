@@ -18,6 +18,22 @@ namespace DB::page
         return std::string(vEntry.content_, MAX_TUPLE_SIZE);
     }
 
+    bool operator==(range_t left, range_t right) {
+        if((left.begin == right.begin)
+         &&(left.len == right.len))
+            return true;
+        return false;
+    }
+
+    ValueEntry splice_vEntry(const ValueEntry& left, const ValueEntry& right,
+                             uint32_t left_len, uint32_t right_len) {
+        ValueEntry vEntry = left;
+        std::memcpy(vEntry.content_ + left_len, right.content_, right_len);
+        return vEntry;
+    }
+    
+
+
     void update_vEntry(ValueEntry& dest, const ValueEntry& src) {
         dest.value_state_ = src.value_state_;
         std::memcpy(dest.content_, src.content_, MAX_TUPLE_SIZE);

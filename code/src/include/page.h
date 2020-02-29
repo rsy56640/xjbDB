@@ -242,6 +242,9 @@ namespace DB::page
         uint32_t begin = 0, len = 0;
         uint32_t end() const { return begin + len; }
     };
+    bool operator==(range_t left, range_t right);
+    ValueEntry splice_vEntry(const ValueEntry& left, const ValueEntry& right,
+                             uint32_t left_len, uint32_t right_len);
     void update_vEntry(ValueEntry& dest, const ValueEntry& src);
     void update_vEntry(ValueEntry& dest, range_t dest_range, const ValueEntry& src, range_t src_range);
     void update_vEntry(ValueEntry&, range_t range, int32_t);
