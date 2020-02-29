@@ -58,7 +58,7 @@ namespace DB::ast {
         // init from source table
         APMap() {}
         APMap(const table::TableInfo& table);
-        void join(const APMap& right);
+        void join(const APMap& right, page::range_t left_range, page::range_t right_range);
         page::range_t get(const col_name_t&);
         uint32_t len() const;
         bool check_unique(page::range_t) const;
@@ -136,6 +136,7 @@ namespace DB::ast {
         col_name_t _leftAttr;
         col_name_t _rightAttr;
         APMap _leftMap;
+        page::range_t _leftRange;
         bool isUnique;
     };
 
