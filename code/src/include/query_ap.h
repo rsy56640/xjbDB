@@ -41,6 +41,8 @@ namespace DB::query {
             }
         }
 
+        void generateCode();
+
         void compile();
 
         ap::VMEmitOp query(const ap::ap_table_array_t& tables) const;
@@ -51,6 +53,8 @@ namespace DB::query {
         vector<string> tables;
         vector<shared_ptr<ast::BaseExpr>> conditions;
 
+        shared_ptr<ast::APEmitOp> emit;
+        
         //currently suppose select all
         //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
     };

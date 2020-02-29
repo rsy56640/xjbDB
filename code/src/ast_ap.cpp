@@ -54,6 +54,8 @@ namespace DB::ast{
 
     uint32_t APMap::len() const { return tuple_len; }
 
+    bool APMap::check_unique(page::range_t range) const { return unique_ranges_.count(range); }
+
     page::range_t APMap::get(const col_name_t& attr) {
         return attr_map[attr];
     }
