@@ -1,6 +1,9 @@
 #pragma once
 #include <immintrin.h>
-#include "env.h"
+#include <cstdint>
+
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 namespace DB::ap {
 
@@ -74,6 +77,10 @@ namespace DB::ap {
 
 
     // SIMD compare
+
+// Unfortunately, we donot have AVX512.
+// In addition, the `_mmask8` support is bizard, which leads to us using `_mm256i` as mask.
+/*
     inline VECTOR_BOOL operator==(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpeq_epi32_mask(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_BOOL operator==(VECTOR_INT vec, int32_t value) { return vec == get_vec(value); }
     inline VECTOR_BOOL operator==(int32_t value, VECTOR_INT vec) { return get_vec(value) == vec; }
@@ -97,12 +104,44 @@ namespace DB::ap {
     inline VECTOR_BOOL operator>=(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpge_epi32_mask(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_BOOL operator>=(VECTOR_INT vec, int32_t value) { return vec >= get_vec(value); }
     inline VECTOR_BOOL operator>=(int32_t value, VECTOR_INT vec) { return get_vec(value) >= vec; }
+*/
+
+    inline VECTOR_INT operator==(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpeq_epi32(vec1.vec_, vec2.vec_) }; }
+    inline VECTOR_INT operator==(VECTOR_INT vec, int32_t value) { return vec == get_vec(value); }
+    inline VECTOR_INT operator==(int32_t value, VECTOR_INT vec) { return get_vec(value) == vec; }
+
+    inline VECTOR_INT operator!=(VECTOR_INT vec1, VECTOR_INT vec2) { return 1 - (vec1 == vec2); }
+    inline VECTOR_INT operator!=(VECTOR_INT vec, int32_t value) { return vec != get_vec(value); }
+    inline VECTOR_INT operator!=(int32_t value, VECTOR_INT vec) { return get_vec(value) != vec; }
+
+    inline VECTOR_INT operator<(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_srli_epi32((vec1 - vec2).vec_, 31) }; }
+    inline VECTOR_INT operator<(VECTOR_INT vec, int32_t value) { return vec < get_vec(value); }
+    inline VECTOR_INT operator<(int32_t value, VECTOR_INT vec) { return get_vec(value) < vec; }
+
+    inline VECTOR_INT operator<=(VECTOR_INT vec1, VECTOR_INT vec2) { return 1 - VECTOR_INT{ _mm256_srli_epi32((vec2 - vec1).vec_, 31) }; }
+    inline VECTOR_INT operator<=(VECTOR_INT vec, int32_t value) { return vec <= get_vec(value); }
+    inline VECTOR_INT operator<=(int32_t value, VECTOR_INT vec) { return get_vec(value) <= vec; }
+
+    inline VECTOR_INT operator>(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_srli_epi32((vec2 - vec1).vec_, 31) }; }
+    inline VECTOR_INT operator>(VECTOR_INT vec, int32_t value) { return vec > get_vec(value); }
+    inline VECTOR_INT operator>(int32_t value, VECTOR_INT vec) { return get_vec(value) > vec; }
+
+    inline VECTOR_INT operator>=(VECTOR_INT vec1, VECTOR_INT vec2) { return 1 - VECTOR_INT{ _mm256_srli_epi32((vec1 - vec2).vec_, 31) }; }
+    inline VECTOR_INT operator>=(VECTOR_INT vec, int32_t value) { return vec >= get_vec(value); }
+    inline VECTOR_INT operator>=(int32_t value, VECTOR_INT vec) { return get_vec(value) >= vec; }
+
 
 
     inline bool simd_all_eq(VECTOR_BOOL mask1, VECTOR_BOOL mask2) { return mask1.mask_ == mask2.mask_; }
-    inline bool simd_all_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return simd_all_eq(vec1 == vec2, TRUE_VEC); }
+    inline bool simd_all_eq(VECTOR_INT vec1, VECTOR_INT vec2) {
+        // return simd_all_eq({ _mm256_cmpeq_epi32_mask(vec1.vec_, vec2.vec_) }, TRUE_VEC);
+        // no SIMD support on AVX2
+        for(uint32_t i = 0; i < VECTOR_SIZE; i++)
+            if(likely(vec1[i] != vec2[i]))
+                return false;
+        return true;
+    }
     inline bool simd_all_eq(VECTOR_INT vec, int value) { return simd_all_eq(vec, get_vec(value)); }
-
 
     // SIMD gather/scatter
     inline VECTOR_INT zero_one_mask_2_vector_mask(VECTOR_INT mask) { return { mask * MIN_VEC }; }
