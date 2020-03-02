@@ -97,6 +97,7 @@ namespace DB::ast {
         int _hashTableCount;
         int _tableCount;
         APBaseOp *_table;
+        APMap _map;  // store the final map
     };
 
     struct APProjectOp : public APBaseOp {
