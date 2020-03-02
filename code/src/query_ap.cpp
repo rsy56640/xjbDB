@@ -14,9 +14,10 @@ namespace DB::query{
     {
         auto emit = generateAst(tables, conditions);
         auto code = ast::generateCode(emit);
+        set_schema(emit->);
 
         std::ofstream outfile;
-        outfile.open("../../src/codegen/query.cpp");
+        outfile.open("../src/codegen/query.cpp");
         if(!outfile)
             return;
         for(const auto &line : code)
@@ -29,15 +30,17 @@ namespace DB::query{
 
     }
 
-    ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
+    void load()
     {
-        return ap::VMEmitOp();
+
     }
 
-    table::schema_t APSelectInfo::get_schema() const
+
+    ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
     {
-        return schema_t();
+        return _query_(tables);
     }
+
 
     void print(const APValue &value)
     {

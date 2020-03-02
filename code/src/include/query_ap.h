@@ -45,15 +45,22 @@ namespace DB::query {
 
         void compile();
 
+        void load();
+
         ap::VMEmitOp query(const ap::ap_table_array_t& tables) const;
 
-        table::schema_t get_schema() const;
+        const table::schema_t& get_schema() const { return schema; }
+
+    private:
+
+        ap::VMEmitOp (*_query_)(const ap::ap_table_array_t& tables);
+
+        void set_schema(APMap);
+        table::schema_t schema;
 
         vector<string> tables;
         vector<shared_ptr<ast::BaseExpr>> conditions;
-
-        //currently suppose select all
-        //vector< std::pair<string, string> > columns; // selected pairs of<table, column>
+        vector<std::pair<string, string>> columns; // selected pairs of<table, column>
     };
 
     using APValue = std::variant<APSelectInfo, Exit, ErrorMsg, Switch>;

@@ -184,4 +184,7 @@ namespace DB::ap {
     };
 
 
+    extern ap::VMEmitOp query(const ap::ap_table_array_t& tables);
+
+
 } // end namespace DB::ap
