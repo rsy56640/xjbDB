@@ -6,6 +6,8 @@
 #include "include/lexer.h"
 #include "include/debug_log.h"
 #include "parse_ap.h"
+
+#include <dlfcn.h>
 #include <fstream>
 
 namespace DB::query{
@@ -14,7 +16,7 @@ namespace DB::query{
     {
         auto emit = generateAst(tables, conditions);
         auto code = ast::generateCode(emit);
-        set_schema(emit->);
+        set_schema(emit->_map);
 
         std::ofstream outfile;
         outfile.open("../src/codegen/query.cpp");
@@ -27,18 +29,33 @@ namespace DB::query{
 
     void APSelectInfo::compile()
     {
+        system("cd src/codegen");
+        system("cmake");    // query.so
+    }
+
+    void APSelectInfo::load()
+    {
+        _handle = dlopen("./query.so", RTLD_LAZY);
+
+        _query_ = (QUERY_PTR)dlsym(_handle, "query");
 
     }
 
-    void load()
+    void APSelectInfo::close()
     {
-
+        if(_handle)
+            dlclose(_handle);
     }
 
 
     ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
     {
         return _query_(tables);
+    }
+
+    void APSelectInfo::set_schema(ast::APMap)
+    {
+        
     }
 
 

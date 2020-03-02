@@ -122,6 +122,8 @@ namespace DB::ast{
 
     void APEmitOp::consume(APBaseOp *source, APMap &map)
     {
+        _map = map;
+
         g_vCode.push_back("emit.emit(block);");
 
         while(g_iIndent > 0)
