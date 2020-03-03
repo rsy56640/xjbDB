@@ -2,13 +2,15 @@
 // Created by 刘瑞康 on 2020/2/17.
 //
 
+#include "debug_log.h"
 #include "query_ap.h"
 #include "include/lexer.h"
 #include "include/debug_log.h"
 #include "parse_ap.h"
-
+#include <algorithm>
 #include <dlfcn.h>
 #include <fstream>
+#include <unistd.h>
 
 namespace DB::query{
 
@@ -20,8 +22,10 @@ namespace DB::query{
 
         std::ofstream outfile;
         outfile.open("../src/codegen/query.cpp");
-        if(!outfile)
+        if(!outfile) {
+            debug::ERROR_LOG("fails to open file \"%s\"\n", "../src/codegen/query.cpp");
             return;
+        }
         for(const auto &line : code)
             outfile << line << endl;
         outfile.close();
@@ -29,33 +33,51 @@ namespace DB::query{
 
     void APSelectInfo::compile()
     {
-        system("cd src/codegen");
-        system("cmake");    // query.so
+        debug::DEBUG_LOG(debug::AP_COMPILE,
+                         ">>> compile query.cpp");
+        //chdir("../src/codegen");
+        //system("cmake . && make");
+        system("g++ ../src/codegen/query.cpp -std=c++17 -mavx2 -march=broadwell -fPIC -shared -L. -lap_exec -lpthread -Wl,-rpath=. -o query.so");
     }
 
     void APSelectInfo::load()
     {
+        system("pwd");
+        system("export LD_LIBRARY_PATH=.");
         _handle = dlopen("./query.so", RTLD_LAZY);
+        debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
+                         ">>> query.so handler: %p\n", _handle);
 
         _query_ = (QUERY_PTR)dlsym(_handle, "query");
-
+        debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
+                         ">>> query function pointer: %p\n", _query_);
     }
 
     void APSelectInfo::close()
     {
-        if(_handle)
-            dlclose(_handle);
+        dlclose(_handle);
     }
 
 
     ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
     {
+        debug::DEBUG_LOG(debug::AP_EXEC,
+                         ">>> query execution starts\n");
         return _query_(tables);
     }
 
-    void APSelectInfo::set_schema(ast::APMap)
+    void APSelectInfo::set_schema(const ast::APMap& map)
     {
-        
+        for(auto const& [col_name_pair, range] : map.attr_map) {
+            schema.attrs_.push_back({
+                col_name_pair.first + col_name_pair.second,
+                range });
+        }
+        std::sort(schema.attrs_.begin(), schema.attrs_.end(),
+                  [](const attr_t& left, const attr_t& right) {
+                      return left.attr_ranges_.begin <
+                             right.attr_ranges_.begin;
+                  });
     }
 
 

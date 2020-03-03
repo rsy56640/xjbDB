@@ -110,12 +110,12 @@ namespace DB::ast{
          */
         g_vCode.resize(START_BASE_LINE + _tableCount + 3 * _hashTableCount);
         g_vCode[0] = "// this file is generated ";
-        g_vCode[1] = "#include \"ap_exec.h\"";
-        g_vCode[2] = "namespace DB::ap {";
-        g_vCode[3] = "static block_tuple_t projection(const block_tuple_t& block) { return block; }";
-        g_vCode[4] = "extern";
-        g_vCode[5] = "VMEmitOp query(const ap_table_array_t& tables) {";
-        g_vCode[6] = "VMEmitOp emit;";
+        g_vCode[1] = "#include \"../include/ap_exec.h\"";
+        g_vCode[2] = "";//"namespace DB::ap {";
+        g_vCode[3] = "static DB::ap::block_tuple_t projection(const DB::ap::block_tuple_t& block) { return block; }";
+        g_vCode[4] = "extern \"C\"";
+        g_vCode[5] = "DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t& tables) {";
+        g_vCode[6] = "DB::ap::VMEmitOp emit;";
 
         _table->produce();
     }
@@ -201,7 +201,7 @@ namespace DB::ast{
 
         // reserved lines for hash table declaration
         g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex] =
-                "hash_table_t ht" + strIndex +
+                "DB::ap::hash_table_t ht" + strIndex +
                 "(rngLeft" + strIndex + ",rngRight" + strIndex + ",";
 
         _tableLeft->produce();
@@ -247,13 +247,13 @@ namespace DB::ast{
             page::range_t right_range = map.get(_rightAttr);
             // reserved lines for right child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2 + 1] =
-                    "range_t rngRight" + strIndex +
+                    "DB::page::range_t rngRight" + strIndex +
                     range2str(right_range) + ";";
 
             // main content
-            g_vCode.push_back("join_result_buf_t join_result" + strIndex + " = ht" + strIndex + ".probe(block);");
-            g_vCode.push_back("for(ap_block_iter_t it = join_result" + strIndex + ".get_block_iter(); !it.is_end();) {");
-            g_vCode.push_back("block_tuple_t block = it.consume_block();");
+            g_vCode.push_back("DB::ap::join_result_buf_t join_result" + strIndex + " = ht" + strIndex + ".probe(block);");
+            g_vCode.push_back("for(DB::ap::ap_block_iter_t it = join_result" + strIndex + ".get_block_iter(); !it.is_end();) {");
+            g_vCode.push_back("DB::ap::block_tuple_t block = it.consume_block();");
 
             _leftMap.join(map, _leftRange, right_range);
             _parentOp->consume(this, _leftMap);
@@ -275,13 +275,13 @@ namespace DB::ast{
 
         // reserved lines for table declaration
         g_vCode[START_BASE_LINE + _tableIndex] =
-                "const ap_table_t& T" + strIndex +
+                "const DB::ap::ap_table_t& T" + strIndex +
                 " = tables.at(" + std::to_string(table::vm_->get_ap_table_index(_tableName)) + ");";
 
-        g_vCode.push_back("for(ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
-                " !it" + strIndex + ".is_end();) {");
+        g_vCode.push_back("for(DB::ap::ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
+                " !it.is_end();) {");
 
-        g_vCode.push_back("block_tuple_t block = it.consume_block();");
+        g_vCode.push_back("DB::ap::block_tuple_t block = it.consume_block();");
 
         _parentOp->consume(this, _map);
     }

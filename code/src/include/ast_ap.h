@@ -23,6 +23,8 @@ using std::pair;
  *  functions for ap ast
  */
 
+namespace DB::query { class APSelectInfo; }
+
 namespace std {
     template<>
     struct hash<pair<string, string>> {
@@ -54,6 +56,7 @@ namespace DB::ast {
     using col_name_t = pair<string, string>;
 
     class APMap {
+        friend class query::APSelectInfo;
     public:
         // init from source table
         APMap() {}

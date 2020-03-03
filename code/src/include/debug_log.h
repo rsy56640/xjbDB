@@ -38,12 +38,19 @@ namespace DB::debug
 
         DESTROY_LOG = true,
 
+        SQL_INPUT = true,
         LEXER_LOG = false,
         PARSE_LOG = false,
         QUERY_LOG = false,
 
         NON_DEBUG = false,
         xbjDB_DEBUG = true,
+
+        AP_AST = true,
+        AP_COMPILE = true,
+        AP_DYNAMIC_LOAD = true,
+        AP_EXEC = true,
+
 
         CONTROL = true;
 

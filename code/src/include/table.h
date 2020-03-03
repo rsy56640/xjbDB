@@ -135,9 +135,12 @@ namespace DB::table
     page::ColumnInfo getColumnInfo(const std::string& tableName, const std::string& columnName);
 
 
+    struct attr_t {
+        std::string attr_name_;
+        page::range_t attr_ranges_;
+    };
     struct schema_t {
-        std::vector<std::string> attr_names_;
-        std::vector<page::range_t> attr_ranges_;
+        std::vector<attr_t> attrs_;
     };
 
 

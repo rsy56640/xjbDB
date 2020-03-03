@@ -191,6 +191,10 @@ namespace DB::vm
         while (true)
         {
             const std::string sql_statemt = conslole_reader_.get_sql();
+            if(debug::SQL_INPUT) {
+                std::cout << ">>> input sql: " << sql_statemt << std::endl;
+            }
+
 
             if(tp)
             {
@@ -1224,10 +1228,19 @@ namespace DB::vm
 
 
     void VM::doQuery(VM::process_result_t& result, query::APSelectInfo& plan) {
-        plan.print();
+        if(debug::AP_AST) {
+            plan.print();
+        }
+
         plan.generateCode();
+
         plan.compile();
+
+        plan.load();
+
         ap::VMEmitOp emit = plan.query(*ap_table_array_);
+
+        plan.close();
     }
 
 
