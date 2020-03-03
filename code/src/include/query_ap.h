@@ -60,12 +60,12 @@ namespace DB::query {
 
     private:
 
-        typedef ap::VMEmitOp (*QUERY_PTR)(const ap::ap_table_array_t& tables);
+        using QUERY_PTR = ap::VMEmitOp (*)(const ap::ap_table_array_t& tables);
 
         QUERY_PTR _query_;
         void *_handle;
 
-        void set_schema(ast::APMap map);
+        void set_schema(const ast::APMap& map);
         table::schema_t schema;
 
     };

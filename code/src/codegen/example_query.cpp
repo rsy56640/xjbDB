@@ -10,7 +10,7 @@ namespace DB::ap {
         return block;
     }
 
-    extern
+    extern "C"
     VMEmitOp example_query(const ap_table_array_t& tables) {
         const ap_table_t& T1 = tables.at(1);
         const ap_table_t& T2 = tables.at(2);
