@@ -253,6 +253,11 @@ namespace DB::page
     std::string get_range_VARCHAR(const ValueEntry&, range_t range);
     std::string vEntry2str(const ValueEntry& vEntry);
 
+    struct col_range_t {
+        range_t range_;
+        col_t_t col_t_;
+    };
+
     using key_t_t = col_t_t;
     constexpr uint32_t INVALID_OFFSET = PAGE_SIZE;
     // if key is (VAR)CHAR, the key is stored the offset to the real content.

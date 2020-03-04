@@ -34,13 +34,13 @@ namespace DB::ap {
     static VECTOR_BOOL FALSE_VEC = { 0x0 };
 
 
-    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpeq_epi32(vec1.vec_, vec2.vec_) }; }
+    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_srli_epi32(_mm256_cmpeq_epi32(vec1.vec_, vec2.vec_), 31) }; }
     inline VECTOR_INT simd_compare_eq(VECTOR_INT vec, int32_t value) { return simd_compare_eq(vec, get_vec(value)); }
     inline VECTOR_INT simd_compare_eq(int32_t value, VECTOR_INT vec) { return simd_compare_eq(get_vec(value), vec); }
 
 
     // SIMD arithmetic
-    inline VECTOR_INT srl(VECTOR_INT vec) { return { _mm256_srli_epi32 (vec.vec_, 1) }; }
+    inline VECTOR_INT srl(VECTOR_INT vec) { return { _mm256_srli_epi32(vec.vec_, 1) }; }
 
     inline VECTOR_INT operator+(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_add_epi32(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_INT operator+(VECTOR_INT vec, int32_t value) { return vec + get_vec(value); }
@@ -144,7 +144,7 @@ namespace DB::ap {
     inline bool simd_all_eq(VECTOR_INT vec, int value) { return simd_all_eq(vec, get_vec(value)); }
 
     // SIMD gather/scatter
-    inline VECTOR_INT zero_one_mask_2_vector_mask(VECTOR_INT mask) { return { mask * MIN_VEC }; }
+    inline VECTOR_INT zero_one_mask_2_vector_mask(VECTOR_INT mask) { return { _mm256_slli_epi32(mask.vec_, 31) }; }
     inline VECTOR_INT gatheri32(const int32_t* base, VECTOR_INT index) {
         return { _mm256_i32gather_epi32(base, index.vec_, sizeof(int32_t)) };
     }

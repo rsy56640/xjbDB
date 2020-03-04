@@ -41,7 +41,10 @@ namespace DB::ast{
         const uint32_t attr_size = table.colNames_.size();
         for(int i = 0; i < attr_size; i++) {
             attr_map[{ tableName, table.colNames_[i] }] =
-                table.columnInfos_[i].get_range();
+                page::col_range_t{
+                    table.columnInfos_[i].get_range(),
+                    table.columnInfos_[i].col_t_
+                };
         }
         if(table.hasPK()) {
             unique_ranges_.insert(table.columnInfos_[table.pk_col_].get_range());
@@ -49,12 +52,25 @@ namespace DB::ast{
     }
 
     void APMap::join(const APMap& right, page::range_t left_range, page::range_t right_range) {
+        // just shift right
+        // no pk merge !!!
         const uint32_t offset = tuple_len;
         tuple_len += right.len();
-        for(auto const& [col_name, range]: right.attr_map) {
-            attr_map[col_name] = page::range_t{ range.begin + offset, range.len };
+        for(auto const& [col_name, col_range]: right.attr_map) {
+            attr_map[col_name] = page::col_range_t{
+                                    page::range_t{
+                                        col_range.range_.begin + offset,
+                                        col_range.range_.len },
+                                    col_range.col_t_
+                                 };
         }
 
+        // compute unique ranges
+        // left-key     right-key       result-unique ranges
+        //   Non           Non              Non
+        //   Non            U               original left unique ranges
+        //    U            Non              original right unique ranges
+        //    U             U               both unique ranges
         APMap& left = *this;
         std::unordered_set<page::range_t> unique_ranges{};
         const bool left_join_key_unique = left.check_unique(left_range);
@@ -85,7 +101,7 @@ namespace DB::ast{
     bool APMap::check_unique(page::range_t range) const { return unique_ranges_.count(range); }
 
     page::range_t APMap::get(const col_name_t& attr) {
-        return attr_map[attr];
+        return attr_map[attr].range_;
     }
 
 
@@ -224,7 +240,7 @@ namespace DB::ast{
 
             // reserved lines for left child rng declaration
             g_vCode[START_BASE_LINE + g_iTableCount + _hashTableIndex * 2] =
-                    "range_t rngLeft" + strIndex +
+                    "DB::page::range_t rngLeft" + strIndex +
                     range2str(_leftRange) + ";";
 
             g_vCode.push_back("ht" + strIndex + ".insert(block);");

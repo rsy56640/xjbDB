@@ -45,17 +45,28 @@ namespace DB::query{
         system("pwd");
         system("export LD_LIBRARY_PATH=.");
         _handle = dlopen("./query.so", RTLD_LAZY);
+        if(const char* error = dlerror()) {
+            printf("[dlerror] dlopen: %s\n", error);
+        }
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
                          ">>> query.so handler: %p\n", _handle);
 
         _query_ = (QUERY_PTR)dlsym(_handle, "query");
+        if(const char* error = dlerror()) {
+            printf("[dlerror] dlsym: %s\n", error);
+        }
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
                          ">>> query function pointer: %p\n", _query_);
     }
 
     void APSelectInfo::close()
     {
+        debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
+                         ">>> query.so handler close: %p\n", _handle);
         dlclose(_handle);
+        if(const char* error = dlerror()) {
+            printf("[dlerror] dlclose: %s\n", error);
+        }
     }
 
 
@@ -68,15 +79,16 @@ namespace DB::query{
 
     void APSelectInfo::set_schema(const ast::APMap& map)
     {
-        for(auto const& [col_name_pair, range] : map.attr_map) {
+        for(auto const& [col_name_pair, col_range] : map.attr_map) {
             schema.attrs_.push_back({
+                col_range,
                 col_name_pair.first + col_name_pair.second,
-                range });
+                });
         }
         std::sort(schema.attrs_.begin(), schema.attrs_.end(),
                   [](const attr_t& left, const attr_t& right) {
-                      return left.attr_ranges_.begin <
-                             right.attr_ranges_.begin;
+                      return left.attr_range_.range_.begin <
+                             right.attr_range_.range_.begin;
                   });
     }
 
@@ -127,7 +139,6 @@ namespace DB::query{
             if (auto ptr = get_if<APSelectInfo>(&value))
             {
                 apCheckVisit(ptr->conditions);
-                ptr->generateCode();
             }
         }
         catch (const DB::DB_Base_Exception& e)

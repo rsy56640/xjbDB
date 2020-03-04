@@ -1239,6 +1239,28 @@ namespace DB::vm
         plan.load();
 
         ap::VMEmitOp emit = plan.query(*ap_table_array_);
+        const table::schema_t& schema = plan.get_schema();
+
+        for(const table::attr_t& attr : schema.attrs_) {
+            query_print("%s\t", attr.attr_name_.c_str());
+        }
+        query_print_n();
+        println();
+        const uint32_t output_size = emit.rows_.size();
+        for(const ap::ap_row_t row : emit.rows_) {
+            for(const table::attr_t& attr : schema.attrs_) {
+                if(attr.attr_range_.col_t_ == col_t_t::INTEGER) {
+                    query_print("%d\t", row.getINT(attr.attr_range_.range_));
+                }
+                else {
+                    query_print(row.getVARCHAR(attr.attr_range_.range_));
+                    query_print("\t");
+                }
+            }
+            query_print_n();
+        }
+        query_print("output size = %d\n", output_size);
+        println();
 
         plan.close();
     }
@@ -1509,26 +1531,28 @@ namespace DB::vm
             query_print_n();
             println();
 
-            // show PK view
-            query_print("PK view:");
-            query_print_n();
-            if (table->bt_->key_t() == key_t_t::INTEGER) {
-                const std::unordered_map<int32_t, uint32_t>& pk_ref
-                    = table_pk_ref_INT[table->get_page_id()];
-                for (auto const&[key, ref] : pk_ref) {
-                    query_print("%d\t->\t%d", key, ref);
-                    query_print_n();
+            if(debug::PK_VIEW) {
+                // show PK view
+                query_print("PK view:");
+                query_print_n();
+                if (table->bt_->key_t() == key_t_t::INTEGER) {
+                    const std::unordered_map<int32_t, uint32_t>& pk_ref
+                        = table_pk_ref_INT[table->get_page_id()];
+                    for (auto const&[key, ref] : pk_ref) {
+                        query_print("%d\t->\t%d", key, ref);
+                        query_print_n();
+                    }
                 }
-            }
-            else {
-                const std::unordered_map<std::string, uint32_t>& pk_ref
-                    = table_pk_ref_VARCHAR[table->get_page_id()];
-                for (auto const&[key, ref] : pk_ref) {
-                    query_print("%s\t->\t%d", key.c_str(), ref);
-                    query_print_n();
+                else {
+                    const std::unordered_map<std::string, uint32_t>& pk_ref
+                        = table_pk_ref_VARCHAR[table->get_page_id()];
+                    for (auto const&[key, ref] : pk_ref) {
+                        query_print("%s\t->\t%d", key.c_str(), ref);
+                        query_print_n();
+                    }
                 }
+                println();
             }
-            println();
 
         } // end iterate all tables
     } // end showDB();
