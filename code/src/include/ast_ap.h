@@ -58,15 +58,15 @@ namespace DB::ast {
     class APMap {
         friend class query::APSelectInfo;
     public:
-        // init from source table
         APMap() {}
+        // init from source table
         APMap(const table::TableInfo& table);
         void join(const APMap& right, page::range_t left_range, page::range_t right_range);
         page::range_t get(const col_name_t&);
         uint32_t len() const;
         bool check_unique(page::range_t) const;
     private:
-        unordered_map<col_name_t, page::range_t> attr_map{};
+        unordered_map<col_name_t, page::col_range_t> attr_map{};
         uint32_t tuple_len;
         std::unordered_set<page::range_t> unique_ranges_{};
     };

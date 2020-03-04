@@ -19,6 +19,8 @@
 #include <memory>
 #include <deque>
 #include <optional>
+#include <iostream>
+#include <string_view>
 
 namespace DB::tree { class BTree; }
 namespace DB::ast {
@@ -216,6 +218,13 @@ namespace DB::vm
                 output_line_start = false;
             }
             std::printf(format, args...);
+        }
+        void query_print(std::string_view sv) {
+            if (output_line_start) {
+                std::printf(">>> ");
+                output_line_start = false;
+            }
+            std::cout << sv;
         }
         void query_print_n();
 

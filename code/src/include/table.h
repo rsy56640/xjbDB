@@ -136,8 +136,8 @@ namespace DB::table
 
 
     struct attr_t {
+        page::col_range_t attr_range_;
         std::string attr_name_;
-        page::range_t attr_ranges_;
     };
     struct schema_t {
         std::vector<attr_t> attrs_;

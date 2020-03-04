@@ -5,6 +5,7 @@
 #include "ap_prefetch.h"
 #include "ap_simd.h"
 #include "page.h"
+#include "debug_log.h"
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -44,6 +45,7 @@ namespace DB::ap {
         int32_t getINT(page::range_t range) const { return page::get_range_INT(row, range); }
         std::string_view getVARCHAR(page::range_t range) const { return std::string_view{ row.content_ + range.begin, range.len }; }
         page::ValueEntry row;
+        std::string to_string() const { return std::string(std::begin(row.content_), std::end(row.content_)); }
     };
 
     /*
@@ -121,6 +123,7 @@ namespace DB::ap {
 
 
     class VMEmitOp {
+        friend class vm::VM;
     public:
         void emit(const block_tuple_t&);
     private:

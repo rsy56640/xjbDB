@@ -2,6 +2,7 @@
 #define _DEBUG_LOG_H
 #include <string>
 #include <cstdio>
+#include <iostream>
 #include "page.h"
 
 namespace DB::debug
@@ -31,6 +32,8 @@ namespace DB::debug
         ERASE_NONMIN_INTERNAL = false,
 
         QUERY_PROCESS = true,
+
+        PK_VIEW = false,
 
         WAL = true,
 

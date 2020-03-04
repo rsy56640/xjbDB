@@ -5,17 +5,24 @@ CREATE TABLE Record(sid INT PK, record INT);
 INSERT Student(sid, name) VALUES(1, "aaa");
 INSERT Student(sid, name) VALUES(2, "bbb");
 INSERT Student(sid, name) VALUES(3, "ccc");
+INSERT Student(sid, name) VALUES(256, "xxx");
+INSERT Student(sid, name) VALUES(257, "yyy");
+INSERT Student(sid, name) VALUES(258, "zzz");
 
 INSERT Score(sid, score) VALUES(1, 99);
 INSERT Score(sid, score) VALUES(2, 88);
 INSERT Score(sid, score) VALUES(3, 77);
+INSERT Score(sid, score) VALUES(256, 75);
+INSERT Score(sid, score) VALUES(257, 81);
 
 SWITCH;
 
-SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 80;
+SELECT $ FROM Student, Score WHERE Student.sid == Score.sid;
+
+SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 120;
 
 //test constant optimizer
-SELECT $ FROM Student WHERE Student.sid > 1 + 2 * 1;
+SELECT $ FROM Score WHERE Score.sid < 1 + 2 * 1;
 
 //test code gen
 SELECT $ FROM Student, Score, Record WHERE Student.sid == Score.sid AND Student.sid == Record.sid AND Score.score <= 80;
