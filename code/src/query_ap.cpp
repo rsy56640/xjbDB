@@ -34,35 +34,42 @@ namespace DB::query{
     void APSelectInfo::compile()
     {
         debug::DEBUG_LOG(debug::AP_COMPILE,
-                         ">>> compile query.cpp");
+                         ">>> [compile] compile ../src/codegen/query.cpp\n");
         //chdir("../src/codegen");
         //system("cmake . && make");
-        system("g++ ../src/codegen/query.cpp -std=c++17 -mavx2 -march=broadwell -fPIC -shared -L. -lap_exec -lpthread -Wl,-rpath=. -o query.so");
+        const std::string compile_header =
+            "g++ ../src/codegen/query.cpp ";
+        const std::string compile_option =
+            "-std=c++17 -g -mavx2 -march=broadwell ";
+        const std::string compile_link_option =
+            "-fPIC -shared -L. -lap_exec -lpthread -Wl,-rpath=. ";
+        const std::string compile_output =
+            "-o query.so ";
+        system((compile_header + compile_option + compile_link_option + compile_output).c_str());
     }
 
     void APSelectInfo::load()
     {
-        system("pwd");
         system("export LD_LIBRARY_PATH=.");
         _handle = dlopen("./query.so", RTLD_LAZY);
         if(const char* error = dlerror()) {
             printf("[dlerror] dlopen: %s\n", error);
         }
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
-                         ">>> query.so handler: %p\n", _handle);
+                         ">>> [load] open query.so handler: %p\n", _handle);
 
         _query_ = (QUERY_PTR)dlsym(_handle, "query");
         if(const char* error = dlerror()) {
             printf("[dlerror] dlsym: %s\n", error);
         }
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
-                         ">>> query function pointer: %p\n", _query_);
+                         ">>> [load] query function pointer: %p\n", _query_);
     }
 
     void APSelectInfo::close()
     {
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
-                         ">>> query.so handler close: %p\n", _handle);
+                         ">>> [close] close query.so handler: %p\n", _handle);
         dlclose(_handle);
         if(const char* error = dlerror()) {
             printf("[dlerror] dlclose: %s\n", error);
@@ -73,7 +80,7 @@ namespace DB::query{
     ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
     {
         debug::DEBUG_LOG(debug::AP_EXEC,
-                         ">>> query execution starts\n");
+                         ">>> [query] query execution starts\n");
         return _query_(tables);
     }
 
@@ -139,6 +146,7 @@ namespace DB::query{
             if (auto ptr = get_if<APSelectInfo>(&value))
             {
                 apCheckVisit(ptr->conditions);
+                ptr->generateCode();
             }
         }
         catch (const DB::DB_Base_Exception& e)

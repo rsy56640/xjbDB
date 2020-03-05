@@ -10,6 +10,7 @@ AUX_SOURCE_DIRECTORY(src DIR_SRCS)
 AUX_SOURCE_DIRECTORY(test DIR_TESTS)
 
 ADD_COMPILE_OPTIONS(
+    -g
     -mavx2
     -march=broadwell
 )

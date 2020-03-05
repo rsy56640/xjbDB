@@ -1232,8 +1232,6 @@ namespace DB::vm
             plan.print();
         }
 
-        plan.generateCode();
-
         plan.compile();
 
         plan.load();
