@@ -182,9 +182,14 @@ namespace DB::ast{
             case base_t_t::ID:
             {
                 std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(condition);
-
                 page::range_t range = map.get({ idPtr->_tableName, idPtr->_columnName });
-                std::string id_name = " block.getINT(" + range2str(range) + ") ";
+
+                page::col_t_t id_t = table::getColumnInfo(idPtr->_tableName, idPtr->_columnName).col_t_;
+                string id_name;
+                if (id_t == page::col_t_t::INTEGER)
+                    id_name = " block.getINT(" + range2str(range) + ") ";
+                else if (id_t == page::col_t_t::CHAR || id_t == page::col_t_t::VARCHAR)
+                    id_name = " block.getVARCHAR(" + range2str(range) + ") ";
                 return id_name;
             }
             case base_t_t::NUMERIC:
@@ -356,6 +361,12 @@ namespace DB::ast{
                     auto leftStr = std::static_pointer_cast<const StrExpr>(left);
                     auto rightStr = std::static_pointer_cast<const StrExpr>(right);
                     expr = std::make_shared<StrExpr>(leftStr->_value + rightStr->_value);
+                }
+                else if(left->base_t_ == base_t_t::STR || right->base_t_ == base_t_t::STR)
+                {
+                    // if at least one side is ID_STR
+                    // currently don't support operation on this case
+                    throw string("currently don't support operation on ID_STR");
                 }
 
                 return left_t;
