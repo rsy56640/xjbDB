@@ -102,6 +102,7 @@ namespace DB::parse_ap
 		}
 		| "EXIT", { info.apValue = Exit(); }
 		| "SWITCH", { info.apValue = Switch(); }
+		| "SHOW", { info.apValue = Show(); }
 		;
 	
 
