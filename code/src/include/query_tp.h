@@ -113,15 +113,6 @@ namespace DB::query {
     };
 
 
-    struct Show
-    {
-        void print() const
-        {
-            std::cout << "Show" << std::endl;
-
-        }
-    };
-
 
     //tp query return type to vm
     using TPValue = std::variant<CreateTableInfo, DropTableInfo, TPSelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg, Switch>;

@@ -20,7 +20,7 @@ namespace DB::ast{
     using std::map;
     using std::unordered_map;
 
-    int g_iTableCount, g_iHashCount, g_iIndent;
+    int g_iTableCount, g_iHashCount, g_iIndent, g_iPipeline;
     vector<string> g_vCode = {};
 
     static inline
@@ -115,6 +115,7 @@ namespace DB::ast{
         g_iTableCount = _tableCount;
         g_iHashCount = _hashTableCount;
         g_iIndent = 0;
+        g_iPipeline = 0;
 
         // fixed code + reserved lines
         /*
@@ -147,6 +148,9 @@ namespace DB::ast{
             g_vCode.push_back("}");
             g_iIndent--;
         }
+
+        g_vCode.push_back("};");
+        g_vCode.push_back("pipeline" + to_string(g_iPipeline) + "();");
 
         g_vCode.push_back("return emit;");
         g_vCode.push_back("} // end codegen function");
@@ -182,9 +186,14 @@ namespace DB::ast{
             case base_t_t::ID:
             {
                 std::shared_ptr<const IdExpr> idPtr = std::static_pointer_cast<const IdExpr>(condition);
-
                 page::range_t range = map.get({ idPtr->_tableName, idPtr->_columnName });
-                std::string id_name = " block.getINT(" + range2str(range) + ") ";
+
+                page::col_t_t id_t = table::getColumnInfo(idPtr->_tableName, idPtr->_columnName).col_t_;
+                string id_name;
+                if (id_t == page::col_t_t::INTEGER)
+                    id_name = " block.getINT(" + range2str(range) + ") ";
+                else if (id_t == page::col_t_t::CHAR || id_t == page::col_t_t::VARCHAR)
+                    id_name = " block.getVARCHAR(" + range2str(range) + ") ";
                 return id_name;
             }
             case base_t_t::NUMERIC:
@@ -253,6 +262,10 @@ namespace DB::ast{
             }
 
             g_vCode.push_back("ht" + strIndex + ".build();");
+
+            g_vCode.push_back("};");
+            g_vCode.push_back("pipeline" + to_string(g_iPipeline) + "();");
+            g_iPipeline++;
         }
         else if(source == _tableRight)
         {
@@ -300,6 +313,8 @@ namespace DB::ast{
         g_vCode[START_BASE_LINE + _tableIndex] =
                 "const DB::ap::ap_table_t& T" + strIndex +
                 " = tables.at(" + std::to_string(table::vm_->get_ap_table_index(_tableName)) + ");";
+
+        g_vCode.push_back("auto pipeline" + to_string(g_iPipeline) + " =[&]() {");
 
         g_vCode.push_back("for(DB::ap::ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
                 " !it.is_end();) {");
@@ -356,6 +371,12 @@ namespace DB::ast{
                     auto leftStr = std::static_pointer_cast<const StrExpr>(left);
                     auto rightStr = std::static_pointer_cast<const StrExpr>(right);
                     expr = std::make_shared<StrExpr>(leftStr->_value + rightStr->_value);
+                }
+                else if(left->base_t_ == base_t_t::STR || right->base_t_ == base_t_t::STR)
+                {
+                    // if at least one side is ID_STR
+                    // currently don't support operation on this case
+                    throw string("currently don't support operation on ID_STR");
                 }
 
                 return left_t;

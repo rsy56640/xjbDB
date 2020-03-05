@@ -51,4 +51,14 @@ namespace DB::query {
         }
     };
 
+    // show system info
+    struct Show
+    {
+        void print() const
+        {
+            std::cout << "Show" << std::endl;
+
+        }
+    };
+
 }	//end namespace DB::query
