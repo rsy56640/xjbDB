@@ -20,7 +20,7 @@ namespace DB::ast{
     using std::map;
     using std::unordered_map;
 
-    int g_iTableCount, g_iHashCount, g_iIndent;
+    int g_iTableCount, g_iHashCount, g_iIndent, g_iPipeline;
     vector<string> g_vCode = {};
 
     static inline
@@ -115,6 +115,7 @@ namespace DB::ast{
         g_iTableCount = _tableCount;
         g_iHashCount = _hashTableCount;
         g_iIndent = 0;
+        g_iPipeline = 0;
 
         // fixed code + reserved lines
         /*
@@ -147,6 +148,9 @@ namespace DB::ast{
             g_vCode.push_back("}");
             g_iIndent--;
         }
+
+        g_vCode.push_back("};");
+        g_vCode.push_back("pipeline" + to_string(g_iPipeline) + "();");
 
         g_vCode.push_back("return emit;");
         g_vCode.push_back("} // end codegen function");
@@ -258,6 +262,10 @@ namespace DB::ast{
             }
 
             g_vCode.push_back("ht" + strIndex + ".build();");
+
+            g_vCode.push_back("};");
+            g_vCode.push_back("pipeline" + to_string(g_iPipeline) + "();");
+            g_iPipeline++;
         }
         else if(source == _tableRight)
         {
@@ -305,6 +313,8 @@ namespace DB::ast{
         g_vCode[START_BASE_LINE + _tableIndex] =
                 "const DB::ap::ap_table_t& T" + strIndex +
                 " = tables.at(" + std::to_string(table::vm_->get_ap_table_index(_tableName)) + ");";
+
+        g_vCode.push_back("auto pipeline" + to_string(g_iPipeline) + " =[&]() {");
 
         g_vCode.push_back("for(DB::ap::ap_block_iter_t it = T" + strIndex + ".get_block_iter();" +
                 " !it.is_end();) {");
