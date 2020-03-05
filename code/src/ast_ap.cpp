@@ -210,6 +210,7 @@ namespace DB::ast{
         // map doesn't need change
         _parentOp->consume(this, map);
     }
+    
 
     void APJoinOp::produce()
     {
@@ -255,6 +256,12 @@ namespace DB::ast{
         }
         else if(source == _tableRight)
         {
+            if(_leftMap.len() + map.len() > page::MAX_TUPLE_SIZE) {
+                throw std::string("tuple len exceed on join \"")
+                        + _tableLeft->get_table_name() + "\" and \""
+                        + _tableRight->get_table_name() + "\"";
+            }
+
             g_iIndent++;
 
             g_vCode[START_BASE_LINE + g_iTableCount + g_iHashCount * 2 + _hashTableIndex]
@@ -281,7 +288,7 @@ namespace DB::ast{
     }
 
     APTableOp::APTableOp(const table::TableInfo& table, string tableName, int tableIndex)
-        :APBaseOp(ap_op_t_t::TABLE), _tableName(tableName), _tableIndex(tableIndex), _map(table) {}
+        :APBaseOp(ap_op_t_t::TABLE, tableName), _tableIndex(tableIndex), _map(table) {}
 
     void APTableOp::produce()
     {

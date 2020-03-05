@@ -41,7 +41,7 @@ namespace DB::debug
 
         DESTROY_LOG = true,
 
-        SQL_INPUT = true,
+        SQL_INPUT = false,
         LEXER_LOG = false,
         PARSE_LOG = false,
         QUERY_LOG = false,

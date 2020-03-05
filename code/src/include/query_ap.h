@@ -23,6 +23,7 @@ using std::shared_ptr;
 
 namespace DB::query {
 
+    using APValue = std::variant<APSelectInfo, Exit, ErrorMsg, Switch>;
 
     class APSelectInfo {
     public:
@@ -40,8 +41,6 @@ namespace DB::query {
                 ast::exprOutputVisit(condition, std::cout);
             }
         }
-
-        void generateCode();
 
         void compile();
 
@@ -68,9 +67,10 @@ namespace DB::query {
         void set_schema(const ast::APMap& map);
         table::schema_t schema;
 
-    };
+        friend APValue ap_parse(const std::string &sql);
+        void generateCode();
 
-    using APValue = std::variant<APSelectInfo, Exit, ErrorMsg, Switch>;
+    };
 
     void print(const APValue &value);
 

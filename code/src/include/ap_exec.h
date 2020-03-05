@@ -2,6 +2,7 @@
 #include <deque>
 #include <vector>
 #include <string_view>
+#include <cstring>
 #include "ap_prefetch.h"
 #include "ap_simd.h"
 #include "page.h"
@@ -149,7 +150,10 @@ namespace DB::ap {
             :left_(left), right_(right),
              left_len_(left_len), right_len_(right_len), left_unique_(left_unique),
              key2rowid_(), row_buf_()
-             { bucket_size_ = new int32_t[BUCKET_AMOUNT]; }
+            {
+                bucket_size_ = new int32_t[BUCKET_AMOUNT];
+                std::memset(bucket_size_, 0, BUCKET_AMOUNT * sizeof(int32_t));
+            }
         ~hash_table_t();
         hash_table_t(const hash_table_t&) = delete;
         hash_table_t& operator=(const hash_table_t&) = delete;
