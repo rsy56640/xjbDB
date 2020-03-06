@@ -19,6 +19,11 @@ SWITCH;
 
 SELECT $ FROM Student, Score WHERE Student.sid == Score.sid;
 
+SELECT $ FROM Student WHERE Student.name <= "ccc";
+SELECT $ FROM Student WHERE "ccc" >= Student.name;
+
+SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND "ccc" != Student.name;
+
 SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 85;
 
 //test constant optimizer

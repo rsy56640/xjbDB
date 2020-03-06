@@ -204,7 +204,7 @@ namespace DB::ast{
             case base_t_t::STR:
             {
                 std::shared_ptr<const StrExpr> strPtr = std::static_pointer_cast<const StrExpr>(condition);
-                return strPtr->_value;
+                return "\"" + strPtr->_value + "\"";
             }
         }
 

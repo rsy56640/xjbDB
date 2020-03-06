@@ -18,8 +18,106 @@ namespace DB::ap {
         : block_tuple_(block_tuple), idx_(0) {}
     bool block_tuple_iter_t::is_end() const { return idx_ == VECTOR_SIZE; }
     bool block_tuple_iter_t::valid() const { return block_tuple_->select_[idx_]; }
-    ap_row_t block_tuple_iter_t::getTuple() const { return block_tuple_->rows_[idx_]; }
+    const ap_row_t& block_tuple_iter_t::getTuple() const { return block_tuple_->rows_[idx_]; }
     void block_tuple_iter_t::next() { idx_++; }
+
+
+    VECTOR_INT operator==(VECTOR_STR_HANDLER vec, std::string_view sv) {
+        VECTOR_INT res;
+        block_tuple_iter_t it{ vec.block_ };
+        for(int32_t i = 0; i < VECTOR_SIZE; i++, it.next()) {
+            if(it.valid()) {
+                std::string_view content = it.getTuple().getVARCHAR(vec.str_range_);
+                res[i] = (content == sv);
+            }
+            else {
+                res[i] = 0;
+            }
+        }
+        return res;
+    }
+    VECTOR_INT operator==(std::string_view sv, VECTOR_STR_HANDLER vec) { return vec == sv; }
+
+    VECTOR_INT operator!=(VECTOR_STR_HANDLER vec, std::string_view sv) {
+        VECTOR_INT res;
+        block_tuple_iter_t it{ vec.block_ };
+        for(int32_t i = 0; i < VECTOR_SIZE; i++, it.next()) {
+            if(it.valid()) {
+                std::string_view content = it.getTuple().getVARCHAR(vec.str_range_);
+                res[i] = (content != sv);
+            }
+            else {
+                res[i] = 0;
+            }
+        }
+        return res;
+    }
+    VECTOR_INT operator!=(std::string_view sv, VECTOR_STR_HANDLER vec)  { return vec != sv; }
+
+    VECTOR_INT operator<(VECTOR_STR_HANDLER vec, std::string_view sv) {
+        VECTOR_INT res;
+        block_tuple_iter_t it{ vec.block_ };
+        for(int32_t i = 0; i < VECTOR_SIZE; i++, it.next()) {
+            if(it.valid()) {
+                std::string_view content = it.getTuple().getVARCHAR(vec.str_range_);
+                res[i] = (content < sv);
+            }
+            else {
+                res[i] = 0;
+            }
+        }
+        return res;
+    }
+    VECTOR_INT operator<(std::string_view sv, VECTOR_STR_HANDLER vec)  { return !(vec <= sv); }
+
+    VECTOR_INT operator<=(VECTOR_STR_HANDLER vec, std::string_view sv) {
+        VECTOR_INT res;
+        block_tuple_iter_t it{ vec.block_ };
+        for(int32_t i = 0; i < VECTOR_SIZE; i++, it.next()) {
+            if(it.valid()) {
+                std::string_view content = it.getTuple().getVARCHAR(vec.str_range_);
+                res[i] = (content <= sv);
+            }
+            else {
+                res[i] = 0;
+            }
+        }
+        return res;
+    }
+    VECTOR_INT operator<=(std::string_view sv, VECTOR_STR_HANDLER vec)  { return !(vec < sv); }
+
+    VECTOR_INT operator>(VECTOR_STR_HANDLER vec, std::string_view sv) {
+        VECTOR_INT res;
+        block_tuple_iter_t it{ vec.block_ };
+        for(int32_t i = 0; i < VECTOR_SIZE; i++, it.next()) {
+            if(it.valid()) {
+                std::string_view content = it.getTuple().getVARCHAR(vec.str_range_);
+                res[i] = (content > sv);
+            }
+            else {
+                res[i] = 0;
+            }
+        }
+        return res;
+    }
+    VECTOR_INT operator>(std::string_view sv, VECTOR_STR_HANDLER vec)  { return !(vec >= sv); }
+
+    VECTOR_INT operator>=(VECTOR_STR_HANDLER vec, std::string_view sv) {
+        VECTOR_INT res;
+        block_tuple_iter_t it{ vec.block_ };
+        for(int32_t i = 0; i < VECTOR_SIZE; i++, it.next()) {
+            if(it.valid()) {
+                std::string_view content = it.getTuple().getVARCHAR(vec.str_range_);
+                res[i] = (content >= sv);
+            }
+            else {
+                res[i] = 0;
+            }
+        }
+        return res;
+    }
+    VECTOR_INT operator>=(std::string_view sv, VECTOR_STR_HANDLER vec)  { return !(vec > sv); }
+
 
 
     VECTOR_INT block_tuple_t::getINT(page::range_t range) const {
@@ -110,7 +208,7 @@ namespace DB::ap {
         // OPTIMIZATION: use SIMD gather to get key-col, SIMD hash, then SIMD scatter-add?
         for(block_tuple_iter_t it = block.first(); !it.is_end(); it.next()) {
             if(likely(it.valid())) {
-                const ap_row_t tuple = it.getTuple();
+                const ap_row_t& tuple = it.getTuple();
                 const int32_t key = tuple.getINT(left_);
                 lucky_key_ = key;
                 bucket_size_[hash2bucket(key)]++;

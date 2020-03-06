@@ -44,7 +44,14 @@ namespace DB::ap {
 
     struct ap_row_t {
         int32_t getINT(page::range_t range) const { return page::get_range_INT(row, range); }
-        std::string_view getVARCHAR(page::range_t range) const { return std::string_view{ row.content_ + range.begin, range.len }; }
+        std::string_view getVARCHAR(page::range_t range) const {
+            if(row.content_[range.begin + range.len] == '\0') {
+                return std::string_view(row.content_ + range.begin);
+            }
+            else {
+                return std::string_view(row.content_ + range.begin, range.len);
+            }
+        }
         page::ValueEntry row;
         std::string to_string() const { return std::string(std::begin(row.content_), std::end(row.content_)); }
     };
@@ -58,13 +65,31 @@ namespace DB::ap {
         block_tuple_iter_t(const block_tuple_t* block_tuple);
         bool is_end() const;
         bool valid() const;
-        ap_row_t getTuple() const;
+        const ap_row_t& getTuple() const;
         void next();
     private:
         const block_tuple_t* block_tuple_;
         uint32_t idx_;
     };
 
+
+    class block_tuple_t;
+    struct VECTOR_STR_HANDLER {
+        const block_tuple_t* block_;
+        const page::range_t str_range_;
+    };
+    VECTOR_INT operator==(VECTOR_STR_HANDLER, std::string_view);
+    VECTOR_INT operator==(std::string_view, VECTOR_STR_HANDLER);
+    VECTOR_INT operator!=(VECTOR_STR_HANDLER, std::string_view);
+    VECTOR_INT operator!=(std::string_view, VECTOR_STR_HANDLER);
+    VECTOR_INT operator<(VECTOR_STR_HANDLER, std::string_view);
+    VECTOR_INT operator<(std::string_view, VECTOR_STR_HANDLER);
+    VECTOR_INT operator<=(VECTOR_STR_HANDLER, std::string_view);
+    VECTOR_INT operator<=(std::string_view, VECTOR_STR_HANDLER);
+    VECTOR_INT operator>(VECTOR_STR_HANDLER, std::string_view);
+    VECTOR_INT operator>(std::string_view, VECTOR_STR_HANDLER);
+    VECTOR_INT operator>=(VECTOR_STR_HANDLER, std::string_view);
+    VECTOR_INT operator>=(std::string_view, VECTOR_STR_HANDLER);
 
     /*
      * APNode input
@@ -80,6 +105,7 @@ namespace DB::ap {
         block_tuple_iter_t first() const { return block_tuple_iter_t{this}; }
         // for vector-wise SIMD execution
         VECTOR_INT getINT(page::range_t range) const;
+        VECTOR_STR_HANDLER getVARCHAR(page::range_t range) const { return VECTOR_STR_HANDLER{ this, range }; }
         void selectivity_and(VECTOR_INT mask) { select_ = select_ & mask; }
     private:
         ap_row_t rows_[VECTOR_SIZE];

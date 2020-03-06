@@ -64,7 +64,8 @@ namespace DB::ap {
     inline VECTOR_INT operator|(VECTOR_INT vec, int32_t value) { return vec | get_vec(value); }
     inline VECTOR_INT operator|(int32_t value, VECTOR_INT vec) { return get_vec(value) | vec; }
 
-    inline VECTOR_INT operator~(VECTOR_INT vec1) { return { _mm256_andnot_si256(vec1.vec_, MIN_VEC.vec_) }; }
+    inline VECTOR_INT operator!(VECTOR_INT vec) { return ONE_VEC - vec; }
+    inline VECTOR_INT operator~(VECTOR_INT vec) { return { _mm256_andnot_si256(vec.vec_, MIN_VEC.vec_) }; }
     inline VECTOR_INT simd_not1and2(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_andnot_si256(vec1.vec_, vec2.vec_) }; }
 
     inline VECTOR_INT simd_int2bool(VECTOR_INT vec) {

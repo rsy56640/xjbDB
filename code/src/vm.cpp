@@ -299,7 +299,7 @@ namespace DB::vm
                 [&result, this](const query::InsertInfo& info) { doInsert(result,info); },
                 [&result, this](const query::DeleteInfo& info) { doDelete(result,info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
-                [&result, this](query::Show) { showDB(); },
+                [&result, this](query::Show) { this->showDB(); },
                 [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
                 [](auto&&) { debug::ERROR_LOG("`txn_process`\n"); },
             }, plan);
@@ -315,7 +315,7 @@ namespace DB::vm
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
                 [this](query::Show) { this->showDB(); },
-                [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
+                [](auto) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
         return result;
     }
