@@ -90,7 +90,7 @@ namespace DB::vm
 
         template<typename F, typename... Args>[[nodiscard]]
             std::future<std::invoke_result_t<F, Args...>> register_task(F&& f, Args&& ...args) {
-            return task_pool_.register_for_execution(f, args...);
+            return task_pool_.register_for_execution(std::forward<F>(f), std::forward<Args>(args)...);
         }
 
         void set_next_free_page_id(page::page_id_t);

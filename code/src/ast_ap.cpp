@@ -128,10 +128,10 @@ namespace DB::ast{
         g_vCode.resize(START_BASE_LINE + _tableCount + 3 * _hashTableCount);
         g_vCode[0] = "// this file is generated ";
         g_vCode[1] = "#include \"../include/ap_exec.h\"";
-        g_vCode[2] = "";//"namespace DB::ap {";
+        g_vCode[2] = "#include \"../include/vm.h\"";
         g_vCode[3] = "static DB::ap::block_tuple_t projection(const DB::ap::block_tuple_t& block) { return block; }";
         g_vCode[4] = "extern \"C\"";
-        g_vCode[5] = "DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t& tables) {";
+        g_vCode[5] = "DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t& tables, DB::vm::VM* vm) {";
         g_vCode[6] = "DB::ap::VMEmitOp emit;";
 
         _table->produce();
@@ -150,8 +150,9 @@ namespace DB::ast{
         }
 
         g_vCode.push_back("};");
-        g_vCode.push_back("pipeline" + to_string(g_iPipeline) + "();");
-
+        g_vCode.push_back("std::future<void> future" + to_string(g_iPipeline) +
+                          " = vm->register_task(pipeline" + to_string(g_iPipeline) + ");");
+        g_vCode.push_back("future" + to_string(g_iPipeline) + ".wait();");
         g_vCode.push_back("return emit;");
         g_vCode.push_back("} // end codegen function");
     }
@@ -204,7 +205,7 @@ namespace DB::ast{
             case base_t_t::STR:
             {
                 std::shared_ptr<const StrExpr> strPtr = std::static_pointer_cast<const StrExpr>(condition);
-                return strPtr->_value;
+                return "\"" + strPtr->_value + "\"";
             }
         }
 
@@ -264,7 +265,8 @@ namespace DB::ast{
             g_vCode.push_back("ht" + strIndex + ".build();");
 
             g_vCode.push_back("};");
-            g_vCode.push_back("pipeline" + to_string(g_iPipeline) + "();");
+            g_vCode.push_back("std::future<void> future" + to_string(g_iPipeline) +
+                          " = vm->register_task(pipeline" + to_string(g_iPipeline) + ");");
             g_iPipeline++;
         }
         else if(source == _tableRight)
