@@ -3,6 +3,7 @@
 #include <vector>
 #include <string_view>
 #include <cstring>
+#include <future>
 #include "ap_prefetch.h"
 #include "ap_simd.h"
 #include "page.h"
@@ -191,6 +192,10 @@ namespace DB::ap {
         join_result_buf_t probe(const block_tuple_t&) const;
 
     private:
+        // for concurrent execution
+        mutable bool build_completed_ = false;
+        mutable std::promise<void> build_completion_;
+
         const page::range_t left_, right_;
         const uint32_t left_len_, right_len_;
         const bool left_unique_;

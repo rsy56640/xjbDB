@@ -266,6 +266,9 @@ namespace DB::ap {
             }
         }
 
+        // set completion
+        build_completion_.set_value();
+
         if(debug::AP_EXEC) {
             printf("----------------- hash bucket begin -----------------\n");
             printf("key\t\tnext\n");
@@ -285,6 +288,12 @@ namespace DB::ap {
 
 
     join_result_buf_t hash_table_t::probe(const block_tuple_t& block) const {
+        // wait if build is not completed
+        if(unlikely(!build_completed_)) {
+            build_completion_.get_future().wait();
+            build_completed_ = true;
+        }
+
         join_result_buf_t result;
         const VECTOR_INT probe_keys = block.getINT(right_);
         if(debug::AP_EXEC) {

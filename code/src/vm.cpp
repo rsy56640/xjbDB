@@ -1237,7 +1237,7 @@ namespace DB::vm
 
         plan.load();
 
-        ap::VMEmitOp emit = plan.query(*ap_table_array_);
+        ap::VMEmitOp emit = plan.query(*ap_table_array_, this);
         const table::schema_t& schema = plan.get_schema();
 
         for(const table::attr_t& attr : schema.attrs_) {

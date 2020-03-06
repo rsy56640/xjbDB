@@ -15,6 +15,12 @@ INSERT Score(sid, score) VALUES(3, 77);
 INSERT Score(sid, score) VALUES(256, 75);
 INSERT Score(sid, score) VALUES(257, 81);
 
+INSERT Record(sid, record) VALUES(1, 0);
+INSERT Record(sid, record) VALUES(2, 123);
+INSERT Record(sid, record) VALUES(3, 233);
+INSERT Record(sid, record) VALUES(256, 777);
+INSERT Record(sid, record) VALUES(257, -33);
+
 SWITCH;
 
 SELECT $ FROM Student, Score WHERE Student.sid == Score.sid;
@@ -22,12 +28,21 @@ SELECT $ FROM Student, Score WHERE Student.sid == Score.sid;
 SELECT $ FROM Student WHERE Student.name <= "ccc";
 SELECT $ FROM Student WHERE "ccc" >= Student.name;
 
-SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND "ccc" != Student.name;
+SELECT $
+FROM Student, Score
+WHERE Student.sid == Score.sid
+    AND "ccc" != Student.name;
 
-SELECT $ FROM Student, Score WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 85;
+SELECT $ FROM Student, Score
+WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 85;
 
 //test constant optimizer
 SELECT $ FROM Score WHERE Score.sid < 1 + 2 * 1;
 
 //test code gen
-SELECT $ FROM Student, Score, Record WHERE Student.sid == Score.sid AND Student.sid == Record.sid AND Score.score <= 80;
+SELECT $ FROM Student, Score, Record
+WHERE Student.sid == Score.sid AND Student.sid == Record.sid;
+
+SELECT $ FROM Student, Score, Record
+WHERE Student.sid == Score.sid AND Student.sid == Record.sid
+AND Score.score <= 80;

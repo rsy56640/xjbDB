@@ -77,11 +77,11 @@ namespace DB::query{
     }
 
 
-    ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables) const
+    ap::VMEmitOp APSelectInfo::query(const ap::ap_table_array_t& tables, vm::VM* vm) const
     {
         debug::DEBUG_LOG(debug::AP_EXEC,
                          ">>> [query] query execution starts\n");
-        return _query_(tables);
+        return _query_(tables, vm);
     }
 
     void APSelectInfo::set_schema(const ast::APMap& map)
@@ -89,7 +89,7 @@ namespace DB::query{
         for(auto const& [col_name_pair, col_range] : map.attr_map) {
             schema.attrs_.push_back({
                 col_range,
-                col_name_pair.first + col_name_pair.second,
+                col_name_pair.first + "." + col_name_pair.second,
                 });
         }
         std::sort(schema.attrs_.begin(), schema.attrs_.end(),

@@ -48,7 +48,7 @@ namespace DB::query {
 
         void close();
 
-        ap::VMEmitOp query(const ap::ap_table_array_t& tables) const;
+        ap::VMEmitOp query(const ap::ap_table_array_t& tables, vm::VM* vm) const;
 
         const table::schema_t& get_schema() const { return schema; }
 
@@ -59,7 +59,7 @@ namespace DB::query {
 
     private:
 
-        using QUERY_PTR = ap::VMEmitOp (*)(const ap::ap_table_array_t& tables);
+        using QUERY_PTR = ap::VMEmitOp (*)(const ap::ap_table_array_t& tables, vm::VM* vm);
 
         QUERY_PTR _query_;
         void *_handle;
