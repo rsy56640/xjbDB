@@ -314,6 +314,7 @@ namespace DB::vm
                 [&result, this](query::APSelectInfo& info) { doQuery(result, info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
+                [this](query::Show) { this->showDB(); },
                 [](auto&&) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
         return result;
