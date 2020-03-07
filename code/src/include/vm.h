@@ -165,7 +165,10 @@ namespace DB::vm
 
         void init_pk_view();
 
+        void add_sql(std::string);
+
         // for mode switch
+        void switch_mode();
         void AP_INIT();
         void AP_RESET();
         uint32_t get_ap_table_index(const std::string&) const;
@@ -174,7 +177,7 @@ namespace DB::vm
 
         StorageEngine storage_engine_;
         util::ThreadsPool task_pool_;
-        ConsoleReader conslole_reader_;
+        ConsoleReader console_reader_;
         page::DBMetaPage* db_meta_;
         std::unordered_map<std::string, page::TableMetaPage*> table_meta_;
         // bad design to store `table::TableInfo` here, since need to update twice
@@ -196,6 +199,7 @@ namespace DB::vm
 
 
         // for AP
+        bool tp_ = true;
         std::shared_ptr<ap::ap_table_array_t> ap_table_array_;
         std::vector<std::string> table_names_;
 

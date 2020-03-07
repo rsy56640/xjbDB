@@ -178,7 +178,7 @@ namespace DB::vm
 
 #ifndef _xjbDB_test_STORAGE_ENGINE_
         // start scan from console.
-        conslole_reader_.start();
+        console_reader_.start();
 #endif // !_xjbDB_test_STORAGE_ENGINE_
     }
 
@@ -187,24 +187,21 @@ namespace DB::vm
     // run db task until user input "EXIT"
     void VM::start()
     {
-        bool tp = true;
         while (true)
         {
-            const std::string sql_statemt = conslole_reader_.get_sql();
-            if(debug::SQL_INPUT) {
-                std::cout << ">>> input sql: " << sql_statemt << std::endl;
-            }
+            const std::string sql_statemt = console_reader_.get_sql();
+            debug::DEBUG_LOG(debug::SQL_INPUT,
+                             ">>> input sql: %s\n",
+                             sql_statemt.c_str());
 
-
-            if(tp)
+            if(tp_)
             {
                 query::TPValue plan = query::tp_parse(sql_statemt);
 
                 // switch to AP
                 if(std::get_if<query::Switch>(&plan) != nullptr) {
                     printXJBDB("SWITCH to OLAP\n");
-                    tp = false;
-                    AP_INIT();
+                    switch_mode();
                     continue;
                 }
 
@@ -236,8 +233,7 @@ namespace DB::vm
                 // switch to TP
                 if(std::get_if<query::Switch>(&plan) != nullptr) {
                     printXJBDB("SWITCH to OLTP\n");
-                    tp = true;
-                    AP_RESET();
+                    switch_mode();
                     continue;
                 }
 
@@ -282,7 +278,7 @@ namespace DB::vm
 
 
     void VM::send_reply_sql(std::string sql) {
-        conslole_reader_.add_sql(std::move(sql));
+        console_reader_.add_sql(std::move(sql));
     }
 
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
@@ -408,15 +404,16 @@ namespace DB::vm
 
         for (uint32_t i = 0; i < col_size; i++)
         {
-            page::ColumnInfo* col = new ColumnInfo(tableInfo.columnInfos_[i]);
+            const uint32_t col_no = i + (tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN);
+            page::ColumnInfo* col = new ColumnInfo(tableInfo.columnInfos_[col_no]);
 
             col->vEntry_offset_ = vEntry_offset;
             vEntry_offset += col->str_len_;
 
             if (col->isDEFAULT()) {
                 if (col->col_t_ == col_t_t::INTEGER) {
-                    int32_t i = std::get<int32_t>(*default_it);
-                    table_page->insert_default_value(col, i);
+                    int32_t default_value = std::get<int32_t>(*default_it);
+                    table_page->insert_default_value(col, default_value);
                 }
                 else {
                     table_page->insert_default_value(col, std::get<std::string>(*default_it));
@@ -429,13 +426,10 @@ namespace DB::vm
                 ++fk_it;
             }
 
-            table_page->insert_column(tableInfo.colNames_[i], col);
+            table_page->insert_column(tableInfo.colNames_[col_no], col);
 
             // update tableInfo
-            if (tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN)
-                tableInfo.columnInfos_[i + 1] = *col;
-            else
-                tableInfo.columnInfos_[i] = *col;
+            tableInfo.columnInfos_[col_no] = *col;
         }
 
         db_meta_->insert_table(table_id, tableInfo.tableName_);
@@ -1365,6 +1359,21 @@ namespace DB::vm
     } // end function `void VM::init_pk_view();`
 
 
+    void VM::add_sql(std::string sql) {
+        console_reader_.add_sql(std::move(sql));
+    }
+
+    void VM::switch_mode() {
+        if(tp_) {
+            tp_ = false;
+            AP_INIT();
+        }
+        else {
+            tp_ = true;
+            AP_RESET();
+        }
+    }
+
     void VM::AP_INIT() {
         ap_table_array_ = std::make_shared<ap::ap_table_array_t>();
         // prepare "table name" and "table data"
@@ -1398,7 +1407,7 @@ namespace DB::vm
 
     VM::~VM()
     {
-        conslole_reader_.stop();
+        console_reader_.stop();
         task_pool_.stop();
         delete db_meta_;
         for (auto&[name, table] : table_meta_)
