@@ -35,7 +35,7 @@ void test()
 
     KVEntry kv = { key ,value };
 
-    constexpr int key_test_insert_size = 127;
+    constexpr int key_test_insert_size = 1024;
     constexpr int key_test_erase_size = 666;
     constexpr int key_test_find_size = 128;
     constexpr int rand_seed = 19260817;
@@ -56,7 +56,7 @@ void test()
     for (int i : keys)
     {
         key.key_int = i;
-        set(value, s[i % (sizeof(s) / sizeof(const char*))]);
+        set_vEntry(value, s[i % (sizeof(s) / sizeof(const char*))]);
         auto ret1 = bt.insert({ key , value });
         auto ret2 = mp_bt.insert(std::make_pair(key.key_int, std::string(value.content_)));
         bool suc1 = ret1 == tree::INSERT_KV;

@@ -1,8 +1,8 @@
-#ifndef _DEBUG_LOG_H
-#define _DEBUG_LOG_H
+#pragma once
 #include <string>
 #include <cstdio>
 #include <iostream>
+#include <fstream>
 #include "page.h"
 
 namespace DB::debug
@@ -13,11 +13,17 @@ namespace DB::debug
         LRU_EVICT = false,
         BT_CREATE = false,
 
+        PAGE_READ = false,
+        PAGE_WRITE = false,
+        PAGE_GC = false,
+        PAGE_FLUSH = false,         // (page) PAGE_FLUSH -> (buffer) BUFFER_FLUSH
+
         BUFFER_FETCH = false,
-        BUFFER_FLUSH = true,
+        BUFFER_FLUSH = false,       // (buffer) BUFFER_FLUSH -> (disk) PAGE_WRITE
         BUFFER_NEW = false,
         BUFFER_DELETE = false,
 
+        SPLIT_ROOT = false,
         SPLIT_ROOT_INTERNAL = false,
         SPLIT_ROOT_LEAF = false,
         SPLIT_INTERNAL = false,
@@ -31,15 +37,14 @@ namespace DB::debug
         ERASE_NONMIN_LEAF = false,
         ERASE_NONMIN_INTERNAL = false,
 
-        QUERY_PROCESS = true,
+        QUERY_PROCESS = false,
 
         PK_VIEW = false,
 
-        WAL = true,
+        WAL = false,
+        RECOVERY = false,
 
-        FLUSH = false,
-
-        DESTROY_LOG = true,
+        DESTROY_LOG = false,
 
         SQL_INPUT = false,
         LEXER_LOG = false,
@@ -57,10 +62,7 @@ namespace DB::debug
 
         CONTROL = true;
 
-
-    // no use
     static const char* debug_output = "./debug_output.txt";
-
 
     template<typename ...Arg>
     inline void DEBUG_LOG(bool config, const char* format, Arg... args) {
@@ -89,5 +91,3 @@ namespace DB::debug
     void debug_root(const page::RootPage*);
 
 } // end namespace DB::debug
-
-#endif // !_DEBUG_LOG_H

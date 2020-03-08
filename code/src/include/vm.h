@@ -52,7 +52,7 @@ namespace DB::vm
         ConsoleReader& operator=(ConsoleReader&&) = delete;
     public:
         ConsoleReader() = default;
-        void start();
+        void start(std::future<void> exit_signal);
         void stop();
         std::string get_sql(); // might stuck
         void add_sql(std::string); // only used when redo
@@ -97,10 +97,13 @@ namespace DB::vm
 
         std::optional<table::TableInfo> getTableInfo(const std::string& tableName);
 
+        std::future<void> get_exit_signal_for_console();
+
     private:
 
-        void send_reply_sql(std::string);
+        void set_exit_signal_for_console();
 
+        void send_reply_sql(std::string);
 
         struct process_result_t {
             bool exit = false;
@@ -178,6 +181,7 @@ namespace DB::vm
         StorageEngine storage_engine_;
         util::ThreadsPool task_pool_;
         ConsoleReader console_reader_;
+        std::promise<void> exit_signal_; // to inform console to stop from outside
         page::DBMetaPage* db_meta_;
         std::unordered_map<std::string, page::TableMetaPage*> table_meta_;
         // bad design to store `table::TableInfo` here, since need to update twice

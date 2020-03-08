@@ -19,9 +19,9 @@ namespace DB::vm
     using namespace page;
     using disk::log_state_t;
 
-    void ConsoleReader::start()
+    void ConsoleReader::start(std::future<void> exit_signal)
     {
-        reader_ = std::thread([this]()
+        reader_ = std::thread([this, exit_signal_{ std::move(exit_signal) }]()
         {
             auto check = [](const std::string& statement)->int32_t {
                 const uint32_t size = statement.size();
@@ -45,6 +45,11 @@ namespace DB::vm
             std::string sql = "";
             std::string statement = "";
             while (true) {
+
+                using namespace std::literals::chrono_literals;
+                if (exit_signal_.wait_for(50ns) == std::future_status::ready)
+                    return;
+
                 char buffer[256];
                 printXJBDB("");
                 std::cin.getline(buffer, 256);
@@ -119,7 +124,7 @@ namespace DB::vm
         if (storage_engine_.disk_manager_->dn_init_)
         {
             db_meta_ = new DBMetaPage(NOT_A_PAGE, // DB meta
-                storage_engine_.disk_manager_, true, 0, 0, NOT_A_PAGE);
+                storage_engine_.buffer_pool_manager_, true, 0, 0, NOT_A_PAGE);
             storage_engine_.disk_manager_->set_vm(this);
         }
 
@@ -178,7 +183,7 @@ namespace DB::vm
 
 #ifndef _xjbDB_test_STORAGE_ENGINE_
         // start scan from console.
-        console_reader_.start();
+        console_reader_.start(get_exit_signal_for_console());
 #endif // !_xjbDB_test_STORAGE_ENGINE_
     }
 
@@ -211,12 +216,16 @@ namespace DB::vm
                 // handle ErrorMsg or EXIT
                 VM::process_result_t result = txn_process(plan);
 
-                if (!result.msg.empty())
+                if (!result.msg.empty()) {
                     printXJBDB("\n%s\n", result.msg.c_str());
-                if (result.exit)
+                }
+                if (result.exit) {
+                    set_exit_signal_for_console();
                     return;
-                if (result.error)
+                }
+                if (result.error) {
                     continue;
+                }
 
                 task_pool_.join();
 
@@ -239,12 +248,16 @@ namespace DB::vm
 
                 VM::process_result_t result = query_process(plan);
 
-                if (!result.msg.empty())
+                if (!result.msg.empty()) {
                     printXJBDB("\n%s\n", result.msg.c_str());
-                if (result.exit)
+                }
+                if (result.exit) {
+                    set_exit_signal_for_console();
                     return;
-                if (result.error)
+                }
+                if (result.error) {
                     continue;
+                }
             }
 
         }
@@ -280,6 +293,15 @@ namespace DB::vm
     void VM::send_reply_sql(std::string sql) {
         console_reader_.add_sql(std::move(sql));
     }
+
+    std::future<void> VM::get_exit_signal_for_console() {
+        return exit_signal_.get_future();
+    }
+
+    void VM::set_exit_signal_for_console() {
+        exit_signal_.set_value();
+    }
+
 
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
     template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
@@ -372,7 +394,7 @@ namespace DB::vm
         table::TableInfo tableInfo = info.tableInfo;
         const page_id_t table_id = storage_engine_.disk_manager_->AllocatePage();
         page::TableMetaPage* table_page = new TableMetaPage(
-            storage_engine_.buffer_pool_manager_, table_id, storage_engine_.disk_manager_,
+            storage_engine_.buffer_pool_manager_, table_id,
             true, tableInfo.PK_t(), tableInfo.str_len(),
             NOT_A_PAGE, 0, NOT_A_PAGE);
 
@@ -1422,7 +1444,7 @@ namespace DB::vm
     void VM::test_create_table()
     {
         TableMetaPage* table = new TableMetaPage(storage_engine_.buffer_pool_manager_,
-            storage_engine_.disk_manager_->AllocatePage(), storage_engine_.disk_manager_,
+            storage_engine_.disk_manager_->AllocatePage(),
             true, key_t_t::INTEGER, 0, NOT_A_PAGE, 0, NOT_A_PAGE);
         table_meta_["test"] = table;
 
@@ -1487,7 +1509,7 @@ namespace DB::vm
         println();
         for (auto const&[name, table] : table_meta_)
         {
-            query_print("table \"%s\"", name.c_str());
+            query_print("[table \"%s\"] [size=%d]", name.c_str(), table->bt_->size());
             query_print_n();
 
             // prepare colInfo

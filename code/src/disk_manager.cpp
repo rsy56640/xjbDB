@@ -69,6 +69,7 @@ namespace DB::disk
 
     page_id_t DiskManager::set_next_free_page_id(page_id_t next_free_page_id)
     {
+#ifdef PAGE_GC
         page_id_t previous_free_head;
         while (next_free_page_id_lock_.test_and_set(std::memory_order_acquire))
             ;
@@ -76,20 +77,35 @@ namespace DB::disk
         next_free_page_id_ = next_free_page_id;
         vm_->set_next_free_page_id(next_free_page_id);
         next_free_page_id_lock_.clear(std::memory_order_release);
+        debug::DEBUG_LOG(debug::PAGE_GC,
+                         "[PAGE_GC] add [next_free_page_id=%d] -> [previous_free_head=%d]\n",
+                         next_free_page_id, previous_free_head);
         return previous_free_head;
+#else
+        return page::NOT_A_PAGE;
+#endif
     }
 
     void DiskManager::WritePage(page_id_t page_id, const char(&page_data)[page::PAGE_SIZE])
     {
+        debug::DEBUG_LOG(debug::PAGE_WRITE,
+                         "[PAGE_WRITE] DiskManager::WritePage() [page_t=%s] [page_id=%d]\n",
+                         page::page_t_str[static_cast<uint32_t>(page::get_page_t(page_data))], page_id);
         db_io_.seekp(page_id * PAGE_SIZE, std::ios_base::beg);
         db_io_.write(page_data, PAGE_SIZE);
         if (db_io_.bad())
         {
-            debug::ERROR_LOG("I/O writing error in \"%s\", page_id: %d\n",
+            debug::ERROR_LOG("[PAGE_WRITE] DiskManager::WritePage() write error in \"%s\", page_id: %d\n",
                 file_name_.c_str(), page_id);
             return;
         }
         db_io_.flush();
+        if (db_io_.bad())
+        {
+            debug::ERROR_LOG("[PAGE_WRITE] DiskManager::WritePage() flush error in \"%s\", page_id: %d\n",
+                file_name_.c_str(), page_id);
+            return;
+        }
     }
 
 
@@ -103,11 +119,15 @@ namespace DB::disk
             const uint32_t read_count = db_io_.gcount();
             if (read_count < PAGE_SIZE)
             {
-                debug::ERROR_LOG("Read less than PAGE_SIZE in \"%s\", page_id: %d\n",
-                    file_name_.c_str(), page_id);
+                debug::ERROR_LOG("DiskManager::ReadPage() read error in \"%s\" [page_id=%d] [read_count=%d]\n",
+                    file_name_.c_str(), page_id, read_count);
                 std::memset(page_data + read_count, 0, PAGE_SIZE - read_count);
             }
         };
+
+        debug::DEBUG_LOG(debug::PAGE_READ,
+                         "[PAGE_READ] [page_id=%d]\n",
+                         page_id);
 
         doReadPage(page_id, page_data);
         return true;
@@ -147,6 +167,7 @@ namespace DB::disk
 
     page_id_t DiskManager::AllocatePage()
     {
+#ifdef PAGE_GC
         bool allocate_free = false;
         page_id_t free_page_id;
         while (next_free_page_id_lock_.test_and_set(std::memory_order_acquire))
@@ -159,11 +180,14 @@ namespace DB::disk
             //     since the becoming free page is still not flush,
             //     after flush, the free page is not is buffer pool.
             char buffer[4];
-            db_io_.seekg(next_free_page_id_ * PAGE_SIZE + page::offset::PAGE_ID,
+            db_io_.seekg(next_free_page_id_ * PAGE_SIZE + page::offset::FREE_PAGE_ID,
                 std::ios_base::beg);
             db_io_.read(buffer, sizeof(uint32_t));
 
             next_free_page_id_ = page::read_int(buffer);
+            debug::DEBUG_LOG(debug::PAGE_GC,
+                             "[PAGE_GC] reuse [free_page_id=%d] -> [next_free_page_id=%d]\n",
+                             free_page_id, next_free_page_id_);
             vm_->set_next_free_page_id(next_free_page_id_);
         }
         next_free_page_id_lock_.clear(std::memory_order_release);
@@ -171,6 +195,7 @@ namespace DB::disk
         if (allocate_free)
             return free_page_id;
         else
+#endif // #ifdef PAGE_GC
             return ++cur_page_no_;
     }
 
@@ -350,16 +375,24 @@ namespace DB::disk
             db_io_.seekp(page_id * PAGE_SIZE, std::ios_base::beg);
             db_io_.write(page_data, PAGE_SIZE);
             if (db_io_.bad()) {
-                debug::ERROR_LOG("I/O writing error in undo, page_id: %d\n", page_id);
+                debug::ERROR_LOG("[RECOVERY] DiskManager::replay_log() write error in undo, page_id: %d\n", page_id);
                 return;
             }
             db_io_.flush();
+            if (db_io_.bad()) {
+                debug::ERROR_LOG("[RECOVERY] DiskManager::replay_log() flush error in undo, page_id: %d\n", page_id);
+                return;
+            }
         }
     }
 
 
     void DiskManager::doWAL(const page_id_t prev_last_page_id, const std::string& sql)
     {
+        debug::DEBUG_LOG(debug::WAL,
+                         "[WAL] [prev_last_page_id=%d] [sql=\"%s\"]\n",
+                         prev_last_page_id, sql.c_str());
+
         page_id_t cur_page_id = 0;
         char buffer[PAGE_SIZE] = { 0 };
         uint32_t undo_check = 0;
@@ -388,8 +421,8 @@ namespace DB::disk
             const uint32_t read_count = db_io_.gcount();
             if (read_count < PAGE_SIZE)
             {
-                debug::ERROR_LOG("Read less than PAGE_SIZE in \"%s\", page_id: %d\n",
-                    file_name_.c_str(), db_page_id);
+                debug::ERROR_LOG("DiskManager::doWAL() read error in \"%s\" [page_id=%d] [read_count=%d]\n",
+                    file_name_.c_str(), db_page_id, read_count);
                 return;
             }
 
@@ -399,11 +432,16 @@ namespace DB::disk
             log_io_.seekp(cur_page_id * PAGE_SIZE, std::ios_base::beg);
             log_io_.write(buffer, PAGE_SIZE);
             if (log_io_.bad()) {
-                debug::ERROR_LOG("I/O writing error in \"%s\", page_id: %d\n",
+                debug::ERROR_LOG("[WAL] write error in \"%s\", page_id: %d\n",
                     log_name_.c_str(), cur_page_id);
                 return;
             }
             log_io_.flush();
+            if (log_io_.bad()) {
+                debug::ERROR_LOG("[WAL] flush error in \"%s\", page_id: %d\n",
+                    log_name_.c_str(), cur_page_id);
+                return;
+            }
         }
 
         // nuance
@@ -441,7 +479,7 @@ namespace DB::disk
         page::write_int(int_buffer, prev_last_page_id);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on PREV_LAST_PAGE_ID\n");
+            debug::ERROR_LOG("WAL write error on PREV_LAST_PAGE_ID\n");
             return;
         }
         log_io_.flush();
@@ -454,50 +492,70 @@ namespace DB::disk
         page::write_int(int_buffer, 0); // here write NUANCE as 0 !!!
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on FAKE NUANCE\n");
+            debug::ERROR_LOG("[WAL] write error on FAKE NUANCE\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on FAKE NUANCE\n");
+            return;
+        }
 
 
         log_io_.seekp(log_offset::NUANCE_PLUS_ONE, std::ios_base::beg);
         page::write_int(int_buffer, nuance + 1);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on NUANCE_PLUS_ONE\n");
+            debug::ERROR_LOG("[WAL] write error on NUANCE_PLUS_ONE\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on NUANCE_PLUS_ONE\n");
+            return;
+        }
 
 
         log_io_.seekp(log_offset::UNDO_LOG_NUM, std::ios_base::beg);
         page::write_int(int_buffer, undo_log_num);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on UNDO_LOG_NUM\n");
+            debug::ERROR_LOG("[WAL] write error on UNDO_LOG_NUM\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on UNDO_LOG_NUM\n");
+            return;
+        }
 
 
         log_io_.seekp(log_offset::UNDO_CHECK, std::ios_base::beg);
         page::write_int(int_buffer, undo_check);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on UNDO_CHECK\n");
+            debug::ERROR_LOG("[WAL] write error on UNDO_CHECK\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on UNDO_CHECK\n");
+            return;
+        }
 
 
         if (redo_sql_len > 0) {
             log_io_.seekp(log_offset::SQL, std::ios_base::beg);
             log_io_.write(sql.c_str(), redo_sql_len);
             if (log_io_.bad()) {
-                debug::ERROR_LOG("WAL writing error on SQL\n");
+                debug::ERROR_LOG("[WAL] write error on SQL\n");
                 return;
             }
             log_io_.flush();
+            if (log_io_.bad()) {
+                debug::ERROR_LOG("[WAL] flush error on SQL\n");
+                return;
+            }
         }
 
 
@@ -505,20 +563,28 @@ namespace DB::disk
         page::write_int(int_buffer, redo_sql_len);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on REDO_SQL_LEN\n");
+            debug::ERROR_LOG("[WAL] write error on REDO_SQL_LEN\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on REDO_SQL_LEN\n");
+            return;
+        }
 
 
         log_io_.seekp(log_offset::REDO_CHECK, std::ios_base::beg);
         page::write_int(int_buffer, redo_check);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on REDO_CHECK\n");
+            debug::ERROR_LOG("[WAL] write error on REDO_CHECK\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on REDO_CHECK\n");
+            return;
+        }
 
 
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -528,10 +594,15 @@ namespace DB::disk
         page::write_int(int_buffer, nuance);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("WAL writing error on NUANCE\n");
+            debug::ERROR_LOG("[WAL] write error on NUANCE\n");
             return;
         }
         log_io_.flush();
+        if (log_io_.bad()) {
+            debug::ERROR_LOG("[WAL] flush error on NUANCE\n");
+            return;
+        }
+
 
     } // end doWAL();
 
@@ -543,7 +614,7 @@ namespace DB::disk
         page::write_int(int_buffer, 0);
         log_io_.write(int_buffer, 4);
         if (log_io_.bad()) {
-            debug::ERROR_LOG("Destroy-Log writing error on NUANCE = 0\n");
+            debug::ERROR_LOG("[DESTROY_LOG] write error on NUANCE = 0\n");
             return;
         }
         log_io_.flush();

@@ -1,5 +1,4 @@
-#ifndef _TEST_H
-#define _TEST_H
+#pragma once
 #include "../src/include/disk_manager.h"
 #include "../src/include/hash_lru.h"
 #include "../src/include/buffer_pool.h"
@@ -25,7 +24,7 @@ static const char* s[] =
 
 static const char* valueState[2] = { "OBSOLETE", "INUSED" };
 
-inline void set(page::ValueEntry& vEntry, const char* s) {
+inline void set_vEntry(page::ValueEntry& vEntry, const char* s) {
     const int size = strlen(s);
     std::memset(vEntry.content_, 0, sizeof(char)* page::MAX_TUPLE_SIZE);
     std::memcpy(vEntry.content_, s, size > page::MAX_TUPLE_SIZE ? page::MAX_TUPLE_SIZE : size);
@@ -36,5 +35,3 @@ inline int compare_v(const page::ValueEntry& vEntry, const std::string& s) {
 }
 
 void test();
-
-#endif // !_TEST_H

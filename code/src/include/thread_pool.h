@@ -1,5 +1,4 @@
-#ifndef _THREAD_POOL_HPP
-#define _THREAD_POOL_HPP
+#pragma once
 #include <list>
 #include <memory>
 #include <functional>
@@ -134,5 +133,3 @@ namespace DB::util
 
 
 } // end namespace DB::util
-
-#endif // !_THREAD_POOL_HPP

@@ -77,6 +77,10 @@ namespace DB::page
     }
 
 
+    page_t_t get_page_t(const char(&buffer)[page::PAGE_SIZE]) {
+        return static_cast<page_t_t>(read_int(buffer + offset::PAGE_T));
+    }
+
 
     Page* buffer_to_page(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE])
     {
@@ -111,7 +115,7 @@ namespace DB::page
         uint32_t cur_page_no = read_int(buffer + offset::CUR_PAGE_NO);
         uint32_t table_num = read_int(buffer + offset::TABLE_NUM);
         page_id_t next_free_page_id = read_int(buffer + offset::NEXT_FREE_PAGE_ID);
-        DBMetaPage* page = new DBMetaPage(page_id, buffer_pool->disk_manager_,
+        DBMetaPage* page = new DBMetaPage(page_id, buffer_pool,
             false, cur_page_no, table_num, next_free_page_id);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
         for (uint32_t i = 0; i < table_num; i++) {
@@ -187,7 +191,7 @@ namespace DB::page
 
         TableMetaPage* page = new TableMetaPage(buffer_pool, page_id,
             // `BT_root_id` is needed only when (!init)
-            buffer_pool->disk_manager_, false, key_t, str_len, BT_root_id, col_num, default_page_id);
+            false, key_t, str_len, BT_root_id, col_num, default_page_id);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
 
         page->pk_col_ = pk_col; // maybe `TableMetaPage::NOT_A_COLUMN`, NO PK
@@ -212,7 +216,7 @@ namespace DB::page
         key_t_t key_t = static_cast<key_t_t>(read_short(buffer + offset::KEY_T));
         uint32_t str_len = read_short(buffer + offset::STR_LEN);
         InternalPage* page = new InternalPage(page_t, page_id, parent_id, nEntry,
-            buffer_pool->disk_manager_, key_t, str_len, false);
+            buffer_pool, key_t, str_len, false);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
         for (uint32_t i = 0; i < nEntry; i++) {
             page->branch_[i] =
@@ -232,7 +236,7 @@ namespace DB::page
         page_id_t parent_id = read_int(buffer + offset::PARENT_PAGE_ID);
         uint32_t nEntry = read_int(buffer + offset::NENTRY);
         ValuePage* page = new ValuePage(page_id, parent_id, nEntry,
-            buffer_pool->disk_manager_, false);
+            buffer_pool, false);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
         return page;
     }
@@ -248,7 +252,7 @@ namespace DB::page
         uint32_t str_len = read_short(buffer + offset::STR_LEN);
         page_id_t value_page_id = read_int(buffer + offset::VALUE_PAGE_ID);
         LeafPage* page = new LeafPage(buffer_pool, page_id, parent_id, nEntry,
-            buffer_pool->disk_manager_, key_t, str_len, value_page_id, false);
+            key_t, str_len, value_page_id, false);
         std::memcpy(page->get_data(), buffer, page::PAGE_SIZE);
         page->previous_page_id_ = read_int(buffer + offset::PREVIOUS_PAGE_ID);
         page->next_page_id_ = read_int(buffer + offset::NEXT_PAGE_ID);
@@ -275,7 +279,7 @@ namespace DB::page
             value_page_id = read_int(buffer + offset::VALUE_PAGE_ID);
 
         RootPage* page = new RootPage(buffer_pool, page_t, page_id, parent_id, nEntry,
-            buffer_pool->disk_manager_, key_t, str_len, value_page_id, false);
+            key_t, str_len, value_page_id, false);
 
         if (page_t == page_t_t::ROOT_LEAF) {
             for (uint32_t i = 0; i < nEntry; i++) {
@@ -301,16 +305,16 @@ namespace DB::page
 
 
     Page::Page(page_t_t page_t, page_id_t page_id,
-        disk::DiskManager* disk_manager, bool isInit)
+        buffer::BufferPoolManager* buffer_pool, bool isInit)
         :
-        disk_manager_(disk_manager),
+        buffer_pool_(buffer_pool),
         page_t_(page_t),
         page_id_(page_id),
         ref_count_(0),
         dirty_(false)
     {
         if (!isInit) {
-            disk_manager_->ReadPage(page_id_, data_);
+            buffer_pool_->disk_manager_->ReadPage(page_id_, data_);
         }
         else {
             std::memset(data_, 0, PAGE_SIZE * sizeof(char));
@@ -323,8 +327,9 @@ namespace DB::page
     // has called update_data() in derived dtor.
     Page::~Page() {
 #ifndef _xjbDB_test_BPLUSTREE_
-        if (dirty_)
-            disk_manager_->WritePage(page_id_, data_);
+        if (dirty_) {
+            flush();
+        }
 #endif
     }
 
@@ -363,7 +368,7 @@ namespace DB::page
 
     void Page::set_dirty() noexcept {
         dirty_ = true;
-        disk_manager_->set_dirty(this->page_id_);
+        buffer_pool_->disk_manager_->set_dirty(this->page_id_);
     }
 
     bool Page::is_dirty() noexcept {
@@ -371,7 +376,7 @@ namespace DB::page
     }
 
     page_id_t Page::add_free_page() {
-        return disk_manager_->set_next_free_page_id(page_id_);
+        return buffer_pool_->disk_manager_->set_next_free_page_id(page_id_);
     }
 
     void Page::set_free() {
@@ -394,14 +399,18 @@ namespace DB::page
         if (dirty_) {
 #ifndef _xjbDB_test_BPLUSTREE_
 
+            debug::DEBUG_LOG(debug::PAGE_FLUSH,
+                "[PAGE_FLUSH] Page::flush() [page_t=%s] [page_id=%d] flush\n",
+                page_t_str[static_cast<uint32_t>(page_t_)], page_id_);
             // update this page
             update_data();
-            disk_manager_->WritePage(page_id_, data_);
-            debug::DEBUG_LOG(debug::FLUSH,
-                "[page_t=%s] [page=%d] flush\n",
-                page_t_str[static_cast<uint32_t>(page_t_)], page_id_);
+            buffer_pool_->FlushPage(this);
 
             // update attached value page
+            if (page_t_ == page_t_t::LEAF) {
+                static_cast<LeafPage*>(this)->value_page_->flush();
+            }
+
             if (page_t_ == page_t_t::ROOT_LEAF) {
                 static_cast<RootPage*>(this)->value_page_->flush();
             }
@@ -416,14 +425,14 @@ namespace DB::page
     }
 
     void Page::force_flush() {
+        debug::DEBUG_LOG(debug::PAGE_FLUSH,
+            "[PAGE_FLUSH] Page::flush() [page_t=%s] [page_id=%d] flush\n",
+            page_t_str[static_cast<uint32_t>(page_t_)], page_id_);
         if (dirty_) {
             update_data();
             dirty_ = false;
         }
-        disk_manager_->WritePage(page_id_, data_);
-        debug::DEBUG_LOG(debug::FLUSH,
-            "[page_t=%s] [page=%d] flush\n",
-            page_t_str[static_cast<uint32_t>(page_t_)], page_id_);
+        buffer_pool_->FlushPage(this);
     }
 
     bool Page::try_page_read_lock() {
@@ -469,10 +478,10 @@ namespace DB::page
     //
 
     DBMetaPage::DBMetaPage(page_id_t page_id,
-        disk::DiskManager* disk_manager, bool isInit,
+        buffer::BufferPoolManager* buffer_pool, bool isInit,
         uint32_t cur_page_no, uint32_t table_num, page_id_t next_free_page_id)
         :
-        Page(page_t_t::DB_META, page_id, disk_manager, isInit),
+        Page(page_t_t::DB_META, page_id, buffer_pool, isInit),
         cur_page_no_(cur_page_no),
         table_num_(table_num),
         next_free_page_id_(next_free_page_id)
@@ -567,7 +576,7 @@ namespace DB::page
 
     void DBMetaPage::update_data()
     {
-        cur_page_no_ = disk_manager_->get_cut_page_id();
+        cur_page_no_ = buffer_pool_->disk_manager_->get_cut_page_id();
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::CUR_PAGE_NO, cur_page_no_);
@@ -588,11 +597,11 @@ namespace DB::page
     // TableMetaPage
     //
     TableMetaPage::TableMetaPage(buffer::BufferPoolManager* buffer_pool, page_id_t page_id,
-        disk::DiskManager* disk_manager, bool isInit, key_t_t key_t, uint32_t str_len,
+                                 bool isInit, key_t_t key_t, uint32_t str_len,
         // below 3 are needed only when (!init)
         page_id_t BT_root_id, uint32_t col_num, page_id_t default_value_page_id)
         :
-        Page(page_t_t::TABLE_META, page_id, disk_manager, isInit),
+        Page(page_t_t::TABLE_META, page_id, buffer_pool, isInit),
         BT_root_id_(BT_root_id),
         col_num_(col_num),
         default_value_page_id_(default_value_page_id)
@@ -756,7 +765,7 @@ namespace DB::page
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::BT_ROOT_ID, BT_root_id_);
         write_int(data_ + offset::COL_NUM, col_num_);
-        write_int(data_ + offset::ROW_NUM, bt_->size());
+        write_int(data_ + offset::ROW_NUM, bt_->size()); // each crud will change row-num and set tablemeta dirty, though we donot do that currently
         write_int(data_ + offset::DEFAULT_VALUE_PAGE_ID, default_value_page_id_);
         write_int(data_ + offset::AUTO_ID, auto_id_.load(std::memory_order_seq_cst));
         for (uint32_t i = 0; i < col_num_; i++) {
@@ -835,8 +844,8 @@ namespace DB::page
     // BTree Page
     //
     BTreePage::BTreePage(page_t_t page_t, page_id_t page_id, page_id_t parent_id, uint32_t nEntry,
-        disk::DiskManager* disk_manager, key_t_t key_t, uint32_t str_len, bool isInit)
-        :Page(page_t, page_id, disk_manager, isInit),
+        buffer::BufferPoolManager* buffer_pool, key_t_t key_t, uint32_t str_len, bool isInit)
+        :Page(page_t, page_id, buffer_pool, isInit),
         parent_id_(parent_id),
         nEntry_(nEntry),
         key_t_(key_t),
@@ -932,8 +941,8 @@ namespace DB::page
     // InternalPage
     //
     InternalPage::InternalPage(page_t_t page_t, page_id_t page_id, page_id_t parent_id, uint32_t nEntry,
-        disk::DiskManager* disk_manager, key_t_t key_t, uint32_t str_len, bool isInit)
-        :BTreePage(page_t, page_id, parent_id, nEntry, disk_manager, key_t, str_len, isInit)
+        buffer::BufferPoolManager* buffer_pool, key_t_t key_t, uint32_t str_len, bool isInit)
+        :BTreePage(page_t, page_id, parent_id, nEntry, buffer_pool, key_t, str_len, isInit)
     {
         branch_ = new page_id_t[BTNodeBranchSize];
     }
@@ -976,9 +985,9 @@ namespace DB::page
     // ValuePage
     //
     ValuePage::ValuePage(page_id_t page_id, page_id_t parent_id, uint32_t nEntry,
-        disk::DiskManager* disk_manager, bool isInit)
+        buffer::BufferPoolManager* buffer_pool, bool isInit)
         :
-        Page(page_t_t::VALUE, page_id, disk_manager, isInit),
+        Page(page_t_t::VALUE, page_id, buffer_pool, isInit),
         parent_id_(parent_id),
         nEntry_(nEntry)
     {
@@ -1054,9 +1063,9 @@ namespace DB::page
     // LeafPage
     //
     LeafPage::LeafPage(buffer::BufferPoolManager* buffer_pool, page_id_t page_id, page_id_t parent_id, uint32_t nEntry,
-        disk::DiskManager* disk_manager, key_t_t key_t, uint32_t str_len, page_id_t value_page_id, bool isInit)
+        key_t_t key_t, uint32_t str_len, page_id_t value_page_id, bool isInit)
         :BTreePage(page_t_t::LEAF, page_id, parent_id, nEntry,
-            disk_manager, key_t, str_len, isInit), value_page_id_(value_page_id)
+            buffer_pool, key_t, str_len, isInit), value_page_id_(value_page_id)
     {
         values_ = new uint32_t[BTNodeKeySize];
         std::memset(values_, 0, BTNodeKeySize * sizeof(uint32_t));
@@ -1093,7 +1102,7 @@ namespace DB::page
     {
         value_page_->read_content(values_[index], vEntry);
         if (vEntry.value_state_ != value_state::INUSED)
-            debug::ERROR_LOG("`LeafPage::read_value()` read corrupted value.");
+            debug::ERROR_LOG("`LeafPage::read_value()` read corrupted value.\n");
     }
 
     void LeafPage::insert_value(uint32_t index, const ValueEntry& vEntry)
@@ -1149,9 +1158,9 @@ namespace DB::page
     //(buffer::BufferPoolManager*, page_t_t, page_id_t parent_id, page_id_t,
     //uint32_t nEntry, disk::DiskManager*, key_t_t, uint32_t str_len, page_id_t value_page_id, bool isInit);
     RootPage::RootPage(buffer::BufferPoolManager* buffer_pool, page_t_t page_t, page_id_t page_id, page_id_t parent_id, uint32_t nEntry,
-        disk::DiskManager* disk_manager, key_t_t key_t, uint32_t str_len, page_id_t value_page_id, bool isInit)
+        key_t_t key_t, uint32_t str_len, page_id_t value_page_id, bool isInit)
         :InternalPage(page_t, page_id, parent_id, nEntry,
-            disk_manager, key_t, str_len, isInit), value_page_id_(value_page_id)
+            buffer_pool, key_t, str_len, isInit), value_page_id_(value_page_id)
     {
         values_ = new uint32_t[BTNodeKeySize];
         std::memset(values_, 0, BTNodeKeySize * sizeof(uint32_t));
@@ -1190,7 +1199,7 @@ namespace DB::page
 
     void RootPage::change_to_leaf(buffer::BufferPoolManager* buffer_pool) {
         page_t_ = page_t_t::ROOT_LEAF;
-        value_page_id_ = disk_manager_->AllocatePage();
+        value_page_id_ = buffer_pool_->disk_manager_->AllocatePage();
         value_page_ = static_cast<ValuePage*>(buffer_pool->FetchPage(value_page_id_));
         buffer_pool->DeletePage(value_page_id_);
         // now value_page has excatly *** 1 ref count ***.
@@ -1208,7 +1217,7 @@ namespace DB::page
     {
         value_page_->read_content(values_[index], vEntry);
         if (vEntry.value_state_ != value_state::INUSED)
-            debug::ERROR_LOG("`RootPage::read_value()` read corrupted value.");
+            debug::ERROR_LOG("`RootPage::read_value()` read corrupted value.\n");
     }
 
     void RootPage::insert_value(uint32_t index, const ValueEntry& vEntry)
