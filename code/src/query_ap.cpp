@@ -40,7 +40,7 @@ namespace DB::query{
         const std::string compile_header =
             "g++ ../src/codegen/query.cpp ";
         const std::string compile_option =
-            "-std=c++17 -g -mavx2 -march=broadwell ";
+            "-std=c++17 -O2 -mavx2 -march=broadwell ";
         const std::string compile_link_option =
             "-fPIC -shared -L. -lap_exec -lpthread -Wl,-rpath=. ";
         const std::string compile_output =

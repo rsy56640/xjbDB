@@ -1,37 +1,45 @@
-CREATE TABLE Student(sid INT PK, name VARCHAR(20));
-CREATE TABLE Score(sid INT PK, score INT);
-CREATE TABLE Record(sid INT PK, record INT);
+CREATE TABLE Teacher(tid INT PK, name VARCHAR(8));
+CREATE TABLE Course(cid INT PK, tid INT REFERENCES Teacher, subject VARCHAR(12));
+CREATE TABLE Student(sid INT PK, name VARCHAR(8));
+CREATE TABLE Score(sid INT REFERENCES Student, cid INT REFERENCES Course, score INT);
+CREATE TABLE Class(tid INT REFERENCES Teacher, sid INT REFERENCES Student);
+
+INSERT Teacher(tid, name) VALUES(1, "Alexis");
+INSERT Teacher(tid, name) VALUES(2, "Bob");
+INSERT Teacher(tid, name) VALUES(3, "Carter");
+INSERT Teacher(tid, name) VALUES(4, "Davies");
+
+INSERT Course(cid, tid, subject) VALUES(1, 1, "English");
+INSERT Course(cid, tid, subject) VALUES(2, 2, "Chinese");
+INSERT Course(cid, tid, subject) VALUES(3, 2, "Music");
+INSERT Course(cid, tid, subject) VALUES(4, 3, "Math");
+INSERT Course(cid, tid, subject) VALUES(5, 3, "Football");
+INSERT Course(cid, tid, subject) VALUES(6, 3, "Literature");
+INSERT Course(cid, tid, subject) VALUES(7, 4, "History");
+INSERT Course(cid, tid, subject) VALUES(8, 4, "Computer");
+INSERT Course(cid, tid, subject) VALUES(9, 4, "Economics");
+INSERT Course(cid, tid, subject) VALUES(10, 4, "Physics");
 
 INSERT Student(sid, name) VALUES(1, "aaa");
-INSERT Student(sid, name) VALUES(2, "bbb");
-INSERT Student(sid, name) VALUES(3, "ccc");
-INSERT Student(sid, name) VALUES(256, "xxx");
-INSERT Student(sid, name) VALUES(257, "yyy");
-INSERT Student(sid, name) VALUES(258, "zzz");
 
-INSERT Score(sid, score) VALUES(1, 99);
-INSERT Score(sid, score) VALUES(2, 88);
-INSERT Score(sid, score) VALUES(3, 77);
-INSERT Score(sid, score) VALUES(256, 75);
-INSERT Score(sid, score) VALUES(257, 81);
+INSERT Score(sid, cid, score) VALUES(1, 5, 99);
 
-INSERT Record(sid, record) VALUES(1, 0);
-INSERT Record(sid, record) VALUES(2, 123);
-INSERT Record(sid, record) VALUES(3, 233);
-INSERT Record(sid, record) VALUES(256, 777);
-INSERT Record(sid, record) VALUES(257, -33);
+INSERT Class(tid, sid) VALUES(1, 777);
+
+
 
 SWITCH;
 
-SELECT $ FROM Student, Score WHERE Student.sid == Score.sid;
+SELECT $ FROM Class, Teacher, Student
+WHERE Class.tid == Teacher.tid
+AND Student.sid == Class.sid
+AND Teacher.name == "Bob";
 
-SELECT $ FROM Student WHERE Student.name <= "ccc";
-SELECT $ FROM Student WHERE "ccc" >= Student.name;
 
 SELECT $
 FROM Student, Score
 WHERE Student.sid == Score.sid
-    AND "ccc" != Student.name;
+AND "ccc" != Student.name;
 
 SELECT $ FROM Student, Score
 WHERE Student.sid == Score.sid AND Student.sid > 1 AND Score.score <= 85;

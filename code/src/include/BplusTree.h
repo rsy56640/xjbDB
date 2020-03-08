@@ -362,7 +362,7 @@ namespace DB::tree
         const key_t_t key_t_;
         const uint32_t str_len_;
         base_ptr root_;
-        std::atomic<uint32_t> size_;        // fake size, since no recover when rebuild db.
+        std::atomic<uint32_t> size_;        // rebuild from parsing TableMetaPage
         mutable std::shared_mutex range_query_lock_; // hold write-lock when do range query,
                                                      // otherwise hole read-lock.
     }; // end class BTree

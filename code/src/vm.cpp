@@ -19,9 +19,9 @@ namespace DB::vm
     using namespace page;
     using disk::log_state_t;
 
-    void ConsoleReader::start()
+    void ConsoleReader::start(std::future<void> exit_signal)
     {
-        reader_ = std::thread([this]()
+        reader_ = std::thread([this, exit_signal_{ std::move(exit_signal) }]()
         {
             auto check = [](const std::string& statement)->int32_t {
                 const uint32_t size = statement.size();
@@ -45,6 +45,11 @@ namespace DB::vm
             std::string sql = "";
             std::string statement = "";
             while (true) {
+
+                using namespace std::literals::chrono_literals;
+                if (exit_signal_.wait_for(50ns) == std::future_status::ready)
+                    return;
+
                 char buffer[256];
                 printXJBDB("");
                 std::cin.getline(buffer, 256);
@@ -119,7 +124,7 @@ namespace DB::vm
         if (storage_engine_.disk_manager_->dn_init_)
         {
             db_meta_ = new DBMetaPage(NOT_A_PAGE, // DB meta
-                storage_engine_.disk_manager_, true, 0, 0, NOT_A_PAGE);
+                storage_engine_.buffer_pool_manager_, true, 0, 0, NOT_A_PAGE);
             storage_engine_.disk_manager_->set_vm(this);
         }
 
@@ -178,7 +183,7 @@ namespace DB::vm
 
 #ifndef _xjbDB_test_STORAGE_ENGINE_
         // start scan from console.
-        conslole_reader_.start();
+        console_reader_.start(get_exit_signal_for_console());
 #endif // !_xjbDB_test_STORAGE_ENGINE_
     }
 
@@ -187,24 +192,21 @@ namespace DB::vm
     // run db task until user input "EXIT"
     void VM::start()
     {
-        bool tp = true;
         while (true)
         {
-            const std::string sql_statemt = conslole_reader_.get_sql();
-            if(debug::SQL_INPUT) {
-                std::cout << ">>> input sql: " << sql_statemt << std::endl;
-            }
+            const std::string sql_statemt = console_reader_.get_sql();
+            debug::DEBUG_LOG(debug::SQL_INPUT,
+                             ">>> input sql: %s\n",
+                             sql_statemt.c_str());
 
-
-            if(tp)
+            if(tp_)
             {
                 query::TPValue plan = query::tp_parse(sql_statemt);
 
                 // switch to AP
                 if(std::get_if<query::Switch>(&plan) != nullptr) {
                     printXJBDB("SWITCH to OLAP\n");
-                    tp = false;
-                    AP_INIT();
+                    switch_mode();
                     continue;
                 }
 
@@ -214,12 +216,16 @@ namespace DB::vm
                 // handle ErrorMsg or EXIT
                 VM::process_result_t result = txn_process(plan);
 
-                if (!result.msg.empty())
+                if (!result.msg.empty()) {
                     printXJBDB("\n%s\n", result.msg.c_str());
-                if (result.exit)
+                }
+                if (result.exit) {
+                    set_exit_signal_for_console();
                     return;
-                if (result.error)
+                }
+                if (result.error) {
                     continue;
+                }
 
                 task_pool_.join();
 
@@ -236,19 +242,22 @@ namespace DB::vm
                 // switch to TP
                 if(std::get_if<query::Switch>(&plan) != nullptr) {
                     printXJBDB("SWITCH to OLTP\n");
-                    tp = true;
-                    AP_RESET();
+                    switch_mode();
                     continue;
                 }
 
                 VM::process_result_t result = query_process(plan);
 
-                if (!result.msg.empty())
+                if (!result.msg.empty()) {
                     printXJBDB("\n%s\n", result.msg.c_str());
-                if (result.exit)
+                }
+                if (result.exit) {
+                    set_exit_signal_for_console();
                     return;
-                if (result.error)
+                }
+                if (result.error) {
                     continue;
+                }
             }
 
         }
@@ -282,8 +291,17 @@ namespace DB::vm
 
 
     void VM::send_reply_sql(std::string sql) {
-        conslole_reader_.add_sql(std::move(sql));
+        console_reader_.add_sql(std::move(sql));
     }
+
+    std::future<void> VM::get_exit_signal_for_console() {
+        return exit_signal_.get_future();
+    }
+
+    void VM::set_exit_signal_for_console() {
+        exit_signal_.set_value();
+    }
+
 
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
     template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
@@ -376,7 +394,7 @@ namespace DB::vm
         table::TableInfo tableInfo = info.tableInfo;
         const page_id_t table_id = storage_engine_.disk_manager_->AllocatePage();
         page::TableMetaPage* table_page = new TableMetaPage(
-            storage_engine_.buffer_pool_manager_, table_id, storage_engine_.disk_manager_,
+            storage_engine_.buffer_pool_manager_, table_id,
             true, tableInfo.PK_t(), tableInfo.str_len(),
             NOT_A_PAGE, 0, NOT_A_PAGE);
 
@@ -408,15 +426,16 @@ namespace DB::vm
 
         for (uint32_t i = 0; i < col_size; i++)
         {
-            page::ColumnInfo* col = new ColumnInfo(tableInfo.columnInfos_[i]);
+            const uint32_t col_no = i + (tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN);
+            page::ColumnInfo* col = new ColumnInfo(tableInfo.columnInfos_[col_no]);
 
             col->vEntry_offset_ = vEntry_offset;
             vEntry_offset += col->str_len_;
 
             if (col->isDEFAULT()) {
                 if (col->col_t_ == col_t_t::INTEGER) {
-                    int32_t i = std::get<int32_t>(*default_it);
-                    table_page->insert_default_value(col, i);
+                    int32_t default_value = std::get<int32_t>(*default_it);
+                    table_page->insert_default_value(col, default_value);
                 }
                 else {
                     table_page->insert_default_value(col, std::get<std::string>(*default_it));
@@ -429,13 +448,10 @@ namespace DB::vm
                 ++fk_it;
             }
 
-            table_page->insert_column(tableInfo.colNames_[i], col);
+            table_page->insert_column(tableInfo.colNames_[col_no], col);
 
             // update tableInfo
-            if (tableInfo.pk_col_ == page::TableMetaPage::NOT_A_COLUMN)
-                tableInfo.columnInfos_[i + 1] = *col;
-            else
-                tableInfo.columnInfos_[i] = *col;
+            tableInfo.columnInfos_[col_no] = *col;
         }
 
         db_meta_->insert_table(table_id, tableInfo.tableName_);
@@ -1365,6 +1381,21 @@ namespace DB::vm
     } // end function `void VM::init_pk_view();`
 
 
+    void VM::add_sql(std::string sql) {
+        console_reader_.add_sql(std::move(sql));
+    }
+
+    void VM::switch_mode() {
+        if(tp_) {
+            tp_ = false;
+            AP_INIT();
+        }
+        else {
+            tp_ = true;
+            AP_RESET();
+        }
+    }
+
     void VM::AP_INIT() {
         ap_table_array_ = std::make_shared<ap::ap_table_array_t>();
         // prepare "table name" and "table data"
@@ -1398,7 +1429,7 @@ namespace DB::vm
 
     VM::~VM()
     {
-        conslole_reader_.stop();
+        console_reader_.stop();
         task_pool_.stop();
         delete db_meta_;
         for (auto&[name, table] : table_meta_)
@@ -1413,7 +1444,7 @@ namespace DB::vm
     void VM::test_create_table()
     {
         TableMetaPage* table = new TableMetaPage(storage_engine_.buffer_pool_manager_,
-            storage_engine_.disk_manager_->AllocatePage(), storage_engine_.disk_manager_,
+            storage_engine_.disk_manager_->AllocatePage(),
             true, key_t_t::INTEGER, 0, NOT_A_PAGE, 0, NOT_A_PAGE);
         table_meta_["test"] = table;
 
@@ -1478,7 +1509,7 @@ namespace DB::vm
         println();
         for (auto const&[name, table] : table_meta_)
         {
-            query_print("table \"%s\"", name.c_str());
+            query_print("[table \"%s\"] [size=%d]", name.c_str(), table->bt_->size());
             query_print_n();
 
             // prepare colInfo

@@ -38,6 +38,7 @@ namespace DB::buffer
         // flush the page in the bufferpool, return true.
         // if the page is not in the bufferpool, return false,
         // in which case, the page is held at some execution, and later to be `unref()`.
+        bool FlushPage(page::Page* page_ptr);
         bool FlushPage(page_id_t page_id);
 
         // the Page* has been `ref()` before return.

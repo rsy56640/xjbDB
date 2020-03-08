@@ -1157,6 +1157,8 @@ namespace DB::tree
     //              3. set root.k[0] = root.k[7], set branch, adjust the relation
     void BTree::split_root()
     {
+        debug_page(debug::SPLIT_ROOT, root_->get_page_id());
+
         // ROOT is full LEAF
         if (root_->page_t_ == page_t_t::ROOT_LEAF)
         {
@@ -1174,6 +1176,7 @@ namespace DB::tree
 
             debug::DEBUG_LOG(debug::SPLIT_ROOT_LEAF,
                 "split_root_leaf: [L = %d], [R = %d]\n", L->get_page_id(), R->get_page_id());
+            
 
             // step 2: move root.k - v[0..7] into L, root.k - v[8..14] into R
             KeyEntry kEntry;
@@ -1215,6 +1218,9 @@ namespace DB::tree
             static_cast<root_ptr>(root_)->branch_[0] = L->get_page_id();
             static_cast<root_ptr>(root_)->branch_[1] = R->get_page_id();
             root_->set_dirty();
+
+            debug_page(debug::SPLIT_ROOT_LEAF, L->get_page_id());
+            debug_page(debug::SPLIT_ROOT_LEAF, R->get_page_id());
 
             L->unref();
             R->unref();
@@ -1289,6 +1295,9 @@ namespace DB::tree
             static_cast<root_ptr>(root_)->branch_[1] = R->get_page_id();
             root_->set_dirty();
 
+            debug_page(debug::SPLIT_ROOT_INTERNAL, L->get_page_id());
+            debug_page(debug::SPLIT_ROOT_INTERNAL, R->get_page_id());
+
             L->unref();
             R->unref();
 
@@ -1307,11 +1316,15 @@ namespace DB::tree
         case page_t_t::INTERNAL:
             debug::DEBUG_LOG(debug::SPLIT_INTERNAL, "split_internal: [id = %d], [parent_id = %d], [index = %d]\n",
                 L->get_page_id(), node->get_page_id(), split_index);
+            debug_page(debug::SPLIT_INTERNAL, node->get_page_id());
+            debug_page(debug::SPLIT_INTERNAL, L->get_page_id());
             split_internal(node, split_index, static_cast<link_ptr>(L));
             return;
         case page_t_t::LEAF:
             debug::DEBUG_LOG(debug::SPLIT_LEAF, "split_leaf: [id = %d], [parent_id = %d], [index = %d]\n",
                 L->get_page_id(), node->get_page_id(), split_index);
+            debug_page(debug::SPLIT_LEAF, node->get_page_id());
+            debug_page(debug::SPLIT_LEAF, L->get_page_id());
             split_leaf(node, split_index, static_cast<leaf_ptr>(L));
             return;
         default:
@@ -1381,6 +1394,10 @@ namespace DB::tree
         node->branch_[split_index + 1] = R->get_page_id();
         node->set_dirty();
 
+        debug_page(debug::SPLIT_INTERNAL, node->get_page_id());
+        debug_page(debug::SPLIT_INTERNAL, L->get_page_id());
+        debug_page(debug::SPLIT_INTERNAL, R->get_page_id());
+
         R->unref();
 
     }
@@ -1447,6 +1464,10 @@ namespace DB::tree
         node->insert_key(split_index, kEntry);
         node->branch_[split_index + 1] = R->get_page_id();
         node->set_dirty();
+
+        debug_page(debug::SPLIT_LEAF, node->get_page_id());
+        debug_page(debug::SPLIT_LEAF, L->get_page_id());
+        debug_page(debug::SPLIT_LEAF, R->get_page_id());
 
         R->unref();
 

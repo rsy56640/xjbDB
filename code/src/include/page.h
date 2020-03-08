@@ -17,22 +17,6 @@ namespace DB::page
 
     constexpr uint32_t PAGE_SIZE = 1 << 10; // 1KB
 
-    class Page;
-    Page* buffer_to_page(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-    class DBMetaPage;
-    class TableMetaPage;
-    class InternalPage;
-    class ValuePage;
-    class LeafPage;
-    class RootPage;
-    DBMetaPage* parse_DBMetaPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-    TableMetaPage* parse_TableMetaPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-    InternalPage* parse_InternalPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-    ValuePage* parse_ValuePage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-    LeafPage* parse_LeafPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-    RootPage* parse_RootPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
-
-
     enum class page_t_t :uint32_t {
         DB_META,
         TABLE_META,
@@ -58,6 +42,23 @@ namespace DB::page
 
         "FREE",
     };
+
+    class Page;
+    page_t_t get_page_t(const char(&buffer)[page::PAGE_SIZE]);
+    Page* buffer_to_page(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+    class DBMetaPage;
+    class TableMetaPage;
+    class InternalPage;
+    class ValuePage;
+    class LeafPage;
+    class RootPage;
+    DBMetaPage* parse_DBMetaPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+    TableMetaPage* parse_TableMetaPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+    InternalPage* parse_InternalPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+    ValuePage* parse_ValuePage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+    LeafPage* parse_LeafPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+    RootPage* parse_RootPage(buffer::BufferPoolManager*, const char(&buffer)[page::PAGE_SIZE]);
+
 
     // use 32 bit integer to represent the page_id.
     // page_id must start from 1.
@@ -125,7 +126,7 @@ namespace DB::page
         friend class ::DB::buffer::BufferPoolManager;
     public:
 
-        Page(page_t_t, page_id_t, disk::DiskManager*, bool isInit);
+        Page(page_t_t, page_id_t, buffer::BufferPoolManager*, bool isInit);
 
         virtual ~Page();
 
@@ -174,7 +175,7 @@ namespace DB::page
 
 
     protected:
-        disk::DiskManager * disk_manager_;
+        buffer::BufferPoolManager* buffer_pool_;
         page_t_t page_t_; // fundamentally const, but ROOT may violate the rule.
         page_id_t page_id_; // might be used for next_free_page_id when FREE
         char data_[PAGE_SIZE];
@@ -201,7 +202,7 @@ namespace DB::page
         static constexpr uint32_t MAX_TABLE_NAME_STR = 24;
         static constexpr uint32_t MAX_TABLE_NUM = 30;
 
-        DBMetaPage(page_id_t, disk::DiskManager*, bool isInit,
+        DBMetaPage(page_id_t, buffer::BufferPoolManager*, bool isInit,
             uint32_t cur_page_no, uint32_t table_num, page_id_t next_free_page_id);
         ~DBMetaPage();
 
@@ -312,7 +313,7 @@ namespace DB::page
         //
 
         TableMetaPage(buffer::BufferPoolManager* buffer_pool, page_id_t,
-            disk::DiskManager*, bool isInit, key_t_t key_t, uint32_t str_len,
+            bool isInit, key_t_t key_t, uint32_t str_len,
             // below 3 are needed only when (!init)
             page_id_t BT_root_id, uint32_t col_num, page_id_t default_value_page_id);
 
@@ -379,7 +380,7 @@ namespace DB::page
         friend class ::DB::tree::BTree;
     public:
 
-        BTreePage(page_t_t, page_id_t, page_id_t parent_id, uint32_t nEntry, disk::DiskManager*,
+        BTreePage(page_t_t, page_id_t, page_id_t parent_id, uint32_t nEntry, buffer::BufferPoolManager*,
             key_t_t, uint32_t str_len, bool isInit);
         virtual ~BTreePage();
 
@@ -434,7 +435,7 @@ namespace DB::page
         friend class ::DB::tree::BTree;
     public:
         InternalPage(page_t_t, page_id_t, page_id_t parent_id, uint32_t nEntry,
-            disk::DiskManager*, key_t_t, uint32_t str_len, bool isInit);
+            buffer::BufferPoolManager*, key_t_t, uint32_t str_len, bool isInit);
         virtual ~InternalPage();
 
         // update the all metadata into memory, for the later `flush()`.
@@ -455,7 +456,7 @@ namespace DB::page
     // the state mark is used when deleted, and when do inserttion, find the `OBSOLETE` entry.
     class ValuePage :public Page {
     public:
-        ValuePage(page_id_t, page_id_t, uint32_t nEntry, disk::DiskManager*, bool isInit);
+        ValuePage(page_id_t, page_id_t, uint32_t nEntry, buffer::BufferPoolManager*, bool isInit);
         ~ValuePage();
 
         // read ValueEntry at `offset`.
@@ -487,7 +488,7 @@ namespace DB::page
         friend class BTreePage;
     public:
         LeafPage(buffer::BufferPoolManager*, page_id_t, page_id_t parent_id, uint32_t nEntry,
-            disk::DiskManager*, key_t_t, uint32_t str_len, page_id_t value_page_id, bool isInit);
+            key_t_t, uint32_t str_len, page_id_t value_page_id, bool isInit);
         virtual ~LeafPage();
 
         // read the value record into ValueEntry
@@ -527,7 +528,7 @@ namespace DB::page
         friend RootPage* parse_RootPage(buffer::BufferPoolManager* buffer_pool, const char(&buffer)[page::PAGE_SIZE]);
     public:
         RootPage(buffer::BufferPoolManager*, page_t_t, page_id_t parent_id, page_id_t,
-            uint32_t nEntry, disk::DiskManager*, key_t_t, uint32_t str_len, page_id_t value_page_id, bool isInit);
+            uint32_t nEntry, key_t_t, uint32_t str_len, page_id_t value_page_id, bool isInit);
         virtual ~RootPage();
 
         void change_to_leaf(buffer::BufferPoolManager* buffer_pool);
