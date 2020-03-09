@@ -338,6 +338,8 @@ namespace DB::page
 
         virtual void update_data();
 
+        void set_dirty_on_insert_or_delete();
+
     public:
         page_id_t BT_root_id_;
         uint32_t col_num_;

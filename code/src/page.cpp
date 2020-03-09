@@ -752,6 +752,9 @@ namespace DB::page
         set_dirty();
     }
 
+    void TableMetaPage::set_dirty_on_insert_or_delete() {
+       set_dirty();
+    }
 
     void TableMetaPage::update_data() {
         write_int(data_ + offset::PAGE_T, static_cast<uint32_t>(page_t_));
@@ -765,7 +768,7 @@ namespace DB::page
         write_int(data_ + offset::PAGE_ID, page_id_);
         write_int(data_ + offset::BT_ROOT_ID, BT_root_id_);
         write_int(data_ + offset::COL_NUM, col_num_);
-        write_int(data_ + offset::ROW_NUM, bt_->size()); // each crud will change row-num and set tablemeta dirty, though we donot do that currently
+        write_int(data_ + offset::ROW_NUM, bt_->size());
         write_int(data_ + offset::DEFAULT_VALUE_PAGE_ID, default_value_page_id_);
         write_int(data_ + offset::AUTO_ID, auto_id_.load(std::memory_order_seq_cst));
         for (uint32_t i = 0; i < col_num_; i++) {

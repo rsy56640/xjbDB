@@ -57,7 +57,7 @@ namespace DB::debug
         AP_AST = true,
         AP_COMPILE = true,
         AP_DYNAMIC_LOAD = true,
-        AP_EXEC = true,
+        AP_EXEC = false,
 
 
         CONTROL = true;

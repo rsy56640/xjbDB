@@ -217,6 +217,7 @@ namespace DB::vm
         void test_output();
         void test_flush();
         void showDB();
+        void showSCHEMA();
 
         bool output_line_start = true;
         template<typename ...Arg>
