@@ -35,6 +35,12 @@ WHERE Class.tid == Teacher.tid
 AND Student.sid == Class.sid
 AND Teacher.name == "Bob";
 
+SELECT $ FROM Class, Teacher, Student
+WHERE Student.sid == Class.sid
+AND Class.tid == Teacher.tid
+AND Teacher.name == "Bob";
+
+
 
 SELECT $
 FROM Student, Score

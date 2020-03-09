@@ -318,8 +318,9 @@ namespace DB::vm
                 [&result, this](const query::DeleteInfo& info) { doDelete(result,info); },
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result, this](query::Show) { this->showDB(); },
+                [this](query::Schema) { this->showSCHEMA(); },
                 [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
-                [](auto&&) { debug::ERROR_LOG("`txn_process`\n"); },
+                [](auto) { debug::ERROR_LOG("`txn_process`\n"); },
             }, plan);
         return result;
     }
@@ -333,6 +334,7 @@ namespace DB::vm
                 [&result](query::Exit) { result.exit = true; result.msg = "DB exit"; },
                 [&result](const query::ErrorMsg& errorMsg) { result.error = true; result.msg = "SQL syntax error, please check query log: " + errorMsg._msg; },
                 [this](query::Show) { this->showDB(); },
+                [this](query::Schema) { this->showSCHEMA(); },
                 [](auto) { debug::ERROR_LOG("`query_process`\n"); },
             }, plan);
         return result;
@@ -863,8 +865,12 @@ namespace DB::vm
         }
 
         // checked in PK view before
-        if (!table->bt_->insert(kv))
+        if (table->bt_->insert(kv) == tree::INSERT_NOTHING) {
             debug::ERROR_LOG("INSERT ERROR\n");
+        }
+
+        // update table size on TableMetaPage
+        table->set_dirty_on_insert_or_delete();
 
         // update PK view
         if (table->PK_t() == key_t_t::INTEGER) {
@@ -967,7 +973,12 @@ namespace DB::vm
             }
 
             // erase from B+Tree
-            bt->erase(kv.kEntry);
+            if(bt->erase(kv.kEntry) == tree::ERASE_NOTHING) {
+                debug::ERROR_LOG("ERASE ERROR\n");
+            }
+
+            // update table size on TableMetaPage
+            table->set_dirty_on_insert_or_delete();
 
             // erase from pk view
             if (kv.kEntry.key_t == key_t_t::INTEGER)
@@ -1504,7 +1515,8 @@ namespace DB::vm
 
 
     void VM::showDB() {
-        printf("xjbDB has %d tables", db_meta_->table_num_);
+        println();
+        query_print("xjbDB has %d tables", db_meta_->table_num_);
         query_print_n();
         println();
         for (auto const&[name, table] : table_meta_)
@@ -1586,6 +1598,27 @@ namespace DB::vm
 
         } // end iterate all tables
     } // end showDB();
+
+    void VM::showSCHEMA() {
+        println();
+        query_print("xjbDB has %d tables", db_meta_->table_num_);
+        query_print_n();
+        println();
+        for (auto const&[name, table] : table_meta_)
+        {
+            query_print("[table \"%s\"] [size=%d]", name.c_str(), table->bt_->size());
+            query_print_n();
+            query_print("      ");
+            for (auto const& colName : table->cols_) {
+                const ColumnInfo* col = table->col_name2col_[colName];
+                query_print("%s\t", colName.c_str());
+            }
+            query_print_n();
+            println();
+        }
+        println();
+    }
+
 
     void VM::query_print_n() {
         printf("\n");
