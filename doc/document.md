@@ -408,7 +408,7 @@ bool vmVisit(std::shared_ptr<const BaseExpr> root, table::row_view row);
 table::value_t vmVisitAtom(std::shared_ptr<const AtomExpr> root, table::row_view row = NULL_ROW);
 ```
 
-
+以上两个函数可以看做OLTP的核心内容，进程运行时，从根结点开始，自顶向下递归。对于具体的任一结点，根据其实际类型，在运行时转换指针，获取结果后向上逐级返回。
 
 #### OLAP 查询
 
@@ -513,9 +513,106 @@ struct APTableOp : public APBaseOp {
 
 ##### 生成OP AST
 
+在完成了有效性检查和常量优化后，进行OP AST的生成，同样是自底向上构建，构建过程中维护和传递中间表结构到物理列的映射。
 
+首先使用语法制导翻译获得的表信息，对每个表构建APTableOp叶子结点。
+
+然后对条件集合进行筛选，分类成单表条件，Join条件，多表复杂条件。
+
+对于单表条件，在对应的APTableOp结点上构建APFilterOp结点。
+
+对于Join条件，在对应的Join表结点上构建APJoinOp结点，考虑到后续代码生成，若参与Join的结点中仅包含一个子Join结点，将其调整为右子节点。
+
+复杂条件暂时还未处理。
+
+然后在当前最上层结点上根据SELECT element构建APProjectOp结点。
+
+最后，在所有节点最上层，生成一个APEmitOp结点。
+
+需要注意的是，在最后的APEmitOp生成前，需要检查构建的结点树是否为森林。
+
+对于以下SQL语句
+
+`SELECT $ FROM Student, Score, Record
+WHERE Student.sid == Score.sid AND Student.sid == Record.sid
+AND Score.score <= 80;`
+
+最终生成的AST如下
+
+![codegen_AST](assets/codegen_AST.png)
 
 ##### 生成代码
 
+最后一步是根据上一步构建的AST生成查询代码。
 
+其主要功能在APBaseOP结点的虚函数`produce()`和`consume(...)`中完成，每个具体结点自行实现其生成内容。
 
+前者在完成一些基础生成后，调用子结点的相同函数。当调用达到最底层叶子结点也就是APTableOP后，将获得具体的表列到物理列映射，完成对应代码生成后，调用其父结点的后一函数，调用同时将映射和当前来源一并传递。当父结点的后一函数被调用时，将根据来源和映射完成其输出，修改映射，并再次向上调用和传递。
+
+需要指出的是，生成的代码行与AST结构的对应是优雅的。
+
+对于此前生成的AST，由于`produce`生成的代码部分是平凡的，不做标记。序号表示代码为`consume`生成，需要注意，对于JoinOp，该函数会被左右子节点调用两次，分别用两个序号表示。
+
+```cpp
+// this file is generated 
+#include "../include/ap_exec.h"
+#include "../include/vm.h"
+
+static DB::ap::block_tuple_t projection(const DB::ap::block_tuple_t &block) { return block; }
+
+extern "C"
+DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t &tables, DB::vm::VM *vm) {
+    DB::ap::VMEmitOp emit;
+    const DB::ap::ap_table_t &T0 = tables.at(0);	//①
+    const DB::ap::ap_table_t &T1 = tables.at(1);	//③
+    const DB::ap::ap_table_t &T2 = tables.at(2);	//⑤
+    DB::page::range_t rngLeft0{0, 4};							//②
+    DB::page::range_t rngRight0{0, 4};						//⑧
+    DB::page::range_t rngLeft1{0, 4};							//④
+    DB::page::range_t rngRight1{0, 4};						//⑦
+    DB::ap::hash_table_t ht0(rngLeft0, rngRight0, 24, 8, true);		//⑧
+    DB::ap::hash_table_t ht1(rngLeft1, rngRight1, 8, 32, true);		//⑦
+  
+    auto pipeline0 = [&]() {		//①
+        for (DB::ap::ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {		//①
+            DB::ap::block_tuple_t block = it.consume_block();		//①
+            ht1.insert(block);		//②
+        }		//②
+        ht1.build();		//②
+    };		//②
+    std::future<void> future0 = vm->register_task(pipeline0);		//②
+  
+    auto pipeline1 = [&]() {		//③
+        for (DB::ap::ap_block_iter_t it = T0.get_block_iter(); !it.is_end();) {		//③
+            DB::ap::block_tuple_t block = it.consume_block();		//③
+            ht0.insert(block);		//④
+        }		//④
+        ht0.build();		//④
+    };		//④
+    std::future<void> future1 = vm->register_task(pipeline1);		//④
+  
+    auto pipeline2 = [&]() {		//⑤
+        for (DB::ap::ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {		//⑤
+            DB::ap::block_tuple_t block = it.consume_block();			//⑤
+            block.selectivity_and(block.getINT({4, 4}) <= 80);		//⑥
+            DB::ap::join_result_buf_t join_result0 = ht0.probe(block);		//⑦
+            for (DB::ap::ap_block_iter_t it = join_result0.get_block_iter(); !it.is_end();){		//⑦
+                DB::ap::block_tuple_t block = it.consume_block();		//⑦
+                DB::ap::join_result_buf_t join_result1 = ht1.probe(block);		//⑧
+                for (DB::ap::ap_block_iter_t it = join_result1.get_block_iter(); !it.is_end();) {		//⑧
+                    DB::ap::block_tuple_t block = it.consume_block();		//⑧
+                    emit.emit(block);		//⑨
+                }		//⑨
+            }		//⑨
+        }		//⑨
+    };		//⑨
+    std::future<void> future2 = vm->register_task(pipeline2);		//⑨
+  
+    future2.wait();		//⑨
+    return emit;		//⑨
+  
+} // end codegen function
+
+```
+
+代码生成后，对其编译生成`.so`文件，并动态载入，进行查询
