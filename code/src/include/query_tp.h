@@ -115,7 +115,7 @@ namespace DB::query {
 
 
     //tp query return type to vm
-    using TPValue = std::variant<CreateTableInfo, DropTableInfo, TPSelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg, Switch>;
+    using TPValue = std::variant<CreateTableInfo, DropTableInfo, TPSelectInfo, UpdateInfo, InsertInfo, DeleteInfo, Show, Exit, ErrorMsg, Switch, Schema>;
 
     void print(const TPValue &value);
 

@@ -102,7 +102,7 @@ namespace DB::lexer
 		TABLE, FROM, WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
 		DEFAULT, PRIMARY_KEY, REFERENCES,
-		SWITCH,
+		SWITCH, SCHEMA,
 
 		/* other operator */
 		COMMA, PERIOD, SEMICOLON,                    // ",", ".", ";"
@@ -144,7 +144,7 @@ namespace DB::lexer
 		{ "TABLE", type::TABLE },{ "FROM", type::FROM },{ "WHERE", type::WHERE },{ "JOIN", type::JOIN },
 		{ "ORDERBY", type::ORDERBY },{ "ASC", type::ASC },{ "DESC", type::DESC },{ "SET", type::SET },
 		{ "DEFAULT", type::DEFAULT },{ "PK", type::PRIMARY_KEY },{ "REFERENCES", type::REFERENCES },
-        { "SWITCH", type::SWITCH },
+        { "SWITCH", type::SWITCH }, { "SCHEMA", type::SCHEMA },
 
 		/* other operator */
 		{ ",", type::COMMA }, { ".", type::PERIOD }, { ";", type::SEMICOLON },
@@ -185,6 +185,7 @@ namespace DB::lexer
 		{ type::TABLE, "TABLE" },{ type::FROM, "FROM" },{ type::WHERE, "WHERE" },{ type::JOIN, "JOIN" },
 		{ type::ORDERBY, "ORDERBY" },{ type::ASC, "ASC" },{ type::DESC, "DESC" },{ type::SET, "SET" },
 		{ type::DEFAULT, "DEFAULT" },{ type::PRIMARY_KEY, "PRIMARY_KEY" },{ type::REFERENCES, "REFERENCES" },
+        { type::SWITCH, "SWITCH"}, { type::SCHEMA, "SCHEMA"},
 
 		/* other operator */
 		{ type::COMMA, "," }, { type::PERIOD, "." }, {  type::SEMICOLON, ";" },

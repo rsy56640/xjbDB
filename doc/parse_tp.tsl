@@ -71,7 +71,7 @@ namespace DB::parse_tp
 		TABLE, FROM, WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
 		DEFAULT, PRIMARY_KEY, REFERENCES, 
-		SWITCH, 
+		SWITCH, SCHEMA,
 
 		",", ".", ";",
 		"?", ":",
@@ -138,6 +138,7 @@ namespace DB::parse_tp
 		| "SHOW", { info.tpValue = Show(); }
 		| "EXIT", { info.tpValue = Exit(); }
 		| "SWITCH", { info.tpValue = Switch(); }
+		| "SCHEMA", { info.tpValue = Schema(); }
 		;
 
 

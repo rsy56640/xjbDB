@@ -54,7 +54,7 @@ namespace DB::parse_ap
 		TABLE, FROM, WHERE, JOIN,
 		ORDERBY, ASC, DESC, SET,
 		DEFAULT, PRIMARY_KEY, REFERENCES, 
-		SWITCH, 
+		SWITCH, SCHEMA,
 
 		",", ".", ";",
 		"?", ":",
@@ -103,6 +103,7 @@ namespace DB::parse_ap
 		| "EXIT", { info.apValue = Exit(); }
 		| "SWITCH", { info.apValue = Switch(); }
 		| "SHOW", { info.apValue = Show(); }
+		| "SCHEMA", { info.apValue = Schema(); }
 		;
 	
 

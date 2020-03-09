@@ -57,7 +57,14 @@ namespace DB::query {
         void print() const
         {
             std::cout << "Show" << std::endl;
+        }
+    };
 
+    struct Schema
+    {
+        void print() const
+        {
+            std::cout << "Schema" << std::endl;
         }
     };
 
