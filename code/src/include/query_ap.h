@@ -23,7 +23,7 @@ using std::shared_ptr;
 
 namespace DB::query {
 
-    using APValue = std::variant<APSelectInfo, Exit, ErrorMsg, Switch, Show>;
+    using APValue = std::variant<APSelectInfo, Exit, ErrorMsg, Switch, Show, Schema>;
 
     class APSelectInfo {
     public:
