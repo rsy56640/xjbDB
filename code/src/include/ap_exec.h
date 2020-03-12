@@ -153,6 +153,9 @@ namespace DB::ap {
     class VMEmitOp {
         friend class vm::VM;
     public:
+        VMEmitOp() = default;
+        VMEmitOp(const VMEmitOp&) = delete;
+        VMEmitOp(VMEmitOp&&) = default;
         void emit(const block_tuple_t&);
     private:
         std::deque<ap_row_t> rows_;

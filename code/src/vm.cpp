@@ -1,10 +1,11 @@
-#include "include/vm.h"
-#include "include/debug_log.h"
-#include "include/table.h"
+#include "vm.h"
+#include "debug_log.h"
+#include "table.h"
 #include "ast_tp.h"
 #include "query_tp.h"
 #include "query_ap.h"
 #include "ap_exec.h"
+#include "timing.h"
 #include <cstring>
 #include <iostream>
 #include <variant>
@@ -560,7 +561,10 @@ namespace DB::vm
     {
         // now ignore `ORDER BY`
 
+        auto begin = std::chrono::system_clock::now();
         VirtualTable result_table = info.opRoot->getOutput();
+        auto end = std::chrono::system_clock::now();
+        print_timing("TP query", begin, end);
 
         // print VirtualTable
         std::shared_ptr<const table::TableInfo> tableInfo = result_table.table_view_.table_info_;

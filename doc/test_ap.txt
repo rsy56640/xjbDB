@@ -30,6 +30,14 @@ INSERT Class(tid, sid) VALUES(1, 777);
 
 SWITCH;
 
+SELECT $ FROM Class, Teacher
+WHERE Class.tid == Teacher.tid
+AND Teacher.name == "Bob";
+
+SELECT $ FROM Course, Score
+WHERE Course.cid == Score.cid
+AND Course.subject == "History";
+
 SELECT $ FROM Class, Teacher, Student
 WHERE Class.tid == Teacher.tid
 AND Student.sid == Class.sid
@@ -39,7 +47,6 @@ SELECT $ FROM Class, Teacher, Student
 WHERE Student.sid == Class.sid
 AND Class.tid == Teacher.tid
 AND Teacher.name == "Bob";
-
 
 
 SELECT $
