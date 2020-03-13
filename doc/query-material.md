@@ -11,6 +11,7 @@
 - [Push vs. Pull-Based Loop Fusion in Query Engines](https://arxiv.org/abs/1610.09166)
 - [CPU and Cache Efficient Management of Memory-Resident Databases](https://15721.courses.cs.cmu.edu/spring2019/papers/19-compilation/pirk-icde2013.pdf)
 - [Adaptive Execution of Compiled Queries](https://db.in.tum.de/~leis/papers/adaptiveexecution.pdf)
+- [Just-in-time Compilation in Vectorized Query Execution](https://homepages.cwi.nl/~boncz/msc/2011-JuliuszSompolski.pdf)
 
 ### 其他
 
