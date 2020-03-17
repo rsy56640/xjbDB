@@ -24,7 +24,10 @@
 <a id="query-compile"></a>
 ## Query Compilation 方案
 
-TODO: 简要概括工作...
+Query Compilation 完成 Query 的前两部分工作，即
+
+- 由 sql 语句构建 query tree
+- query tree 对应生成 codegen
 
 <a id="query-compile-sql"></a>
 ### SQL 处理
@@ -60,7 +63,15 @@ positiveNum := "NUMBER_CONSTANT";
 comparisonOperator := "==" | ">" | "<" | "<=" | ">=" | "!=";
 ```
 
+需要注意的是
+
+- 主要语句仅有SELECT
+- JOIN使用WHERE条件进行
+- 逻辑运算符仅支持`AND`
+- 数学运算符仅支持`* + -`
+
 <a id="query-compile-sql-parser"></a>
+
 #### 词法分析、语法解析
 
 切割 token，然后使用 LALR 分析，使用 [黎同学](https://github.com/ssyram) 提供的 [NovelRulesTranslator](https://github.com/ssyram/NovelRulesTranslator)，根据 [parse_ap.tsl](https://github.com/rsy56640/xjbDB/blob/query/doc/parse_ap.tsl) 中的 **文法产生式** 及 **规约时的语义动作** 生成 [parse_ap.h](https://github.com/rsy56640/xjbDB/blob/query/code/src/include/parse_ap.h) 文件。
@@ -68,35 +79,48 @@ comparisonOperator := "==" | ">" | "<" | "<=" | ">=" | "!=";
 经过语法解析后会得到
 
 - `std::vector<std::pair<std::string, std::string>> columns;`：select 的 column 
-- `std::vector<std::string> tables;`：from 哪些 table
+- `std::vector<std::string> tables;`：from 后的数据源 table
 - `std::vector<std::shared_ptr<ast::BaseExpr>> conditions;`：用 `AND` 连接的 condition
+
+在语法制导翻译后，保留多个条件的集合(由AND逻辑运算符分割)，并未构建成统一的表达式tree。
+
+这是考虑到构建的表达式此后将用于转换成代码，需要良好的结构，而查询语句本身的结构可能并不优雅，与其此后再拆分重组，不如仅保留平铺的多个简单条件集合，再对条件集合进行分类构建。
 
 <a id="query-compile-sql-check"></a>
 #### 语义检查
 
-TODO: 检查，加工 condition
+独立的语义检查仅针对条件表达式进行
 
-- table, column
-- join
-- ...
-
-处理结果是。。。
+- 检查简单条件是否为比较表达式
+- 检查条件中出现的表的列是否存在
+- 对常量间运算进行优化处理
 
 <a id="query-compile-tree"></a>
 ### 构建 Query Tree
 
-TODO: 如何从之前的若干个 vector 生成一棵树
+语义检查完成后，将使用此前语法解析得到的几个vector构建query tree。
+
+在构建前首先介绍一下query tree结点，其类型包括
+
+- EMIT：AP特有根结点，用于特殊处理
+- PROJECT
+- FILTER
+- JOIN
+- TABLE
+
+它们的基类如下
 
 ```c++
 class APMap;	// 逻辑列到物理列的映射
+
 struct APBaseOp {
 
     virtual bool isJoin();	// 判断是否为Join结点
 
-    // used to traversal
+    // 用于代码生成，自顶向下递归调用
     virtual void produce() {}
 
-    // source are used to check left/right child, map is constructed from bottom to top
+    // 用于代码生成，自底向上返回
     virtual void consume(APBaseOp *source, APMap &map) {}
 
     ap_op_t_t op_t_; // 节点类型
@@ -104,14 +128,115 @@ struct APBaseOp {
 };
 ```
 
+query tree自底向上构建
 
+- 对from中的每个表构建Table叶子结点
+- 对条件集合进行筛选，分类成简单条件，Join条件，多表复杂条件
+  - 简单条件仅涉及一个表的表列，对于简单条件，在对应的Table结点上构建Filter结点
+  - Join条件为涉及两个表表列的判等表达式，在参与Join的Table结点上构建Join结点。（考虑到后续代码生成，若参与Join的结点中仅包含一个子Join结点，将其调整为右子节点）
+  - 其他条件为复杂条件，复杂条件暂时还未处理
+- 在当前最上层结点上根据SELECT element构建APProjectOp结点
+- 在所有节点最上层，生成一个APEmitOp结点。
+
+需要注意的是，在最后的APEmitOp生成前，需要检查构建的结点树是否为森林。
+
+
+
+对于以下SQL语句
+
+`SELECT $ FROM Student, Score, Record
+WHERE Student.sid == Score.sid AND Student.sid == Record.sid
+AND Score.score <= 80;`
+
+最终生成的AST如下
+
+![codegen_AST](assets/codegen_AST.png)
 
 <a id="query-compile-codegen"></a>
 ### 生成代码
 
-TODO: 主要描述 produce consume 流程，列映射，每个结点的 codegen
+在生成query tree之后，使用构建的query tree生成代码，其主要工作在APBaseOP结点的虚函数`produce()`和`consume(...)`中完成，每个结点类型根据其需要生成的代码实现这两个函数。
+
+下面简要介绍一下两个函数
+
+- produce函数自顶向下递归调用，由Emit结点的produce调用开始
+  - 根据结点类型，生成其需要的代码行，这里生成的主要是与具体查询无关的固定代码
+  - 调用子结点的produce函数，若当前为Join结点，依次调用左右子结点
+  - 若当前为Table结点，则调用父结点的consume函数，并将Table结点包含的表的物理列映射和来源（即当前节点）向上传递
+- consume函数自底向上返回
+  - 返回过程中维护和传递中间表结构到物理列的映射
+  - 根据结点类型以及从下层获得的映射，生成代码行
+  - 将当前的物理列映射和来源（即当前节点）向上传递，若当前为Join结点，在传递前需要更新映射
 
 
+
+生成的代码行与query tree结构的对应是优雅的，对于此前SQL语句生成的query tree，其生成的代码如下
+
+（由于`produce`生成的代码部分是平凡的，不做标记。序号表示代码为`consume`生成，需要注意，对于JoinOp，该函数会被左右子节点调用两次，分别用两个序号表示）
+
+```cpp
+// this file is generated 
+#include "../include/ap_exec.h"
+#include "../include/vm.h"
+
+static DB::ap::block_tuple_t projection(const DB::ap::block_tuple_t &block) { return block; }
+
+extern "C"
+DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t &tables, DB::vm::VM *vm) {
+    DB::ap::VMEmitOp emit;
+    const DB::ap::ap_table_t &T0 = tables.at(0);	//①
+    const DB::ap::ap_table_t &T1 = tables.at(1);	//③
+    const DB::ap::ap_table_t &T2 = tables.at(2);	//⑤
+    DB::page::range_t rngLeft0{0, 4};							//②
+    DB::page::range_t rngRight0{0, 4};						//⑧
+    DB::page::range_t rngLeft1{0, 4};							//④
+    DB::page::range_t rngRight1{0, 4};						//⑦
+    DB::ap::hash_table_t ht0(rngLeft0, rngRight0, 24, 8, true);		//⑧
+    DB::ap::hash_table_t ht1(rngLeft1, rngRight1, 8, 32, true);		//⑦
+  
+    auto pipeline0 = [&]() {		//①
+        for (DB::ap::ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {		//①
+            DB::ap::block_tuple_t block = it.consume_block();		//①
+            ht1.insert(block);		//②
+        }		//②
+        ht1.build();		//②
+    };		//②
+    std::future<void> future0 = vm->register_task(pipeline0);		//②
+  
+    auto pipeline1 = [&]() {		//③
+        for (DB::ap::ap_block_iter_t it = T0.get_block_iter(); !it.is_end();) {		//③
+            DB::ap::block_tuple_t block = it.consume_block();		//③
+            ht0.insert(block);		//④
+        }		//④
+        ht0.build();		//④
+    };		//④
+    std::future<void> future1 = vm->register_task(pipeline1);		//④
+  
+    auto pipeline2 = [&]() {		//⑤
+        for (DB::ap::ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {		//⑤
+            DB::ap::block_tuple_t block = it.consume_block();			//⑤
+            block.selectivity_and(block.getINT({4, 4}) <= 80);		//⑥
+            DB::ap::join_result_buf_t join_result0 = ht0.probe(block);		//⑦
+            for (DB::ap::ap_block_iter_t it = join_result0.get_block_iter(); !it.is_end();){		//⑦
+                DB::ap::block_tuple_t block = it.consume_block();		//⑦
+                DB::ap::join_result_buf_t join_result1 = ht1.probe(block);		//⑧
+                for (DB::ap::ap_block_iter_t it = join_result1.get_block_iter(); !it.is_end();) {		//⑧
+                    DB::ap::block_tuple_t block = it.consume_block();		//⑧
+                    emit.emit(block);		//⑨
+                }		//⑨
+            }		//⑨
+        }		//⑨
+    };		//⑨
+    std::future<void> future2 = vm->register_task(pipeline2);		//⑨
+  
+    future2.wait();		//⑨
+    return emit;		//⑨
+  
+} // end codegen function
+
+```
+
+代码生成后，对其编译生成`.so`文件，并动态载入，进行查询
 
 
 <a id="query-compile-miscellaneous"></a>
@@ -121,6 +246,7 @@ TODO: 主要描述 produce consume 流程，列映射，每个结点的 codegen
 
 &nbsp;   
 <a id="query-exec"></a>
+
 ## Query Execution 方案
 
 <img src="assets/push-based-pipeline.png" width=600/>
@@ -186,6 +312,7 @@ TODO: 主要描述 produce consume 流程，列映射，每个结点的 codegen
 - [Rethinking SIMD Vectorization for In-Memory Databases 论文阅读笔记](https://github.com/rsy56640/paper-reading/tree/master/%E6%95%B0%E6%8D%AE%E5%BA%93/content/Rethinking%20SIMD%20Vectorization%20for%20In-Memory%20Databases)
 
 <a id="query-exec-miscellaneous"></a>
+
 ### 其他
 
 - 多线程执行：以 pipeline 为单位任务
