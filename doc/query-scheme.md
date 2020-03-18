@@ -167,62 +167,62 @@ extern "C"
 DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t &tables, DB::vm::VM *vm) {
 
     DB::ap::VMEmitOp emit;
-    const DB::ap::ap_table_t &T0 = tables.at(0);                                        //①
-    const DB::ap::ap_table_t &T1 = tables.at(1);                                        //③
-    const DB::ap::ap_table_t &T2 = tables.at(2);                                        //⑤
-    DB::page::range_t rngLeft0{0, 4};                                                      //②
-    DB::page::range_t rngRight0{0, 4};	                                                   //⑧
-    DB::page::range_t rngLeft1{0, 4};                                                      //④
-    DB::page::range_t rngRight1{0, 4};                                                    //⑦
+    const DB::ap::ap_table_t &T0 = tables.at(0);                                  //①
+    const DB::ap::ap_table_t &T1 = tables.at(1);                                  //③
+    const DB::ap::ap_table_t &T2 = tables.at(2);                                  //⑤
+    DB::page::range_t rngLeft0{0, 4};                                             //②
+    DB::page::range_t rngRight0{0, 4};	                                          //⑧
+    DB::page::range_t rngLeft1{0, 4};                                             //④
+    DB::page::range_t rngRight1{0, 4};                                            //⑦
     DB::ap::hash_table_t ht0(rngLeft0, rngRight0, 24, 8, true);                   //⑧
     DB::ap::hash_table_t ht1(rngLeft1, rngRight1, 8, 32, true);                   //⑦
 
 
-    auto pipeline0 = [&]() {                                                                      //①
-        for (DB::ap::ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {   //①
-            DB::ap::block_tuple_t block = it.consume_block();                        //①
+    auto pipeline0 = [&]() {                                                     //①
+        for (DB::ap::ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {  //①
+            DB::ap::block_tuple_t block = it.consume_block();                    //①
 
-            ht1.insert(block);	                                                                       //②
-        }                                                                                                  //②
-        ht1.build();                                                                                    //②
-    };                                                                                                     //②
+            ht1.insert(block);	                                                 //②
+        }                                                                        //②
+        ht1.build();                                                             //②
+    };                                                                           //②
     std::future<void> future0 = vm->register_task(pipeline0);                    //②
 
 
-    auto pipeline1 = [&]() {                                                                      //③
+    auto pipeline1 = [&]() {                                                      //③
         for (DB::ap::ap_block_iter_t it = T0.get_block_iter(); !it.is_end();) {   //③
-            DB::ap::block_tuple_t block = it.consume_block();                        //③
+            DB::ap::block_tuple_t block = it.consume_block();                     //③
 
-            ht0.insert(block);                                                                       //④
-        }                                                                                                  //④
-        ht0.build();                                                                                    //④
-    };                                                                                                     //④
-    std::future<void> future1 = vm->register_task(pipeline1);                    //④
+            ht0.insert(block);                                                    //④
+        }                                                                         //④
+        ht0.build();                                                              //④
+    };                                                                            //④
+    std::future<void> future1 = vm->register_task(pipeline1);                     //④
 
 
-    auto pipeline2 = [&]() {                                                                                            //⑤
-        for (DB::ap::ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {                        //⑤
-            DB::ap::block_tuple_t block = it.consume_block();                                              //⑤
+    auto pipeline2 = [&]() {                                                                       //⑤
+        for (DB::ap::ap_block_iter_t it = T1.get_block_iter(); !it.is_end();) {                    //⑤
+            DB::ap::block_tuple_t block = it.consume_block();                                      //⑤
 
-            block.selectivity_and(block.getINT({4, 4}) <= 80);                                              //⑥
+            block.selectivity_and(block.getINT({4, 4}) <= 80);                                     //⑥
 
-            DB::ap::join_result_buf_t join_result0 = ht0.probe(block);                                   //⑦
-            for (DB::ap::ap_block_iter_t it = join_result0.get_block_iter(); !it.is_end();){        //⑦
-                DB::ap::block_tuple_t block = it.consume_block();                                          //⑦
+            DB::ap::join_result_buf_t join_result0 = ht0.probe(block);                             //⑦
+            for (DB::ap::ap_block_iter_t it = join_result0.get_block_iter(); !it.is_end();){       //⑦
+                DB::ap::block_tuple_t block = it.consume_block();                                  //⑦
 
-                DB::ap::join_result_buf_t join_result1 = ht1.probe(block);                               //⑧
-                for (DB::ap::ap_block_iter_t it = join_result1.get_block_iter(); !it.is_end();) {   //⑧
-                    DB::ap::block_tuple_t block = it.consume_block();                                      //⑧
+                DB::ap::join_result_buf_t join_result1 = ht1.probe(block);                         //⑧
+                for (DB::ap::ap_block_iter_t it = join_result1.get_block_iter(); !it.is_end();) {  //⑧
+                    DB::ap::block_tuple_t block = it.consume_block();                              //⑧
 
-                    emit.emit(block);                                                                                     //⑨
-                }                                                                                                               //⑨
-            }                                                                                                                   //⑨
-        }	                                                                                                                       //⑨
-    };                                                                                                                          //⑨
-    std::future<void> future2 = vm->register_task(pipeline2);                                          //⑨
+                    emit.emit(block);                                                              //⑨
+                }                                                                                  //⑨
+            }                                                                                      //⑨
+        }	                                                                                       //⑨
+    };                                                                                             //⑨
+    std::future<void> future2 = vm->register_task(pipeline2);                                      //⑨
 
-    future2.wait();                                                                                                         //⑨
-    return emit;                                                                                                            //⑨
+    future2.wait();                                                                                //⑨
+    return emit;                                                                                   //⑨
 
 }
 ```
