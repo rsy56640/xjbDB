@@ -141,12 +141,12 @@ FROM Student, Score, Record
 WHERE Student.sid == Score.sid AND Student.sid == Record.sid AND Score.score <= 80;
 ```
 
-<img src="assets/codegen_AST.png" width="480"/>
+<img src="assets/codegen_AST.png" width="540"/>
 
 <a id="query-compile-codegen"></a>
 ### 生成代码
 
-在生成 query tree 之后，使用构建的 query tree 生成代码，其主要工作在 APBaseOP 结点的虚函数 `produce()` 和 `consume(...)` 中完成，每个结点类型根据其需要生成的代码实现这两个函数。逻辑列到物理列的映射在 `consume()` 中向上传递。
+在生成 query tree 之后，使用构建的 query tree 生成代码，其主要工作在 APBaseOP 结点的虚函数 `produce()` 和 `consume()` 中完成，每个结点类型根据其需要生成的代码实现这两个函数。逻辑列到物理列的映射在 `consume()` 中向上传递。
 
 - `produce()` 函数自顶向下递归调用，由 Emit 结点的 `produce()` 调用开始
   - 根据结点类型，生成其需要的代码行，这里生成的主要是与具体查询无关的固定代码
@@ -178,15 +178,15 @@ DB::ap::VMEmitOp query(const DB::ap::ap_table_array_t &tables, DB::vm::VM *vm) {
     DB::ap::hash_table_t ht1(rngLeft1, rngRight1, 8, 32, true);                   //⑦
 
 
-    auto pipeline0 = [&]() {                                                     //①
-        for (DB::ap::ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {  //①
-            DB::ap::block_tuple_t block = it.consume_block();                    //①
+    auto pipeline0 = [&]() {                                                      //①
+        for (DB::ap::ap_block_iter_t it = T2.get_block_iter(); !it.is_end();) {   //①
+            DB::ap::block_tuple_t block = it.consume_block();                     //①
 
-            ht1.insert(block);	                                                 //②
-        }                                                                        //②
-        ht1.build();                                                             //②
-    };                                                                           //②
-    std::future<void> future0 = vm->register_task(pipeline0);                    //②
+            ht1.insert(block);	                                                  //②
+        }                                                                         //②
+        ht1.build();                                                              //②
+    };                                                                            //②
+    std::future<void> future0 = vm->register_task(pipeline0);                     //②
 
 
     auto pipeline1 = [&]() {                                                      //③
