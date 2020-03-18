@@ -7,7 +7,7 @@
 - query-codegen
 - query-execution
 
-
+[设计文档](https://github.com/rsy56640/xjbDB/blob/query/doc/query-scheme.md)
 
 -----
 
