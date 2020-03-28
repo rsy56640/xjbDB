@@ -563,6 +563,7 @@ namespace DB::vm
 
         auto begin = std::chrono::system_clock::now();
         VirtualTable result_table = info.opRoot->getOutput();
+        result_table.waitAll();
         auto end = std::chrono::system_clock::now();
         print_timing("TP query", begin, end);
 
@@ -589,28 +590,34 @@ namespace DB::vm
         query_print_n();
         println();
 
-        uint32_t cnt = 0;
-        row_view rv = result_table.getRow();
-        while (!rv.isEOF())
-        {
-            cnt++;
-            const ValueEntry& vEntry = *rv.row_;
-            for (output_t output : outputCol) {
-                if (output.col_t == col_t_t::INTEGER) {
-                    query_print("%d\t", get_range_INT(vEntry, output.range));
+        if(debug::TP_QUERY_OUTPUT) {
+            uint32_t cnt = 0;
+            row_view rv = result_table.getRowAfterWaitAll();
+            while (!rv.isEOF())
+            {
+                cnt++;
+                const ValueEntry& vEntry = *rv.row_;
+                for (output_t output : outputCol) {
+                    if (output.col_t == col_t_t::INTEGER) {
+                        query_print("%d\t", get_range_INT(vEntry, output.range));
+                    }
+                    else {
+                        std::string s = get_range_VARCHAR(vEntry, output.range);
+                        query_print("%s\t", s.c_str());
+                    }
                 }
-                else {
-                    std::string s = get_range_VARCHAR(vEntry, output.range);
-                    query_print("%s\t", s.c_str());
-                }
+                query_print_n();
+                rv = result_table.getRowAfterWaitAll();
             }
+            println();
+            query_print("output size = %d", cnt);
             query_print_n();
-            rv = result_table.getRow();
+            println();
+        } // end if debug::TP_QUERY_OUTPUT
+        else {
+            query_print("output size = %d\n", result_table.size());
+            println();
         }
-        println();
-        query_print("output size = %d", cnt);
-        query_print_n();
-        println();
     }
 
     void VM::doUpdate(process_result_t& result, const query::UpdateInfo& info)
@@ -1176,7 +1183,7 @@ namespace DB::vm
             ret.addEOF();
         }
         else {
-            std::deque<row_view> table1 = t1.waitAll();
+            std::deque<row_view> table1 = t1.getAll();
             row_view r2 = t2.getRow();
             while (!r2.isEOF()) {
                 for (row_view r1 : table1) {
@@ -1277,18 +1284,20 @@ namespace DB::vm
         query_print_n();
         println();
         const uint32_t output_size = emit.rows_.size();
-        for(const ap::ap_row_t row : emit.rows_) {
-            for(const table::attr_t& attr : schema.attrs_) {
-                if(attr.attr_range_.col_t_ == col_t_t::INTEGER) {
-                    query_print("%d\t", row.getINT(attr.attr_range_.range_));
+        if(debug::AP_QUERY_OUTPUT) {
+            for(const ap::ap_row_t row : emit.rows_) {
+                for(const table::attr_t& attr : schema.attrs_) {
+                    if(attr.attr_range_.col_t_ == col_t_t::INTEGER) {
+                        query_print("%d\t", row.getINT(attr.attr_range_.range_));
+                    }
+                    else {
+                        query_print(row.getVARCHAR(attr.attr_range_.range_));
+                        query_print("\t");
+                    }
                 }
-                else {
-                    query_print(row.getVARCHAR(attr.attr_range_.range_));
-                    query_print("\t");
-                }
+                query_print_n();
             }
-            query_print_n();
-        }
+        } // end if debug::AP_QUERY_OUTPUT
         query_print("output size = %d\n", output_size);
         println();
 

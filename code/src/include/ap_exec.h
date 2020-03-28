@@ -202,7 +202,7 @@ namespace DB::ap {
         const page::range_t left_, right_;
         const uint32_t left_len_, right_len_;
         const bool left_unique_;
-        int32_t* bucket_size_;
+        int32_t* bucket_size_; // no use after build phase
 
         // since SIMD compare has no mask,
         // key_col_[0] must be an existing key.

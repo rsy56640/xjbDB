@@ -165,12 +165,12 @@ namespace DB::ap {
                 rows_.push_back(block.rows_[i]);
             }
         }
-        if(debug::AP_EXEC) {
+        if(debug::AP_EXEC_EMIT) {
             for(uint32_t i = 0; i < VECTOR_SIZE; i++) {
                 if(likely(block.select_[i])) {
-                    std::cout << "emit tuple: "
-                              << block.rows_[i].to_string()
-                              << std::endl;
+                    debug::DEBUG_LOG(debug::AP_EXEC_EMIT,
+                                     "emit tuple: %s\n",
+                                     block.rows_[i].to_string());
                 }
             }
         }
@@ -246,11 +246,11 @@ namespace DB::ap {
         // build `key_col_` (btw, `key2rowid_`)
         key_col_[0] = lucky_key_;
         auto it = row_buf_.cbegin();
-        for(uint32_t i = 1; i <= N; i++, ++it) {
+        for(uint32_t i = 0; i < N; i++, ++it) {
             const int32_t key = it->getINT(left_);
             const uint32_t bucket_no = hash2bucket(key);
             key_col_[bucket_head[bucket_no]] = key;
-            key2rowid_[bucket_head[bucket_no]] = i - 1;
+            key2rowid_[bucket_head[bucket_no]] = i;
             bucket_head[bucket_no]++;
         }
 

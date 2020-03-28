@@ -4,7 +4,7 @@
 #include <variant>
 #include <vector>
 #include <unordered_map>
-#include <queue>
+#include <deque>
 #include <utility>
 #include <memory>
 #include "env.h"
@@ -97,7 +97,7 @@ namespace DB::table
     class VirtualTable
     {
         struct channel_t {
-            std::queue<row_view> row_buffer_;
+            std::deque<row_view> row_buffer_;
             std::mutex mtx_;
             std::condition_variable cv_;
         };
@@ -115,7 +115,9 @@ namespace DB::table
         uint32_t size() const;              // decide the size before iterating all rows.
 
         row_view getRow();                  // might be stuck
-        std::deque<row_view> waitAll();     // might be stuck
+        std::deque<row_view> getAll();      // might be stuck
+        void waitAll();                     // might be stuck
+        row_view getRowAfterWaitAll();      // might not be stuck
 
         table_view table_view_;             // info of table: col, constraint...
 
