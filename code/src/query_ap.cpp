@@ -4,20 +4,28 @@
 
 #include "debug_log.h"
 #include "query_ap.h"
-#include "include/lexer.h"
-#include "include/debug_log.h"
+#include "timing.h"
+#include "lexer.h"
 #include "parse_ap.h"
 #include <algorithm>
 #include <dlfcn.h>
 #include <fstream>
 #include <unistd.h>
 
-namespace DB::query{
+namespace DB::query {
 
     void APSelectInfo::generateCode()
     {
+        auto begin = std::chrono::system_clock::now();
         auto emit = generateAst(tables, conditions);
+        auto end = std::chrono::system_clock::now();
+        print_timing("generate ast", begin, end);
+
+        begin = std::chrono::system_clock::now();
         auto code = ast::generateCode(emit);
+        end = std::chrono::system_clock::now();
+        print_timing("generate code", begin, end);
+
         set_schema(emit->_map);
 
         std::ofstream outfile;
@@ -45,12 +53,18 @@ namespace DB::query{
             "-fPIC -shared -L. -lap_exec -lpthread -Wl,-rpath=. ";
         const std::string compile_output =
             "-o query.so ";
-        system((compile_header + compile_option + compile_link_option + compile_output).c_str());
+        const std::string compile =
+            compile_header + compile_option + compile_link_option + compile_output;
+        auto begin = std::chrono::system_clock::now();
+        system(compile.c_str());
+        auto end = std::chrono::system_clock::now();
+        print_timing("compile", begin, end);
     }
 
     void APSelectInfo::load()
     {
         system("export LD_LIBRARY_PATH=.");
+        auto begin = std::chrono::system_clock::now();
         _handle = dlopen("./query.so", RTLD_LAZY);
         if(const char* error = dlerror()) {
             printf("[dlerror] dlopen: %s\n", error);
@@ -62,6 +76,8 @@ namespace DB::query{
         if(const char* error = dlerror()) {
             printf("[dlerror] dlsym: %s\n", error);
         }
+        auto end = std::chrono::system_clock::now();
+        print_timing("dynamic load", begin, end);
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
                          ">>> [load] query function pointer: %p\n", _query_);
     }
@@ -70,10 +86,13 @@ namespace DB::query{
     {
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
                          ">>> [close] close query.so handler: %p\n", _handle);
+        auto begin = std::chrono::system_clock::now();
         dlclose(_handle);
         if(const char* error = dlerror()) {
             printf("[dlerror] dlclose: %s\n", error);
         }
+        auto end = std::chrono::system_clock::now();
+        print_timing("close", begin, end);
     }
 
 
@@ -81,7 +100,11 @@ namespace DB::query{
     {
         debug::DEBUG_LOG(debug::AP_EXEC,
                          ">>> [query] query execution starts\n");
-        return _query_(tables, vm);
+        auto begin = std::chrono::system_clock::now();
+        ap::VMEmitOp emit = _query_(tables, vm);
+        auto end = std::chrono::system_clock::now();
+        print_timing("AP query", begin, end);
+        return emit;
     }
 
     void APSelectInfo::set_schema(const ast::APMap& map)

@@ -112,7 +112,7 @@ namespace DB::table
 
     void VirtualTable::addRow(row_view row) {
         std::lock_guard<std::mutex> lg{ ch_->mtx_ };
-        ch_->row_buffer_.push(row);
+        ch_->row_buffer_.push_back(row);
         ch_->cv_.notify_one();
     }
 
@@ -120,7 +120,7 @@ namespace DB::table
         row_view eof_row(table_view_, {});
         eof_row.setEOF();
         std::lock_guard<std::mutex> lg{ ch_->mtx_ };
-        ch_->row_buffer_.push(eof_row);
+        ch_->row_buffer_.push_back(eof_row);
         ch_->cv_.notify_one();
     }
 
@@ -132,21 +132,37 @@ namespace DB::table
         std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
         ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });
         row_view row = ch_->row_buffer_.front();
-        ch_->row_buffer_.pop();
+        ch_->row_buffer_.pop_front();
         return row;
     }
 
-    std::deque<row_view> VirtualTable::waitAll() {
+    std::deque<row_view> VirtualTable::getAll() {
         std::deque<row_view> ret_table;
         std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
         while (ret_table.empty() || !ret_table.back().isEOF()) {
             ch_->cv_.wait(ulk, [this]() { return !ch_->row_buffer_.empty(); });
             while (!ch_->row_buffer_.empty()) {
                 ret_table.push_back(ch_->row_buffer_.front());
-                ch_->row_buffer_.pop();
+                ch_->row_buffer_.pop_front();
             }
         }
         return ret_table;
+    }
+
+    void VirtualTable::waitAll() {
+        std::unique_lock<std::mutex> ulk{ ch_->mtx_ };
+        ch_->cv_.wait(ulk,
+                      [this]() {
+                        return !ch_->row_buffer_.empty() &&
+                                ch_->row_buffer_.back().isEOF();
+                     });
+        set_size(ch_->row_buffer_.size() - 1); // -1 for EOF
+    }
+
+    row_view VirtualTable::getRowAfterWaitAll() {
+        row_view row = ch_->row_buffer_.front();
+        ch_->row_buffer_.pop_front();
+        return row;
     }
 
 

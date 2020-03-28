@@ -51,14 +51,20 @@ namespace DB::debug
         PARSE_LOG = false,
         QUERY_LOG = false,
 
+        TP_QUERY_OUTPUT = false,
+        AP_QUERY_OUTPUT = false,
+
         NON_DEBUG = false,
         xbjDB_DEBUG = true,
 
         AP_AST = true,
         AP_COMPILE = true,
         AP_DYNAMIC_LOAD = true,
-        AP_EXEC = false,
 
+        AP_EXEC = false,
+        AP_EXEC_EMIT = false,
+
+        TIMING = true,
 
         CONTROL = true;
 

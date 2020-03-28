@@ -98,11 +98,11 @@ void test()
     printf("--------------------- test begin ---------------------\n");
 
     printf("enter: (x, y)\n");
+    printf("\t x=0 for query test.\n");
     printf("\t x=1 for create scattered data.\n");
     printf("\t x=2 for create skewed data.\n");
-    printf("\t x=other for query test.\n");
     printf("\t y=0 for continuing after create\n");
-    printf("\t y=other for existing after create.\n");
+    printf("\t y=1 for existing after create.\n");
     int x, y;
     std::cin >> x >> y;
     printf("[x=%d] [y=%d]\n", x, y);
