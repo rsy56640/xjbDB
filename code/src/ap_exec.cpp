@@ -2,12 +2,12 @@
 #include <cstring>
 
 namespace DB::debug {
-    void debug_VECTOR_INT(ap::VECTOR_INT vec, const char* name) {
-        printf("[VECTOR_INT \"%s\"]:", name);
+    void debug_VECTOR_INT(bool config, ap::VECTOR_INT vec, const char* name) {
+        debug::DEBUG_LOG(debug::AP_EXEC && config, "[VECTOR_INT \"%s\"]:", name);
         for(int32_t i = 0; i < ap::VECTOR_SIZE; i++) {
-            printf(" %d", vec[i]);
+            debug::DEBUG_LOG(debug::AP_EXEC && config, " %d", vec[i]);
         }
-        printf("\n");
+        debug::DEBUG_LOG(debug::AP_EXEC && config, "\n");
     }
 }
 
@@ -192,15 +192,12 @@ namespace DB::ap {
 
     // return before `% BUCKET_AMOUNT`
     uint32_t hash2bucket(int32_t key) {
-        return std::hash<uint32_t>()(key) % hash_table_t::BUCKET_AMOUNT;
+        // return std::hash<uint32_t>()(key) % hash_table_t::BUCKET_AMOUNT;
+        return key % hash_table_t::BUCKET_AMOUNT;
     }
     // return before `% BUCKET_AMOUNT`
     VECTOR_INT hash2bucket(VECTOR_INT keys) {
-        // OPTIMIZATION: SIMD mod
-        for(uint32_t i = 0; i < VECTOR_SIZE; i++) {
-            keys[i] = hash2bucket(keys[i]);
-        }
-        return keys;
+        return simd_mod256(keys);
     }
 
 
@@ -224,7 +221,7 @@ namespace DB::ap {
         key_col_ = new int32_t[N + 1];
         bucket_head_ = new int32_t[BUCKET_AMOUNT];
         next_ = new int32_t[N + 1];
-        key2rowid_.resize(N + 1);
+        keypos2rowid_.resize(N + 1);
 
         // compute `bucket_head_`
         uint32_t count = 1;
@@ -239,7 +236,19 @@ namespace DB::ap {
             count += bucket_cnt_i;
         }
 
-        // reuse `bucket_size_` as `bucket_head_` for build `key_col_`
+        // debug bucket_size_[]
+        debug::DEBUG_LOG(debug::AP_EXEC_BUCKET_SIZE,
+                         "----------------- hash bucket size begin -----------------\n");
+        for(int32_t i = 0; i < BUCKET_AMOUNT; i++) {
+            debug::DEBUG_LOG(debug::AP_EXEC_BUCKET_SIZE,
+                             "bucket_size_[%d] = %d\n",
+                             i, bucket_size_[i]);
+        }
+        debug::DEBUG_LOG(debug::AP_EXEC_BUCKET_SIZE,
+                         "----------------- hash bucket size end -----------------\n");
+
+        // reuse `bucket_size_` as `bucket_head_` for build `key_col_`,
+        // and after build phase, `bucket_size_` will act as `bucket_end_exclusive_`.
         std::memcpy(bucket_size_, bucket_head_, BUCKET_AMOUNT * sizeof(uint32_t));
         int32_t* bucket_head = bucket_size_;
 
@@ -249,8 +258,9 @@ namespace DB::ap {
         for(uint32_t i = 0; i < N; i++, ++it) {
             const int32_t key = it->getINT(left_);
             const uint32_t bucket_no = hash2bucket(key);
-            key_col_[bucket_head[bucket_no]] = key;
-            key2rowid_[bucket_head[bucket_no]] = i;
+            const uint32_t key_pos = bucket_head[bucket_no];
+            key_col_[key_pos] = key;
+            keypos2rowid_[key_pos] = i;
             bucket_head[bucket_no]++;
         }
 
@@ -269,14 +279,27 @@ namespace DB::ap {
         // set completion
         build_completion_.set_value();
 
-        if(debug::AP_EXEC) {
-            printf("----------------- hash bucket begin -----------------\n");
-            printf("key\t\tnext\n");
-            for(int32_t i = 0; i < N + 1; i++) {
-                printf("%d\t\t%d\n", key_col_[i], next_[i]);
-            }
-            printf("----------------- hash bucket end -----------------\n");
+        // debug bucket_head_[]
+        debug::DEBUG_LOG(debug::AP_EXEC_HISTOGRAM,
+                         "----------------- hash bucket histogram begin -----------------\n");
+        for(int32_t i = 0; i < BUCKET_AMOUNT; i++) {
+            debug::DEBUG_LOG(debug::AP_EXEC_HISTOGRAM,
+                             "bucket_head_[%d] = %d\t\tbucket_end_exclusive_[%d] = %d\n",
+                             i, bucket_head_[i], i, bucket_size_[i]);
         }
+        debug::DEBUG_LOG(debug::AP_EXEC_HISTOGRAM,
+                         "----------------- hash bucket histogram end -----------------\n");
+        // debug key_col_[], next_[]
+        debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET,
+                         "----------------- hash bucket begin -----------------\n");
+        debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET, "key\t\tnext\n");
+        for(int32_t i = 0; i < N + 1; i++) {
+            debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET,
+                             "key_col_[%d] = %d\t\tnext_[%d] = %d\n",
+                             i, key_col_[i], i, next_[i]);
+        }
+        debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET,
+                         "----------------- hash bucket end -----------------\n");
     }
 
 
@@ -284,6 +307,13 @@ namespace DB::ap {
     ap_row_t splice(const ap_row_t& left, const ap_row_t& right,
                     uint32_t left_len, uint32_t right_len) {
         return { page::splice_vEntry(left.row, right.row, left_len, right_len) };
+    }
+
+
+    VECTOR_INT hash_table_t::get_end_inclusive(VECTOR_INT bucket_no) const {
+        int32_t* bucket_end_exclusive_ = bucket_size_;
+        VECTOR_INT end_exclusive = simd_gatheri32(bucket_end_exclusive_, bucket_no);
+        return end_exclusive - simd_int2bool(end_exclusive);
     }
 
 
@@ -295,67 +325,64 @@ namespace DB::ap {
         }
 
         join_result_buf_t result;
+
         const VECTOR_INT probe_keys = block.getINT(right_);
-        if(debug::AP_EXEC) {
-            debug::debug_VECTOR_INT(probe_keys, "probe keys");
-        }
+        debug::debug_VECTOR_INT(debug::AP_EXEC_PROBE_KEYS, probe_keys, "probe keys");
 
         // pos: probe[i] might be equal to build[pos[i]]
-        VECTOR_INT pos = gatheri32(bucket_head_, hash2bucket(probe_keys));
-        if(debug::AP_EXEC) {
-            debug::debug_VECTOR_INT(pos, "pos");
-        }
+        const VECTOR_INT bucket_no = hash2bucket(probe_keys);
+        VECTOR_INT pos = simd_gatheri32(bucket_head_, bucket_no);
+        debug::debug_VECTOR_INT(debug::AP_EXEC_POS, pos, "pos");
+
+        const VECTOR_INT end_inclusive = get_end_inclusive(bucket_no);
+        debug::debug_VECTOR_INT(debug::AP_EXEC_END_INCLUSIVE, end_inclusive, "end_inclusive");
 
         // maybe_match (0-1 mask vector):
         //      maybe_match[i] == 1(0) <=> probe[i] should(not) be checked
         VECTOR_INT maybe_match = simd_int2bool(pos) & block.select_;
-        if(debug::AP_EXEC) {
-            debug::debug_VECTOR_INT(maybe_match, "maybe_match");
-        }
+        debug::debug_VECTOR_INT(debug::AP_EXEC_BLOCK_SELECTIVITY, block.select_, "block selectivity");
+        debug::debug_VECTOR_INT(debug::AP_EXEC_MAYBE_MATCH, maybe_match, "maybe_match");
 
         VECTOR_INT build_keys = get_vec(lucky_key_);
+        debug::debug_VECTOR_INT(debug::AP_EXEC_LUCKY_KEYS, build_keys, "lucky keys");
 
         for(;;) {
+            // prepare build_keys from key_col,
+            // lucky_key is stuffed into the position where key does not match.
             build_keys =
-                mask_gatheri32(build_keys, key_col_, pos, zero_one_mask_2_vector_mask(maybe_match));
-            if(debug::AP_EXEC) {
-                printf("try to match ");
-                debug::debug_VECTOR_INT(build_keys, "build keys");
-            }
+                simd_mask_gatheri32(build_keys, key_col_, pos, zero_one_mask_2_vector_mask(maybe_match));
+            debug::DEBUG_LOG(debug::AP_EXEC_BUILD_KEYS, "try to match ");
+            debug::debug_VECTOR_INT(debug::AP_EXEC_BUILD_KEYS, build_keys, "build keys");
 
             // Do not need to worry about NULL-key in empty bucket,
             // since we use a lucky key to prevent corresponding keys being equally.
-            VECTOR_INT check = simd_compare_eq(build_keys, probe_keys)
-                               & maybe_match;
-            if(debug::AP_EXEC) {
-                debug::debug_VECTOR_INT(check, "check");
-            }
+            // NB: since the block may have non-full selectivity,
+            //     the `check` might not be included in `maybe_match`, (actually overlapped)
+            //     thus we have to use `maybe_match` as mask to filter the `check`.
+            VECTOR_INT check = simd_compare_eq_mask(build_keys, probe_keys, maybe_match);
+            debug::debug_VECTOR_INT(debug::AP_EXEC_CHECK, check, "check");
 
             // materialize join result
             for(uint32_t i = 0; i < VECTOR_SIZE; i++) {
                 // build_keys[pos[i]] == probe_keys[i]
                 if(check[i]) {
-                    const uint32_t rowid = key2rowid_[pos[i]];
+                    const uint32_t rowid = keypos2rowid_[pos[i]];
                     result.rows_.push_back(splice(row_buf_[rowid], block.rows_[i], left_len_, right_len_));
-                    if(debug::AP_EXEC) {
-                        printf("join on key = %d\n", probe_keys[i]);
-                    }
+                    debug::DEBUG_LOG(debug::AP_EXEC_JOIN_RESULT,
+                                     "join on key = %d\n",
+                                     probe_keys[i]);
                 }
             }
 
             if(left_unique_) {
                 maybe_match = maybe_match - check;
-                if(debug::AP_EXEC) {
-                    debug::debug_VECTOR_INT(maybe_match, "maybe_match");
-                }
+                debug::debug_VECTOR_INT(debug::AP_EXEC_MAYBE_MATCH, maybe_match, "maybe_match");
             }
 
             // checkout whether pos can go next
-            maybe_match =
-                mask_gatheri32(maybe_match, next_, pos, zero_one_mask_2_vector_mask(maybe_match));
-            if(debug::AP_EXEC) {
-                debug::debug_VECTOR_INT(maybe_match, "maybe_match");
-            }
+            maybe_match = maybe_match & (pos != end_inclusive);
+                // simd_mask_gatheri32(maybe_match, next_, pos, zero_one_mask_2_vector_mask(maybe_match));
+            debug::debug_VECTOR_INT(debug::AP_EXEC_MAYBE_MATCH, maybe_match, "maybe_match");
 
             // no need to process, return
             if(simd_all_eq(maybe_match, ZERO_VEC)) {
@@ -364,9 +391,7 @@ namespace DB::ap {
 
             // check next round
             pos = pos + maybe_match;
-            if(debug::AP_EXEC) {
-                debug::debug_VECTOR_INT(pos, "pos");
-            }
+            debug::debug_VECTOR_INT(debug::AP_EXEC_POS, pos, "pos");
         }
 
         return result;
