@@ -179,7 +179,7 @@ namespace DB::ap {
         hash_table_t(page::range_t left, page::range_t right, uint32_t left_len, uint32_t right_len, bool left_unique)
             :left_(left), right_(right),
              left_len_(left_len), right_len_(right_len), left_unique_(left_unique),
-             key2rowid_(), row_buf_()
+             keypos2rowid_(), row_buf_()
             {
                 bucket_size_ = new int32_t[BUCKET_AMOUNT];
                 std::memset(bucket_size_, 0, BUCKET_AMOUNT * sizeof(int32_t));
@@ -195,6 +195,10 @@ namespace DB::ap {
         join_result_buf_t probe(const block_tuple_t&) const;
 
     private:
+
+        VECTOR_INT get_end_inclusive(VECTOR_INT bucket_no) const;
+
+    private:
         // for concurrent execution
         mutable bool build_completed_ = false;
         mutable std::promise<void> build_completion_;
@@ -202,7 +206,11 @@ namespace DB::ap {
         const page::range_t left_, right_;
         const uint32_t left_len_, right_len_;
         const bool left_unique_;
-        int32_t* bucket_size_; // no use after build phase
+
+        // count amount of key in each bucket in insert phase.
+        // After build phase, `bucket_size_` will act as `bucket_end_exclusive_`,
+        // and will be used only in `get_end_inclusive(bucket_no)`.
+        int32_t* bucket_size_;
 
         // since SIMD compare has no mask,
         // key_col_[0] must be an existing key.
@@ -217,8 +225,8 @@ namespace DB::ap {
         // record bucket chain
         int32_t* next_; // size = N + 1
 
-        // record which row is mapped to the ey
-        std::vector<uint32_t> key2rowid_; // size = N + 1
+        // record which row is mapped to the key
+        std::vector<uint32_t> keypos2rowid_; // size = N + 1
 
         // materialized row buffer
         std::deque<ap_row_t> row_buf_; // size = N

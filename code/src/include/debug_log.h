@@ -63,11 +63,13 @@ namespace DB::debug
 
         AP_EXEC = false,
         // build phase
+        AP_EXEC_BUCKET_SIZE = false,
         AP_EXEC_HISTOGRAM = false,
         AP_EXEC_HASH_BUCKET = false,
         // probe phase
         AP_EXEC_PROBE_KEYS = false,
         AP_EXEC_POS = false,
+        AP_EXEC_END_INCLUSIVE = false,
         AP_EXEC_LUCKY_KEYS = false,
         AP_EXEC_BUILD_KEYS = false,
         AP_EXEC_BLOCK_SELECTIVITY = false,

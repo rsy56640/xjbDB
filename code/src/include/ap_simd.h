@@ -149,10 +149,10 @@ namespace DB::ap {
 
     // SIMD gather/scatter
     inline VECTOR_INT zero_one_mask_2_vector_mask(VECTOR_INT mask) { return { _mm256_slli_epi32(mask.vec_, 31) }; }
-    inline VECTOR_INT gatheri32(const int32_t* base, VECTOR_INT index) {
+    inline VECTOR_INT simd_gatheri32(const int32_t* base, VECTOR_INT index) {
         return { _mm256_i32gather_epi32(base, index.vec_, sizeof(int32_t)) };
     }
-    inline VECTOR_INT mask_gatheri32(VECTOR_INT src, const int32_t* base, VECTOR_INT index, VECTOR_INT mask) {
+    inline VECTOR_INT simd_mask_gatheri32(VECTOR_INT src, const int32_t* base, VECTOR_INT index, VECTOR_INT mask) {
         return { _mm256_mask_i32gather_epi32(src.vec_, base, index.vec_, mask.vec_, sizeof(int32_t)) };
     }
 

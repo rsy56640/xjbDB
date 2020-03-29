@@ -221,7 +221,7 @@ namespace DB::ap {
         key_col_ = new int32_t[N + 1];
         bucket_head_ = new int32_t[BUCKET_AMOUNT];
         next_ = new int32_t[N + 1];
-        key2rowid_.resize(N + 1);
+        keypos2rowid_.resize(N + 1);
 
         // compute `bucket_head_`
         uint32_t count = 1;
@@ -236,7 +236,19 @@ namespace DB::ap {
             count += bucket_cnt_i;
         }
 
-        // reuse `bucket_size_` as `bucket_head_` for build `key_col_`
+        // debug bucket_size_[]
+        debug::DEBUG_LOG(debug::AP_EXEC_BUCKET_SIZE,
+                         "----------------- hash bucket size begin -----------------\n");
+        for(int32_t i = 0; i < BUCKET_AMOUNT; i++) {
+            debug::DEBUG_LOG(debug::AP_EXEC_BUCKET_SIZE,
+                             "bucket_size_[%d] = %d\n",
+                             i, bucket_size_[i]);
+        }
+        debug::DEBUG_LOG(debug::AP_EXEC_BUCKET_SIZE,
+                         "----------------- hash bucket size end -----------------\n");
+
+        // reuse `bucket_size_` as `bucket_head_` for build `key_col_`,
+        // and after build phase, `bucket_size_` will act as `bucket_end_exclusive_`.
         std::memcpy(bucket_size_, bucket_head_, BUCKET_AMOUNT * sizeof(uint32_t));
         int32_t* bucket_head = bucket_size_;
 
@@ -246,8 +258,9 @@ namespace DB::ap {
         for(uint32_t i = 0; i < N; i++, ++it) {
             const int32_t key = it->getINT(left_);
             const uint32_t bucket_no = hash2bucket(key);
-            key_col_[bucket_head[bucket_no]] = key;
-            key2rowid_[bucket_head[bucket_no]] = i;
+            const uint32_t key_pos = bucket_head[bucket_no];
+            key_col_[key_pos] = key;
+            keypos2rowid_[key_pos] = i;
             bucket_head[bucket_no]++;
         }
 
@@ -271,8 +284,8 @@ namespace DB::ap {
                          "----------------- hash bucket histogram begin -----------------\n");
         for(int32_t i = 0; i < BUCKET_AMOUNT; i++) {
             debug::DEBUG_LOG(debug::AP_EXEC_HISTOGRAM,
-                             "bucket_head_[%d] = %d\n",
-                             i, bucket_head_[i]);
+                             "bucket_head_[%d] = %d\t\tbucket_end_exclusive_[%d] = %d\n",
+                             i, bucket_head_[i], i, bucket_size_[i]);
         }
         debug::DEBUG_LOG(debug::AP_EXEC_HISTOGRAM,
                          "----------------- hash bucket histogram end -----------------\n");
@@ -282,7 +295,7 @@ namespace DB::ap {
         debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET, "key\t\tnext\n");
         for(int32_t i = 0; i < N + 1; i++) {
             debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET,
-                             "key_col_[%d] = %d\t\t next_[%d] = %d\n",
+                             "key_col_[%d] = %d\t\tnext_[%d] = %d\n",
                              i, key_col_[i], i, next_[i]);
         }
         debug::DEBUG_LOG(debug::AP_EXEC_HASH_BUCKET,
@@ -297,6 +310,13 @@ namespace DB::ap {
     }
 
 
+    VECTOR_INT hash_table_t::get_end_inclusive(VECTOR_INT bucket_no) const {
+        int32_t* bucket_end_exclusive_ = bucket_size_;
+        VECTOR_INT end_exclusive = simd_gatheri32(bucket_end_exclusive_, bucket_no);
+        return end_exclusive - simd_int2bool(end_exclusive);
+    }
+
+
     join_result_buf_t hash_table_t::probe(const block_tuple_t& block) const {
         // wait if build is not completed
         if(unlikely(!build_completed_)) {
@@ -305,12 +325,17 @@ namespace DB::ap {
         }
 
         join_result_buf_t result;
+
         const VECTOR_INT probe_keys = block.getINT(right_);
         debug::debug_VECTOR_INT(debug::AP_EXEC_PROBE_KEYS, probe_keys, "probe keys");
 
         // pos: probe[i] might be equal to build[pos[i]]
-        VECTOR_INT pos = gatheri32(bucket_head_, hash2bucket(probe_keys));
+        const VECTOR_INT bucket_no = hash2bucket(probe_keys);
+        VECTOR_INT pos = simd_gatheri32(bucket_head_, bucket_no);
         debug::debug_VECTOR_INT(debug::AP_EXEC_POS, pos, "pos");
+
+        const VECTOR_INT end_inclusive = get_end_inclusive(bucket_no);
+        debug::debug_VECTOR_INT(debug::AP_EXEC_END_INCLUSIVE, end_inclusive, "end_inclusive");
 
         // maybe_match (0-1 mask vector):
         //      maybe_match[i] == 1(0) <=> probe[i] should(not) be checked
@@ -325,7 +350,7 @@ namespace DB::ap {
             // prepare build_keys from key_col,
             // lucky_key is stuffed into the position where key does not match.
             build_keys =
-                mask_gatheri32(build_keys, key_col_, pos, zero_one_mask_2_vector_mask(maybe_match));
+                simd_mask_gatheri32(build_keys, key_col_, pos, zero_one_mask_2_vector_mask(maybe_match));
             debug::DEBUG_LOG(debug::AP_EXEC_BUILD_KEYS, "try to match ");
             debug::debug_VECTOR_INT(debug::AP_EXEC_BUILD_KEYS, build_keys, "build keys");
 
@@ -341,7 +366,7 @@ namespace DB::ap {
             for(uint32_t i = 0; i < VECTOR_SIZE; i++) {
                 // build_keys[pos[i]] == probe_keys[i]
                 if(check[i]) {
-                    const uint32_t rowid = key2rowid_[pos[i]];
+                    const uint32_t rowid = keypos2rowid_[pos[i]];
                     result.rows_.push_back(splice(row_buf_[rowid], block.rows_[i], left_len_, right_len_));
                     debug::DEBUG_LOG(debug::AP_EXEC_JOIN_RESULT,
                                      "join on key = %d\n",
@@ -355,8 +380,8 @@ namespace DB::ap {
             }
 
             // checkout whether pos can go next
-            maybe_match =
-                mask_gatheri32(maybe_match, next_, pos, zero_one_mask_2_vector_mask(maybe_match));
+            maybe_match = maybe_match & (pos != end_inclusive);
+                // simd_mask_gatheri32(maybe_match, next_, pos, zero_one_mask_2_vector_mask(maybe_match));
             debug::debug_VECTOR_INT(debug::AP_EXEC_MAYBE_MATCH, maybe_match, "maybe_match");
 
             // no need to process, return
