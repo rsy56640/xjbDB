@@ -34,9 +34,17 @@ SELECT $ FROM Class, Teacher
 WHERE Class.tid == Teacher.tid
 AND Teacher.name == "Bob";
 
+SELECT $ FROM Class, Teacher
+WHERE Class.tid == Teacher.tid
+AND Teacher.name == "Davies";
+
 SELECT $ FROM Course, Score
 WHERE Course.cid == Score.cid
 AND Course.subject == "History";
+
+SELECT $ FROM Course, Score
+WHERE Course.cid == Score.cid
+AND Course.subject == "Music";
 
 SELECT $ FROM Class, Teacher, Student
 WHERE Class.tid == Teacher.tid

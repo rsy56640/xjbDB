@@ -34,13 +34,9 @@ namespace DB::ap {
     static VECTOR_BOOL FALSE_VEC = { 0x0 };
 
 
-    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_srli_epi32(_mm256_cmpeq_epi32(vec1.vec_, vec2.vec_), 31) }; }
-    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec, int32_t value) { return simd_compare_eq(vec, get_vec(value)); }
-    inline VECTOR_INT simd_compare_eq(int32_t value, VECTOR_INT vec) { return simd_compare_eq(get_vec(value), vec); }
-
-
     // SIMD arithmetic
     inline VECTOR_INT srl(VECTOR_INT vec) { return { _mm256_srli_epi32(vec.vec_, 1) }; }
+    inline VECTOR_INT simd_mod256(VECTOR_INT vec) { return { _mm256_srli_epi32(_mm256_slli_epi32(vec.vec_, 24), 24) }; }
 
     inline VECTOR_INT operator+(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_add_epi32(vec1.vec_, vec2.vec_) }; }
     inline VECTOR_INT operator+(VECTOR_INT vec, int32_t value) { return vec + get_vec(value); }
@@ -67,6 +63,13 @@ namespace DB::ap {
     inline VECTOR_INT operator!(VECTOR_INT vec) { return ONE_VEC - vec; }
     inline VECTOR_INT operator~(VECTOR_INT vec) { return { _mm256_andnot_si256(vec.vec_, MIN_VEC.vec_) }; }
     inline VECTOR_INT simd_not1and2(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_andnot_si256(vec1.vec_, vec2.vec_) }; }
+
+    // return 0-1 mask
+    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_srli_epi32(_mm256_cmpeq_epi32(vec1.vec_, vec2.vec_), 31) }; }
+    inline VECTOR_INT simd_compare_eq(VECTOR_INT vec, int32_t value) { return simd_compare_eq(vec, get_vec(value)); }
+    inline VECTOR_INT simd_compare_eq(int32_t value, VECTOR_INT vec) { return simd_compare_eq(get_vec(value), vec); }
+    // simd == with 0-1 mask, return 0-1 mask
+    inline VECTOR_INT simd_compare_eq_mask(VECTOR_INT vec1, VECTOR_INT vec2, VECTOR_INT mask) { return mask & VECTOR_INT{ _mm256_srli_epi32(_mm256_cmpeq_epi32(vec1.vec_, vec2.vec_), 31) }; }
 
     inline VECTOR_INT simd_int2bool(VECTOR_INT vec) {
         VECTOR_INT VEC_OVERFLOW = simd_compare_eq(vec, MIN_VEC);
