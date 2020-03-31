@@ -110,7 +110,7 @@ namespace DB::ap {
     inline VECTOR_BOOL operator>=(int32_t value, VECTOR_INT vec) { return get_vec(value) >= vec; }
 */
 
-    inline VECTOR_INT operator==(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_cmpeq_epi32(vec1.vec_, vec2.vec_) }; }
+    inline VECTOR_INT operator==(VECTOR_INT vec1, VECTOR_INT vec2) { return { _mm256_srli_epi32(_mm256_cmpeq_epi32(vec1.vec_, vec2.vec_), 31) }; }
     inline VECTOR_INT operator==(VECTOR_INT vec, int32_t value) { return vec == get_vec(value); }
     inline VECTOR_INT operator==(int32_t value, VECTOR_INT vec) { return get_vec(value) == vec; }
 

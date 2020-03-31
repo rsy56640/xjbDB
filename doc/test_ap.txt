@@ -34,6 +34,10 @@ SELECT $ FROM Class, Teacher
 WHERE Class.tid == Teacher.tid
 AND Teacher.name == "Bob";
 
+SELECT $ FROM Teacher, Class
+WHERE Teacher.tid == Class.tid
+AND Teacher.name == "Bob";
+
 SELECT $ FROM Class, Teacher
 WHERE Class.tid == Teacher.tid
 AND Teacher.name == "Davies";
