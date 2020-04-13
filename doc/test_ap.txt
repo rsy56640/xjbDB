@@ -30,34 +30,73 @@ INSERT Class(tid, sid) VALUES(1, 777);
 
 SWITCH;
 
+// simple where for big talbe
+// TP
+SELECT $ FROM F
+WHERE value > 60;
+
+SELECT $ FROM F
+WHERE value*1000 + id > 100000;
+
+SELECT $ FROM F
+WHERE value*value*6 + id > 60000
+AND value*id + value * 1888 < 2500000;
+
+// AP
+SELECT $ FROM F
+WHERE F.value > 60;
+
+SELECT $ FROM F
+WHERE F.value*1000 + F.id > 100000;
+
+SELECT $ FROM F
+WHERE F.value*F.value*6 + F.id > 60000
+AND F.value*F.id + F.value*1888 < 2500000;
+
+//
+SELECT $ FROM A, B
+WHERE A.value == B.value;
+
+SELECT $ FROM A, B
+WHERE A.value == B.value
+AND B.id > 7
+AND A.value*7 + B.id*15 - B.value > 233;
+
+SELECT $ FROM D, E
+WHERE D.value == E.value;
+
+SELECT $ FROM D, E
+WHERE D.value == E.value
+AND E.value > 40
+AND D.id*E.value*3 - D.id*D.value > 9999;
+
+SELECT $ FROM A, B, C
+WHERE A.value == B.value
+AND B.value == C.value;
+
+SELECT $ FROM A, B, C, D
+WHERE A.value == B.value
+AND B.value == C.value
+AND A.value == D.value;
+
 SELECT $ FROM Class, Teacher
 WHERE Class.tid == Teacher.tid
 AND Teacher.name == "Bob";
 
-SELECT $ FROM Teacher, Class
+SELECT $ FROM Teacher, Class, Student
 WHERE Teacher.tid == Class.tid
-AND Teacher.name == "Bob";
-
-SELECT $ FROM Class, Teacher
-WHERE Class.tid == Teacher.tid
+AND Class.sid == Student.sid
 AND Teacher.name == "Davies";
 
-SELECT $ FROM Course, Score
-WHERE Course.cid == Score.cid
+SELECT $ FROM Teacher, Course, Score
+WHERE Teacher.tid == Course.tid
+AND Course.cid == Score.cid
+AND Teacher.name == "Davies"
 AND Course.subject == "History";
-
-SELECT $ FROM Course, Score
-WHERE Course.cid == Score.cid
-AND Course.subject == "Music";
 
 SELECT $ FROM Class, Teacher, Student
 WHERE Class.tid == Teacher.tid
 AND Student.sid == Class.sid
-AND Teacher.name == "Bob";
-
-SELECT $ FROM Class, Teacher, Student
-WHERE Student.sid == Class.sid
-AND Class.tid == Teacher.tid
 AND Teacher.name == "Bob";
 
 

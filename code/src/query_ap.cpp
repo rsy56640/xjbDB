@@ -19,12 +19,12 @@ namespace DB::query {
         auto begin = std::chrono::system_clock::now();
         auto emit = generateAst(tables, conditions);
         auto end = std::chrono::system_clock::now();
-        print_timing("generate ast", begin, end);
+        print_timing(begin, end, "generate ast");
 
         begin = std::chrono::system_clock::now();
         auto code = ast::generateCode(emit);
         end = std::chrono::system_clock::now();
-        print_timing("generate code", begin, end);
+        print_timing(begin, end, "generate code");
 
         set_schema(emit->_map);
 
@@ -58,7 +58,7 @@ namespace DB::query {
         auto begin = std::chrono::system_clock::now();
         system(compile.c_str());
         auto end = std::chrono::system_clock::now();
-        print_timing("compile", begin, end);
+        print_timing(begin, end, "compile");
     }
 
     void APSelectInfo::load()
@@ -77,7 +77,7 @@ namespace DB::query {
             printf("[dlerror] dlsym: %s\n", error);
         }
         auto end = std::chrono::system_clock::now();
-        print_timing("dynamic load", begin, end);
+        print_timing(begin, end, "dynamic load");
         debug::DEBUG_LOG(debug::AP_DYNAMIC_LOAD,
                          ">>> [load] query function pointer: %p\n", _query_);
     }
@@ -92,7 +92,7 @@ namespace DB::query {
             printf("[dlerror] dlclose: %s\n", error);
         }
         auto end = std::chrono::system_clock::now();
-        print_timing("close", begin, end);
+        print_timing(begin, end, "close");
     }
 
 
@@ -103,7 +103,7 @@ namespace DB::query {
         auto begin = std::chrono::system_clock::now();
         ap::VMEmitOp emit = _query_(tables, vm);
         auto end = std::chrono::system_clock::now();
-        print_timing("AP query", begin, end);
+        print_timing(begin, end, "AP query");
         return emit;
     }
 

@@ -565,7 +565,7 @@ namespace DB::vm
         VirtualTable result_table = info.opRoot->getOutput();
         result_table.waitAll();
         auto end = std::chrono::system_clock::now();
-        print_timing("TP query", begin, end);
+        print_timing(begin, end, "TP query");
 
         // print VirtualTable
         std::shared_ptr<const table::TableInfo> tableInfo = result_table.table_view_.table_info_;
@@ -1025,6 +1025,7 @@ namespace DB::vm
     }
 
     void VM::doScanTable(VirtualTable ret, const std::string tableName) {
+        auto time_begin = std::chrono::system_clock::now();
         using namespace tree;
         auto table = table_meta_.find(tableName);
         if (table == table_meta_.end()) {
@@ -1041,6 +1042,8 @@ namespace DB::vm
         }
         bt->range_query_end_unlock();
         ret.addEOF();
+        auto time_end = std::chrono::system_clock::now();
+        print_timing(time_begin, time_end, "scan %s", tableName.c_str());
     }
 
 
@@ -1114,6 +1117,8 @@ namespace DB::vm
     }
 
     void VM::doJoin(VirtualTable ret, VirtualTable t1, VirtualTable t2, bool pk, uint32_t table2_col_start, uint32_t vEntry_offset) {
+        auto time_begin = std::chrono::system_clock::now();
+
         // splice 2 row into 1 row
         auto tableInfo = ret.table_view_.table_info_;
         const uint32_t col_size = tableInfo->colNames_.size();
@@ -1194,6 +1199,11 @@ namespace DB::vm
             }
             ret.addEOF();
         }
+
+        auto time_end = std::chrono::system_clock::now();
+        print_timing(time_begin, time_end, "join %s and %s",
+                     t1.table_view_.table_info_->tableName_.c_str(),
+                     t2.table_view_.table_info_->tableName_.c_str());
     }
 
 
@@ -1227,6 +1237,7 @@ namespace DB::vm
     }
 
     void VM::doProjection(VirtualTable ret, VirtualTable t, const std::vector<page::range_t> origin_ranges) {
+        auto time_begin = std::chrono::system_clock::now();
         auto table_info_ = ret.table_view_.table_info_;
         row_view rv = t.getRow();
         const uint32_t col_size = table_info_->columnInfos_.size();
@@ -1243,6 +1254,8 @@ namespace DB::vm
             rv = t.getRow();
         }
         ret.addEOF();
+        auto time_end = std::chrono::system_clock::now();
+        print_timing(time_begin, time_end, "project %s", t.table_view_.table_info_->tableName_.c_str());
     }
 
 
@@ -1255,6 +1268,7 @@ namespace DB::vm
     }
 
     void VM::doSigma(VirtualTable ret, VirtualTable t, std::shared_ptr<ast::BaseExpr> whereExpr) {
+        auto time_begin = std::chrono::system_clock::now();
         row_view rv = t.getRow();
         while (!rv.isEOF()) {
             if (ast::vmVisit(whereExpr, rv)) {
@@ -1263,6 +1277,8 @@ namespace DB::vm
             rv = t.getRow();
         }
         ret.addEOF();
+        auto time_end = std::chrono::system_clock::now();
+        print_timing(time_begin, time_end, "sigma %s", t.table_view_.table_info_->tableName_.c_str());
     }
 
 
