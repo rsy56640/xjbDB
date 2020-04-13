@@ -156,6 +156,8 @@ static void create_simple_big_table(vm::VM& vm) {
     vm.add_sql("CREATE TABLE B(id INT PK, value INT)");
     vm.add_sql("CREATE TABLE C(id INT PK, value INT)");
     vm.add_sql("CREATE TABLE D(id INT PK, value INT)");
+    vm.add_sql("CREATE TABLE E(id INT PK, value INT)");
+    vm.add_sql("CREATE TABLE F(id INT PK, value INT)");
 
     auto insert = [&vm](char table, int id, int value) {
         static char insert_base[64] = "INSERT A(id, value) VALUES(";
@@ -164,14 +166,18 @@ static void create_simple_big_table(vm::VM& vm) {
         vm.add_sql(std::string(insert_base));
     };
 
-    for(int i = 0; i < 1024; i++)
+    for(int i = 0; i < 55; i++)
         insert('A', i, get_normal_score());
-    for(int i = 0; i < 4096; i++)
+    for(int i = 0; i < 123; i++)
         insert('B', i, get_normal_score());
-    for(int i = 0; i < 2333; i++)
+    for(int i = 0; i < 828; i++)
         insert('C', i, get_normal_score());
-    for(int i = 0; i < 8888; i++)
+    for(int i = 0; i < 1024; i++)
         insert('D', i, get_normal_score());
+    for(int i = 0; i < 2333; i++)
+        insert('E', i, get_normal_score());
+    for(int i = 0; i < 99999; i++)
+        insert('F', i, get_normal_score());
 }
 
 
